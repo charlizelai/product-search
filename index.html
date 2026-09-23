@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="產品查詢">
+<title>產品圖片查詢</title>
+<style>
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang HK", "Microsoft JhengHei", sans-serif;
+  background: #f5f5f7; color: #1d1d1f;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  min-height: 100vh;
+}
+header {
+  position: sticky; top: 0;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid #e5e5e7;
+  z-index: 100;
+}
+h1 { margin: 0 0 10px; font-size: 17px; font-weight: 600; text-align: center; }
+.search-box { position: relative; }
+.search-box input {
+  width: 100%; padding: 12px 40px;
+  font-size: 16px; border: 1px solid #d2d2d7;
+  border-radius: 12px; background: #fff;
+  outline: none; -webkit-appearance: none;
+}
+.search-box input:focus {
+  border-color: #0071e3;
+  box-shadow: 0 0 0 3px rgba(0,113,227,0.15);
+}
+.search-icon {
+  position: absolute; left: 12px; top: 50%;
+  transform: translateY(-50%);
+  width: 18px; height: 18px; fill: #86868b;
+}
+.clear-btn {
+  position: absolute; right: 8px; top: 50%;
+  transform: translateY(-50%);
+  width: 28px; height: 28px;
+  border: none; background: #e5e5e7;
+  border-radius: 50%; font-size: 14px;
+  color: #86868b; cursor: pointer; display: none;
+}
+.clear-btn.show { display: block; }
+.stats { font-size: 12px; color: #86868b; text-align: center; margin-top: 6px; }
+.list { padding: 8px; }
+.card {
+  display: flex; background: #fff;
+  border-radius: 12px; padding: 10px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  gap: 12px; align-items: center;
+}
+.card img {
+  width: 80px; height: 80px;
+  object-fit: contain; border-radius: 8px;
+  background: #f5f5f7; flex-shrink: 0;
+  cursor: pointer;
+}
+.info { flex: 1; min-width: 0; }
+.name-zh {
+  font-size: 14px; font-weight: 600;
+  line-height: 1.3; margin-bottom: 4px;
+  overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.name {
+  font-size: 12px; color: #6e6e73;
+  margin-bottom: 6px;
+  overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.price { font-size: 15px; font-weight: 700; color: #ff3b30; }
+.id { font-family: ui-monospace, monospace; font-size: 11px; color: #86868b; }
+.empty { text-align: center; padding: 60px 20px; color: #86868b; }
+.loading { text-align: center; padding: 60px 20px; color: #86868b; }
+.spinner {
+  width: 32px; height: 32px;
+  border: 3px solid #e5e5e7; border-top-color: #0071e3;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 12px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.modal {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.92); z-index: 1000;
+  align-items: center; justify-content: center; padding: 20px;
+}
+.modal.show { display: flex; }
+.modal img { max-width: 100%; max-height: 85vh; object-fit: contain; }
+.modal-close {
+  position: absolute; top: calc(20px + env(safe-area-inset-top)); right: 20px;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(255,255,255,0.2); border: none;
+  color: #fff; font-size: 20px; cursor: pointer;
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>📦 產品圖片查詢</h1>
+  <div class="search-box">
+    <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
+    <input id="q" type="search" placeholder="搜尋 ID / 條碼 / 名稱 / 中文名..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <button class="clear-btn" id="clear">✕</button>
+  </div>
+  <div class="stats" id="stats">載入中...</div>
+</header>
+
+<div class="list" id="list">
+  <div class="loading">
+    <div class="spinner"></div>
+    <div>正在載入產品資料...</div>
+  </div>
+</div>
+
+<div class="modal" id="modal">
+  <button class="modal-close" id="close">✕</button>
+  <img id="modal-img" src="" alt="">
+</div>
+
+<script>
+// ============ 配置（已填好你的 SHEET_ID）============
+const SHEET_ID = '1U3zVg2ljge-xxDHvAIRXX8KoDoPZBZq4ZRvH9GBWCww';
+const SHEET_NAME = 'Sheet1';
+// ==================================================
+
+let allData = [];
+const $q = document.getElementById('q');
+const $list = document.getElementById('list');
+const $stats = document.getElementById('stats');
+const $clear = document.getElementById('clear');
+const $modal = document.getElementById('modal');
+const $modalImg = document.getElementById('modal-img');
+const $close = document.getElementById('close');
+
+async function loadData() {
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+    const res = await fetch(url);
+    const text = await res.text();
+    const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
+    const rows = json.table.rows;
+
+    allData = rows.map(r => {
+      const get = (i) => (r.c && r.c[i] && r.c[i].v != null) ? String(r.c[i].v).trim() : '';
+      return {
+        id: get(0), barcode: get(1), name: get(2), name_zh: get(3),
+        price: get(4), original_price: get(5), image: get(6),
+        category_en: get(7), category_zh: get(8), description: get(9),
+        _search: (get(0)+' '+get(1)+' '+get(2)+' '+get(3)+' '+get(7)+' '+get(8)).toLowerCase()
+      };
+    }).filter(d => d.id || d.name);
+
+    render();
+  } catch (e) {
+    $stats.textContent = '載入失敗';
+    $list.innerHTML = `<div class="empty">❌ 載入失敗<br><br><span style="font-size:13px">${e.message}<br><br>請檢查：<br>1. Sheet 已「知道連結的任何人可檢視」<br>2. 網路正常</span></div>`;
+  }
+}
+
+function render() {
+  const term = $q.value.trim().toLowerCase();
+  const filtered = term ? allData.filter(d => d._search.includes(term)) : allData;
+
+  $stats.textContent = term
+    ? `找到 ${filtered.length} / ${allData.length} 項`
+    : `共 ${allData.length} 項產品`;
+
+  $clear.classList.toggle('show', !!term);
+
+  if (filtered.length === 0) {
+    $list.innerHTML = `<div class="empty">🔍 找不到符合的產品<br><span style="font-size:13px;margin-top:8px;display:block">試試其他關鍵字或條碼</span></div>`;
+    return;
+  }
+
+  const MAX = 200;
+  const toShow = filtered.slice(0, MAX);
+  const noImg = 'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22><rect width=%2280%22 height=%2280%22 fill=%22%23f5f5f7%22/><text x=%2240%22 y=%2246%22 text-anchor=%22middle%22 fill=%22%23c7c7cc%22 font-size=%2212%22>無圖</text></svg>';
+
+  $list.innerHTML = toShow.map(d => {
+    const img = d.image ? escapeAttr(d.image) : noImg;
+    return `
+      <div class="card">
+        <img src="${img}" loading="lazy" referrerpolicy="no-referrer" onclick="showImg('${escapeAttr(d.image)}')" onerror="this.onerror=null;this.src='${noImg}'">
+        <div class="info">
+          <div class="name-zh">${escapeHtml(d.name_zh || d.name)}</div>
+          <div class="name">${escapeHtml(d.name)}</div>
+          <div class="meta">
+            <span class="price">$${escapeHtml(d.price)}</span>
+            <span class="id">${escapeHtml(d.id)}</span>
+          </div>
+        </div>
+      </div>`;
+  }).join('') + (filtered.length > MAX
+    ? `<div class="empty" style="padding:20px;font-size:13px">還有 ${filtered.length - MAX} 項未顯示，請輸入更精確的關鍵字</div>`
+    : '');
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function escapeAttr(s) { return escapeHtml(s); }
+
+function showImg(url) {
+  if (!url) return;
+  $modalImg.src = url;
+  $modal.classList.add('show');
+}
+$close.onclick = () => { $modal.classList.remove('show'); $modalImg.src = ''; };
+$modal.onclick = (e) => { if (e.target === $modal) $close.onclick(); };
+
+let timer;
+$q.addEventListener('input', () => {
+  clearTimeout(timer);
+  timer = setTimeout(render, 150);
+});
+$clear.onclick = () => { $q.value = ''; render(); $q.focus(); };
+
+loadData();
+</script>
+</body>
+</html>
