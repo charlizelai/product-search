@@ -184,6 +184,47 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .field textarea { min-height: 90px; resize: vertical; }
 .field input:disabled { background: #f5f5f7; color: #86868b; }
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* 下拉選單 */
+.field-select {
+  width: 100%; padding: 14px 40px 14px 14px;
+  font-size: 19px; border: 2px solid #d2d2d7; border-radius: 12px;
+  font-family: inherit; -webkit-appearance: none;
+  background: #fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path fill='%2386868b' d='M6 9L1 4h10z'/></svg>") no-repeat right 14px center;
+  background-size: 12px;
+}
+.field-select:focus {
+  border-color: #0071e3; outline: none;
+  box-shadow: 0 0 0 3px rgba(0,113,227,.15);
+}
+
+/* 複選框 */
+.checkbox-group {
+  display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0;
+}
+.checkbox-item {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 10px 14px; background: #f5f5f7;
+  border: 2px solid #e5e5e7; border-radius: 10px;
+  font-size: 16px; cursor: pointer; user-select: none;
+  transition: all .15s;
+}
+.checkbox-item:active { transform: scale(0.97); }
+.checkbox-item.checked {
+  background: #e8f0fe; border-color: #0071e3;
+  color: #1a73e8; font-weight: 600;
+}
+.checkbox-item input { display: none; }
+.checkbox-item .check-mark {
+  width: 18px; height: 18px;
+  border: 2px solid #d2d2d7; border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  background: #fff; font-size: 12px; color: transparent;
+}
+.checkbox-item.checked .check-mark {
+  background: #0071e3; border-color: #0071e3; color: #fff;
+}
+
 .upload-btn {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 14px 20px; border-radius: 12px;
@@ -326,7 +367,12 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     </div>
 
     <div class="row-2">
-      <div class="field"><label>分類（英）</label><input id="f_category_en" autocomplete="off"></div>
+      <div class="field">
+        <label>分類（英）</label>
+        <select id="f_category_en" class="field-select">
+          <option value="">— 請選擇 —</option>
+        </select>
+      </div>
       <div class="field"><label>分類（中）</label><input id="f_category_zh" autocomplete="off"></div>
     </div>
     <div class="field"><label>描述</label><textarea id="f_description"></textarea></div>
@@ -334,19 +380,58 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     <div class="section-title">📦 倉庫位置 (L ~ S)</div>
 
     <div class="row-2">
-      <div class="field"><label>暫存位置 (L)</label><input id="f_temp_location" autocomplete="off"></div>
-      <div class="field"><label>併板 (M)</label><input id="f_combine" autocomplete="off"></div>
+      <div class="field">
+        <label>暫存位置 (L)</label>
+        <input id="f_temp_location" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>併板 (M) — 可多選</label>
+        <div id="f_combine_group" class="checkbox-group">
+          <div style="color:#86868b;font-size:14px;">載入中...</div>
+        </div>
+        <input id="f_combine" type="hidden">
+      </div>
     </div>
-    <div class="field"><label>倉 (N)</label><input id="f_warehouse" autocomplete="off"></div>
+
+    <div class="field">
+      <label>倉 (N)</label>
+      <select id="f_warehouse" class="field-select">
+        <option value="">— 請選擇 —</option>
+      </select>
+    </div>
+
     <div class="row-2">
-      <div class="field"><label>地堆 (O)</label><input id="f_island" autocomplete="off"></div>
-      <div class="field"><label>直道 (P)</label><input id="f_aisle" autocomplete="off"></div>
+      <div class="field">
+        <label>地堆 (O)</label>
+        <input id="f_island" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>直道 (P)</label>
+        <select id="f_aisle" class="field-select">
+          <option value="">— 請選擇 —</option>
+        </select>
+      </div>
     </div>
+
     <div class="row-2">
-      <div class="field"><label>橫巷 (Q)</label><input id="f_crosslane" autocomplete="off"></div>
-      <div class="field"><label>架號 (R)</label><input id="f_shelfnumber" autocomplete="off"></div>
+      <div class="field">
+        <label>橫巷 (Q)</label>
+        <select id="f_crosslane" class="field-select">
+          <option value="">— 請選擇 —</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>架號 (R)</label>
+        <input id="f_shelfnumber" autocomplete="off">
+      </div>
     </div>
-    <div class="field"><label>層 (S)</label><input id="f_floor" autocomplete="off"></div>
+
+    <div class="field">
+      <label>層 (S)</label>
+      <select id="f_floor" class="field-select">
+        <option value="">— 請選擇 —</option>
+      </select>
+    </div>
 
     <div class="section-title">🕐 系統資訊 (T ~ U)</div>
     <div class="field">
@@ -395,7 +480,6 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 const API_URL = 'https://script.google.com/macros/s/AKfycby6NrRUYbt9wnEBhx2pSdC3mtbcdVFZWhtqxYX9gvcV0xVOa-ww5_rm-iQovJwB8dqUmQ/exec';
 const CDN_URL = 'https://raw.githubusercontent.com/charlizelai/product-search/main/data/products.json';
 
-// ★★★ 管理員密碼（只有用這個密碼登入才會看到「建立指紋庫」按鈕）★★★
 const ADMIN_TOKEN = 'charlize-admin-2026';
 
 const LOCAL_CACHE_KEY = 'products_v2';
@@ -414,9 +498,16 @@ let html5QrCode = null;
 let isScanning = false;
 let torchOn = false;
 let searchMode = 'text';
-let scanMode = 'none';  // 'none' | 'search' | 'edit'
+let scanMode = 'none';
 let _bgRefreshing = false;
 let _lastVersion = 0;
+
+// 選項
+let OPTIONS = {
+  warehouse: [], aisle: [], crosslane: [], floor: [],
+  combine: [], category_en: []
+};
+let optionsLoaded = false;
 
 const $ = id => document.getElementById(id);
 const FIELDS = ['id','barcode','name','name_zh','price','original_price','image','category_en','category_zh','description',
@@ -452,6 +543,7 @@ function login() {
 function showApp() {
   $('loginScreen').style.display = 'none';
   $('appScreen').style.display = 'block';
+  loadOptions();
   loadData();
 }
 
@@ -471,6 +563,92 @@ async function apiPost(body) {
     body: JSON.stringify({...body, token: TOKEN})
   });
   return res.json();
+}
+
+
+// ============================================================
+// 選項管理
+// ============================================================
+async function loadOptions() {
+  if (optionsLoaded) return;
+  try {
+    const result = await apiGet('options');
+    if (result.error) { console.warn('載入選項失敗：', result.error); return; }
+    OPTIONS = result;
+    optionsLoaded = true;
+    populateSelects();
+    renderCombineCheckboxes();
+  } catch (e) {
+    console.warn('載入選項失敗：', e);
+  }
+}
+
+function populateSelects() {
+  fillSelect('f_warehouse', OPTIONS.warehouse);
+  fillSelect('f_aisle', OPTIONS.aisle);
+  fillSelect('f_crosslane', OPTIONS.crosslane);
+  fillSelect('f_floor', OPTIONS.floor);
+  fillSelect('f_category_en', OPTIONS.category_en);
+}
+
+function fillSelect(id, list) {
+  const sel = $(id);
+  if (!sel) return;
+  const currentValue = sel.value;
+  sel.innerHTML = '<option value="">— 請選擇 —</option>';
+  if (!list || !list.length) return;
+  list.forEach(opt => {
+    const option = document.createElement('option');
+    option.value = opt.value;
+    option.textContent = opt.label || opt.value;
+    sel.appendChild(option);
+  });
+  if (currentValue) sel.value = currentValue;
+}
+
+function renderCombineCheckboxes() {
+  const container = $('f_combine_group');
+  if (!container) return;
+  if (!OPTIONS.combine || !OPTIONS.combine.length) {
+    container.innerHTML = '<div style="color:#86868b;font-size:14px;">無選項</div>';
+    return;
+  }
+  const currentValue = $('f_combine').value || '';
+  const selected = currentValue.split(',').map(s => s.trim()).filter(s => s);
+  container.innerHTML = OPTIONS.combine.map(opt => `
+    <label class="checkbox-item${selected.includes(opt.value) ? ' checked' : ''}" data-value="${escAttr(opt.value)}">
+      <span class="check-mark">✓</span>
+      <input type="checkbox" value="${escAttr(opt.value)}" ${selected.includes(opt.value) ? 'checked' : ''}>
+      <span>${esc(opt.label)}</span>
+    </label>
+  `).join('');
+
+  container.querySelectorAll('.checkbox-item').forEach(item => {
+    item.onclick = (e) => {
+      e.preventDefault();
+      const cb = item.querySelector('input[type="checkbox"]');
+      cb.checked = !cb.checked;
+      item.classList.toggle('checked', cb.checked);
+      updateCombineValue();
+    };
+  });
+}
+
+function updateCombineValue() {
+  const container = $('f_combine_group');
+  if (!container) return;
+  const checked = [];
+  container.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
+    checked.push(cb.value);
+  });
+  $('f_combine').value = checked.join(',');
+}
+
+function setCombineValue(value) {
+  $('f_combine').value = value || '';
+  if ($('f_combine_group').querySelector('.checkbox-item')) {
+    renderCombineCheckboxes();
+  }
 }
 
 
@@ -573,9 +751,7 @@ function saveLocalCache(data) {
       }));
       localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(lite));
       localStorage.setItem(LOCAL_CACHE_TIME_KEY, String(Date.now()));
-    } catch (e2) {
-      console.warn('本地快取寫入失敗：', e2);
-    }
+    } catch (e2) {}
   }
 }
 
@@ -691,7 +867,7 @@ function renderCard(d) {
 
 
 // ============================================================
-// pHash 前端算法
+// pHash
 // ============================================================
 function computePhashFromImage(img) {
   const canvas = document.createElement('canvas');
@@ -701,12 +877,10 @@ function computePhashFromImage(img) {
   ctx.drawImage(img, 0, 0, 32, 32);
   const imageData = ctx.getImageData(0, 0, 32, 32);
   const data = imageData.data;
-
   const gray = new Float32Array(1024);
   for (let i = 0; i < 1024; i++) {
     gray[i] = 0.299 * data[i*4] + 0.587 * data[i*4+1] + 0.114 * data[i*4+2];
   }
-
   const N = 32;
   const cos = [];
   for (let u = 0; u < 8; u++) {
@@ -715,7 +889,6 @@ function computePhashFromImage(img) {
       cos[u][x] = Math.cos(((2 * x + 1) * u * Math.PI) / (2 * N));
     }
   }
-
   const dct = new Float32Array(64);
   let idx = 0;
   for (let u = 0; u < 8; u++) {
@@ -731,15 +904,12 @@ function computePhashFromImage(img) {
       dct[idx++] = 0.25 * cu * cv * sum;
     }
   }
-
   const ac = [];
   for (let i = 1; i < 64; i++) ac.push(dct[i]);
   const sorted = [...ac].sort((a,b) => a-b);
   const median = sorted[Math.floor(sorted.length / 2)];
-
   let binary = '';
   for (let i = 0; i < 64; i++) binary += ac[i] > median ? '1' : '0';
-
   let hex = '';
   for (let i = 0; i < 64; i += 4) {
     hex += parseInt(binary.substr(i, 4), 2).toString(16);
@@ -753,7 +923,7 @@ function computePhashFromUrl(url) {
     img.crossOrigin = 'anonymous';
     img.onload = () => {
       try { resolve(computePhashFromImage(img)); }
-      catch (e) { reject(new Error('無法讀取像素（CORS）')); }
+      catch (e) { reject(new Error('CORS')); }
     };
     img.onerror = () => reject(new Error('圖片載入失敗'));
     img.src = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
@@ -769,31 +939,22 @@ function computePhashFromBlob(blob) {
       try { resolve(computePhashFromImage(img)); }
       catch (e) { reject(e); }
     };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('圖片載入失敗'));
-    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('圖片載入失敗')); };
     img.src = url;
   });
 }
 
 
 // ============================================================
-// pHash 庫（僅管理員可見）
+// pHash 庫
 // ============================================================
 async function checkPhashStatus() {
-  if (!isAdmin) {
-    $('phashBanner').style.display = 'none';
-    return;
-  }
+  if (!isAdmin) { $('phashBanner').style.display = 'none'; return; }
   try {
     const status = await apiGet('phashStatus');
     if (status.error) return;
     const missing = status.missing || [];
-    if (missing.length === 0) {
-      $('phashBanner').style.display = 'none';
-      return;
-    }
+    if (missing.length === 0) { $('phashBanner').style.display = 'none'; return; }
     $('phashBanner').style.display = 'flex';
     $('phashBannerText').textContent = `📸 有 ${missing.length} 張圖片尚未建立指紋`;
   } catch (e) {}
@@ -802,20 +963,13 @@ async function checkPhashStatus() {
 async function buildPhashLibrary() {
   const lock = await apiGet('phashLock');
   if (lock.error) { toast('❌ ' + lock.error); return; }
-  if (!lock.ok) {
-    toast(`⏳ 已有人正在建立，請等 ${lock.remainSec} 秒後再試`, 4000);
-    return;
-  }
+  if (!lock.ok) { toast(`⏳ 已有人正在建立，請等 ${lock.remainSec} 秒後再試`, 4000); return; }
 
   try {
     const status = await apiGet('phashStatus');
     if (status.error) { toast('❌ ' + status.error); return; }
     const missing = status.missing || [];
-    if (missing.length === 0) {
-      toast('✅ 所有圖片已有指紋');
-      $('phashBanner').style.display = 'none';
-      return;
-    }
+    if (missing.length === 0) { toast('✅ 所有圖片已有指紋'); $('phashBanner').style.display = 'none'; return; }
 
     if (!confirm(`將為 ${missing.length} 張圖片建立指紋，可能需要 10-30 分鐘。\n\n過程中請保持頁面開啟。確定開始？`)) return;
 
@@ -833,19 +987,15 @@ async function buildPhashLibrary() {
     for (const id of missing) {
       const p = idMap[String(id)];
       if (!p || !p.image) { failed++; continue; }
-
       try {
         const phash = await computePhashFromUrl(p.image);
         batch.push({ id: p.id, phash });
         done++;
-      } catch (e) {
-        failed++;
-      }
+      } catch (e) { failed++; }
 
       if (batch.length >= 20) {
         try { await apiPost({ action: 'savePhashBatch', items: batch.splice(0) }); } catch (e) {}
       }
-
       const pct = ((done + failed) / total * 100).toFixed(1);
       bar.style.width = pct + '%';
       $('phashBannerText').textContent = `建立中... ${done + failed}/${total}（成功 ${done}，失敗 ${failed}）`;
@@ -854,7 +1004,6 @@ async function buildPhashLibrary() {
     if (batch.length > 0) {
       try { await apiPost({ action: 'savePhashBatch', items: batch }); } catch (e) {}
     }
-
     bar.style.width = '100%';
     toast(`✅ 完成！成功 ${done}，失敗 ${failed}`, 5000);
     $('phashBannerText').textContent = `✅ 完成！成功 ${done}，失敗 ${failed}`;
@@ -882,16 +1031,12 @@ $('imageSearchInput').addEventListener('change', async function(e) {
   try {
     const compressed = await compressImage(file, 400, 0.75);
     const phash = await computePhashFromBlob(compressed);
-
     const result = await apiPost({ action: 'searchByPhash', phash: phash, topN: 15 });
     if (result.error) { toast('❌ ' + result.error, 3000); return; }
-
     const results = result.results || [];
     if (results.length === 0) { toast('😕 找不到相似的產品', 3000); return; }
-
     const filtered = results.filter(r => r._similarity >= 30);
     if (filtered.length === 0) { toast('😕 沒有足夠相似的產品', 3000); return; }
-
     searchMode = 'image';
     showSearchResults(filtered);
   } catch (err) {
@@ -922,6 +1067,16 @@ function openAdd() {
   pendingImage = null;
   $('modalTitle').textContent = '新增產品';
   FIELDS.forEach(k => $('f_' + k).value = '');
+
+  // 重置下拉選單
+  ['f_warehouse', 'f_aisle', 'f_crosslane', 'f_floor', 'f_category_en'].forEach(id => {
+    const el = $(id);
+    if (el) el.value = '';
+  });
+
+  // 重置複選框
+  setCombineValue('');
+
   $('f_last_modified').value = '';
   $('f_last_source').value = '';
   $('f_id').disabled = false;
@@ -937,8 +1092,27 @@ function openEdit(id) {
   editingId = id;
   pendingImage = null;
   $('modalTitle').textContent = '編輯產品';
-  FIELDS.forEach(k => $('f_' + k).value = p[k] || '');
 
+  // 文字欄位
+  const textFields = ['id','barcode','name','name_zh','price','original_price','image',
+                      'category_zh','description','temp_location','island','shelfnumber'];
+  textFields.forEach(k => $('f_' + k).value = p[k] || '');
+
+  // 下拉選單
+  ['warehouse', 'aisle', 'crosslane', 'floor', 'category_en'].forEach(k => {
+    const el = $('f_' + k);
+    if (el) {
+      if (el.options.length <= 1 && OPTIONS[k] && OPTIONS[k].length > 0) {
+        fillSelect('f_' + k, OPTIONS[k]);
+      }
+      el.value = p[k] || '';
+    }
+  });
+
+  // 複選框
+  setCombineValue(p.combine || '');
+
+  // 系統資訊
   let timeStr = '';
   if (p._last_modified) {
     try {
@@ -974,14 +1148,12 @@ function closeModal() {
 $('f_imageFile').addEventListener('change', async function(e) {
   const file = e.target.files[0];
   if (!file) return;
-
   const reader = new FileReader();
   reader.onload = ev => {
     $('f_imagePreview').src = ev.target.result;
     $('f_imagePreview').style.display = 'block';
   };
   reader.readAsDataURL(file);
-
   if (editingId) {
     await uploadImageImmediate(file);
   } else {
@@ -1028,11 +1200,9 @@ async function uploadImageImmediate(file) {
   try {
     toast('📤 上傳中...');
     $('btnSave').disabled = true;
-
     const compressed = await compressImage(file);
     const base64 = await fileToBase64(compressed);
     const localPreview = 'data:image/jpeg;base64,' + base64;
-
     const result = await apiPost({
       action: 'uploadImage',
       productId: editingId,
@@ -1040,9 +1210,7 @@ async function uploadImageImmediate(file) {
       mimeType: 'image/jpeg',
       base64: base64
     });
-
     if (result.error) { toast('❌ ' + result.error, 3000); return; }
-
     const p = allData.find(d => String(d.id) === String(editingId));
     if (p) {
       p.image = result.imageUrl;
@@ -1054,18 +1222,15 @@ async function uploadImageImmediate(file) {
     $('f_imagePreview').src = localPreview;
     $('f_last_modified').value = new Date().toLocaleString('zh-HK');
     $('f_last_source').value = '🔒 使用者手動編輯';
-
     toast('✅ 圖片已上傳');
     clearLocalCache();
     render();
-
     setTimeout(async () => {
       try {
         const phash = await computePhashFromBlob(compressed);
         await apiPost({ action: 'savePhashBatch', items: [{ id: editingId, phash }] });
       } catch (e) {}
     }, 500);
-
     setTimeout(() => loadData(true), 5000);
   } catch (e) {
     toast('❌ ' + e.message, 3000);
@@ -1084,7 +1249,6 @@ async function saveProduct() {
     const result = editingId
       ? await apiPost({ action: 'update', id: editingId, data })
       : await apiPost({ action: 'create', data });
-
     if (result.error) { toast('❌ ' + result.error, 3000); return; }
 
     if (!editingId && pendingImage) {
@@ -1092,7 +1256,6 @@ async function saveProduct() {
       const compressed = await compressImage(pendingImage);
       const base64 = await fileToBase64(compressed);
       const localPreview = 'data:image/jpeg;base64,' + base64;
-
       const imgResult = await apiPost({
         action: 'uploadImage',
         productId: data.id,
@@ -1100,7 +1263,6 @@ async function saveProduct() {
         mimeType: 'image/jpeg',
         base64: base64
       });
-
       if (imgResult.error) {
         toast('⚠️ 產品已存，圖片上傳失敗：' + imgResult.error, 4000);
       } else {
@@ -1115,7 +1277,6 @@ async function saveProduct() {
       }
       pendingImage = null;
     }
-
     toast(editingId ? '✅ 已更新' : '✅ 已新增');
     closeModal();
     clearLocalCache();
@@ -1154,7 +1315,7 @@ async function unlockCurrentProduct() {
 
 
 // ============================================================
-// 條碼掃描（共用）
+// 條碼掃描
 // ============================================================
 const SCAN_FORMATS = [
   Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
@@ -1164,7 +1325,6 @@ const SCAN_FORMATS = [
   Html5QrcodeSupportedFormats.QR_CODE
 ];
 
-// 通用啟動掃描
 async function openScanner(title, mode) {
   if (isScanning) return;
   isScanning = true;
@@ -1179,12 +1339,7 @@ async function openScanner(title, mode) {
       html5QrCode = new Html5Qrcode("reader");
       await html5QrCode.start(
         { facingMode: "environment" },
-        {
-          fps: 10,
-          qrbox: { width: 300, height: 200 },
-          aspectRatio: 1.0,
-          formatsToSupport: SCAN_FORMATS
-        },
+        { fps: 10, qrbox: {width:300,height:200}, aspectRatio: 1.0, formatsToSupport: SCAN_FORMATS },
         onScanSuccess,
         () => {}
       );
@@ -1201,58 +1356,42 @@ async function openScanner(title, mode) {
   }, 300);
 }
 
-// 搜尋欄的掃碼
 $('btnScanSearch').onclick = () => openScanner('🔍 掃碼搜尋', 'search');
 
-// 編輯表單的掃碼
 function startEditScan() {
   openScanner('📷 掃描條碼', 'edit');
 }
 
-// 掃描 Modal 的關閉按鈕（統一處理）
 function onScanCloseClick() {
   closeScan();
 }
 
-// 掃到條碼
 function onScanSuccess(decodedText) {
   if (!isScanning) return;
   if (navigator.vibrate) navigator.vibrate(80);
 
   if (scanMode === 'search') {
-    // 搜尋模式：填入搜尋框並關閉
     $('q').value = decodedText;
     closeScan();
     searchMode = 'text';
     render();
-
-    // 檢查找到
     const term = decodedText.toLowerCase();
     const found = allData.filter(d => 
       String(d.barcode).toLowerCase() === term ||
       String(d.id).toLowerCase() === term
     );
-
     if (found.length > 0) {
-      const p = found[0];
-      toast('✅ 找到：' + (p.name_zh || p.name), 2500);
+      toast('✅ 找到：' + (found[0].name_zh || found[0].name), 2500);
     } else {
       toast('⚠️ 條碼 ' + decodedText + ' 未找到', 3000);
     }
   } else if (scanMode === 'edit') {
-    // 編輯模式：填入 barcode 欄位
     $('f_barcode').value = decodedText;
     toast('✅ 已辨識：' + decodedText, 2000);
-
     const existing = allData.find(d => String(d.barcode) === String(decodedText));
     if (existing) {
       setTimeout(() => {
-        if (confirm(
-          '此條碼已存在：\n\n' +
-          'ID: ' + existing.id + '\n' +
-          '名稱: ' + (existing.name_zh || existing.name) + '\n\n' +
-          '要載入此產品進行編輯嗎？'
-        )) {
+        if (confirm('此條碼已存在：\n\nID: ' + existing.id + '\n名稱: ' + (existing.name_zh || existing.name) + '\n\n要載入此產品進行編輯嗎？')) {
           closeScan();
           setTimeout(() => openEdit(existing.id), 300);
         }
@@ -1263,7 +1402,6 @@ function onScanSuccess(decodedText) {
   }
 }
 
-// 關閉掃描
 async function closeScan() {
   isScanning = false;
   scanMode = 'none';
