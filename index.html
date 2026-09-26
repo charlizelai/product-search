@@ -5,13 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="產品查詢">
-<title>產品圖片查詢</title>
+<meta name="apple-mobile-web-app-title" content="產品管理">
+<title>產品管理</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; padding: 0; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, "PingFang HK", "Microsoft JhengHei", sans-serif;
+  font-size: 18px; line-height: 1.5;
   background: #f5f5f7; color: #1d1d1f;
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
@@ -19,219 +21,1293 @@ body {
 }
 header {
   position: sticky; top: 0;
-  background: rgba(255,255,255,0.92);
+  background: rgba(255,255,255,.96);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
-  padding: 12px 12px 10px;
-  border-bottom: 1px solid #e5e5e7;
+  padding: 16px 14px 14px;
+  border-bottom: 2px solid #e5e5e7;
   z-index: 100;
 }
-h1 { margin: 0 0 10px; font-size: 17px; font-weight: 600; text-align: center; }
+h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .search-box { position: relative; }
 .search-box input {
-  width: 100%; padding: 12px 40px;
-  font-size: 16px; border: 1px solid #d2d2d7;
-  border-radius: 12px; background: #fff;
-  outline: none; -webkit-appearance: none;
+  width: 100%; padding: 16px 144px 16px 48px; font-size: 19px;
+  border: 2px solid #d2d2d7; border-radius: 14px;
+  background: #fff; outline: none; -webkit-appearance: none;
 }
-.search-box input:focus {
-  border-color: #0071e3;
-  box-shadow: 0 0 0 3px rgba(0,113,227,0.15);
-}
+.search-box input:focus { border-color: #0071e3; box-shadow: 0 0 0 4px rgba(0,113,227,.15); }
 .search-icon {
-  position: absolute; left: 12px; top: 50%;
-  transform: translateY(-50%);
-  width: 18px; height: 18px; fill: #86868b;
+  position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+  width: 22px; height: 22px; fill: #86868b;
 }
-.clear-btn {
-  position: absolute; right: 8px; top: 50%;
-  transform: translateY(-50%);
-  width: 28px; height: 28px;
-  border: none; background: #e5e5e7;
-  border-radius: 50%; font-size: 14px;
-  color: #86868b; cursor: pointer; display: none;
+.search-actions {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  display: flex; gap: 4px;
 }
-.clear-btn.show { display: block; }
-.stats { font-size: 12px; color: #86868b; text-align: center; margin-top: 6px; }
-.list { padding: 8px; }
+.icon-btn {
+  width: 40px; height: 40px; border-radius: 10px;
+  border: none; cursor: pointer; font-size: 20px;
+  display: flex; align-items: center; justify-content: center;
+  background: #e8f0fe; color: #1a73e8;
+}
+.icon-btn:active { background: #d2e3fc; }
+.stats { font-size: 15px; color: #6e6e73; text-align: center; margin-top: 10px; }
+
+.phash-banner {
+  margin: 10px 12px 0; padding: 12px 14px;
+  background: #fff3cd; border-radius: 12px;
+  font-size: 14px; color: #856404;
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  flex-wrap: wrap;
+}
+.phash-banner button {
+  padding: 8px 14px; border-radius: 8px; border: none;
+  background: #0071e3; color: #fff; font-weight: 600;
+  font-size: 14px; cursor: pointer;
+}
+.phash-progress {
+  width: 100%; height: 8px; border-radius: 4px;
+  background: #ffe9a8; overflow: hidden; margin-top: 6px;
+}
+.phash-progress-bar {
+  height: 100%; background: #f57c00; width: 0%;
+  transition: width 0.3s;
+}
+
+.list { padding: 12px; }
 .card {
-  display: flex; background: #fff;
-  border-radius: 12px; padding: 10px;
-  margin-bottom: 8px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-  gap: 12px; align-items: center;
+  background: #fff; border-radius: 16px;
+  padding: 14px; margin-bottom: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.08);
 }
-.card img {
-  width: 80px; height: 80px;
-  object-fit: contain; border-radius: 8px;
-  background: #f5f5f7; flex-shrink: 0;
-  cursor: pointer;
+.card.search-result { border-left: 4px solid #1a73e8; }
+.card-main { display: flex; gap: 14px; align-items: flex-start; }
+.card img.thumb {
+  width: 100px; height: 100px; object-fit: contain;
+  border-radius: 12px; background: #f5f5f7; flex-shrink: 0;
 }
 .info { flex: 1; min-width: 0; }
-.name-zh {
-  font-size: 14px; font-weight: 600;
-  line-height: 1.3; margin-bottom: 4px;
-  overflow: hidden;
-  display: -webkit-box; -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+.name-zh { font-size: 19px; font-weight: 700; line-height: 1.35; margin-bottom: 6px;
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.name { font-size: 15px; color: #6e6e73; margin-bottom: 8px;
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.price { font-size: 20px; font-weight: 700; color: #ff3b30; }
+.id { font-family: ui-monospace, monospace; font-size: 13px; color: #86868b; }
+.sim-badge {
+  padding: 3px 10px; border-radius: 6px; font-size: 13px;
+  font-weight: 700; color: #fff;
 }
-.name {
-  font-size: 12px; color: #6e6e73;
-  margin-bottom: 6px;
-  overflow: hidden;
-  display: -webkit-box; -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+.loc-section {
+  margin-top: 12px; padding-top: 12px;
+  border-top: 1px dashed #e5e5e7;
 }
-.meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.price { font-size: 15px; font-weight: 700; color: #ff3b30; }
-.id { font-family: ui-monospace, monospace; font-size: 11px; color: #86868b; }
-.empty { text-align: center; padding: 60px 20px; color: #86868b; }
-.loading { text-align: center; padding: 60px 20px; color: #86868b; }
-.spinner {
-  width: 32px; height: 32px;
-  border: 3px solid #e5e5e7; border-top-color: #0071e3;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin: 0 auto 12px;
+.loc-title {
+  font-size: 14px; font-weight: 700; color: #2e7d32;
+  margin-bottom: 8px;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+.loc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.loc-item {
+  background: #e8f5e9; border-radius: 8px; padding: 6px 4px;
+  text-align: center;
+}
+.loc-item.empty { background: #f5f5f7; opacity: 0.5; }
+.loc-item-label {
+  font-size: 10px; color: #6e6e73; font-weight: 600;
+  display: block; margin-bottom: 2px;
+}
+.loc-item-value {
+  font-size: 14px; color: #1b5e20; font-weight: 700;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  display: block;
+}
+.loc-item.empty .loc-item-value { color: #b0b0b0; }
+.meta-footer {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 10px; padding-top: 8px;
+  border-top: 1px dashed #e5e5e7;
+  font-size: 12px; color: #86868b;
+  flex-wrap: wrap; gap: 6px;
+}
+.lock-tag {
+  background: #fff3cd; color: #856404; padding: 2px 8px;
+  border-radius: 6px; font-size: 12px; font-weight: 600;
+}
+.src-tag {
+  background: #e3f2fd; color: #1565c0; padding: 2px 8px;
+  border-radius: 6px; font-size: 12px; font-weight: 600;
+}
+.card-actions { display: flex; gap: 8px; margin-top: 12px; }
+.card-actions button {
+  flex: 1; padding: 10px; border-radius: 10px;
+  border: none; cursor: pointer; font-size: 15px; font-weight: 600;
+}
+.btn-edit { background: #e8f0fe; color: #1a73e8; }
+.btn-del  { background: #fce8e6; color: #d93025; }
+.add-btn {
+  position: fixed; bottom: calc(24px + env(safe-area-inset-bottom)); right: 24px;
+  width: 72px; height: 72px; border-radius: 36px;
+  background: #0071e3; color: #fff; font-size: 38px; line-height: 1;
+  border: none; box-shadow: 0 6px 16px rgba(0,113,227,.45);
+  cursor: pointer; z-index: 200;
+}
 .modal {
   display: none; position: fixed; inset: 0;
-  background: rgba(0,0,0,0.92); z-index: 1000;
-  align-items: center; justify-content: center; padding: 20px;
+  background: rgba(0,0,0,.55); z-index: 1000; align-items: flex-end;
 }
 .modal.show { display: flex; }
-.modal img { max-width: 100%; max-height: 85vh; object-fit: contain; }
-.modal-close {
-  position: absolute; top: calc(20px + env(safe-area-inset-top)); right: 20px;
-  width: 40px; height: 40px; border-radius: 50%;
-  background: rgba(255,255,255,0.2); border: none;
-  color: #fff; font-size: 20px; cursor: pointer;
+.modal-content {
+  background: #fff; width: 100%; max-height: 94vh; overflow-y: auto;
+  border-radius: 24px 24px 0 0;
+  padding: 24px 18px calc(24px + env(safe-area-inset-bottom));
+}
+.modal-content h2 { margin: 0 0 20px; font-size: 22px; font-weight: 700; }
+.section-title {
+  font-size: 15px; font-weight: 700; color: #0071e3;
+  margin: 20px 0 12px; padding-bottom: 6px;
+  border-bottom: 2px solid #e8f0fe;
+}
+.field { margin-bottom: 18px; }
+.field label {
+  display: block; font-size: 16px; font-weight: 600;
+  color: #1d1d1f; margin-bottom: 8px;
+}
+.field input, .field textarea {
+  width: 100%; padding: 14px; font-size: 19px;
+  border: 2px solid #d2d2d7; border-radius: 12px;
+  font-family: inherit; -webkit-appearance: none; background: #fff;
+}
+.field input:focus, .field textarea:focus {
+  border-color: #0071e3; outline: none;
+  box-shadow: 0 0 0 3px rgba(0,113,227,.15);
+}
+.field textarea { min-height: 90px; resize: vertical; }
+.field input:disabled { background: #f5f5f7; color: #86868b; }
+.row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.upload-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 14px 20px; border-radius: 12px;
+  background: #e8f0fe; color: #1a73e8;
+  border: none; cursor: pointer;
+  font-size: 17px; font-weight: 600; white-space: nowrap;
+}
+.img-preview {
+  max-width: 160px; max-height: 160px;
+  border-radius: 12px; margin-top: 10px;
+  background: #f5f5f7; display: block;
+}
+.modal-actions {
+  display: flex; gap: 12px; margin-top: 22px;
+  padding-top: 20px; border-top: 2px solid #e5e5e7;
+}
+.modal-actions button {
+  flex: 1; padding: 18px; font-size: 18px;
+  border-radius: 14px; border: none; cursor: pointer; font-weight: 700;
+}
+.btn-cancel { background: #e5e5e7; color: #1d1d1f; }
+.btn-save { background: #0071e3; color: #fff; }
+.btn-save:disabled { background: #b0c4de; cursor: not-allowed; }
+.btn-unlock {
+  display: none; width: 100%; margin-top: 10px; padding: 14px;
+  border-radius: 12px; border: none;
+  background: #fff3cd; color: #856404;
+  font-size: 16px; font-weight: 700; cursor: pointer;
+}
+.loading { text-align: center; padding: 80px 20px; color: #86868b; font-size: 18px; }
+.toast {
+  position: fixed; top: calc(24px + env(safe-area-inset-top)); left: 50%;
+  transform: translateX(-50%);
+  background: #1d1d1f; color: #fff;
+  padding: 16px 24px; border-radius: 14px;
+  font-size: 17px; font-weight: 500;
+  z-index: 2000; opacity: 0; transition: opacity .3s;
+  pointer-events: none; max-width: 90vw; text-align: center;
+}
+.toast.show { opacity: 1; }
+.login-box { padding: 60px 24px; max-width: 420px; margin: 0 auto; }
+.login-box h1 { margin-bottom: 28px; font-size: 26px; text-align: center; }
+.login-box input {
+  width: 100%; padding: 16px; font-size: 19px;
+  border: 2px solid #d2d2d7; border-radius: 14px;
+  margin-bottom: 16px; -webkit-appearance: none;
+}
+.login-box button {
+  width: 100%; padding: 18px;
+  background: #0071e3; color: #fff;
+  border: none; border-radius: 14px;
+  font-size: 19px; font-weight: 700; cursor: pointer;
+}
+#scanModal .modal-content {
+  border-radius: 24px; margin: 16px; max-height: 95vh;
+  padding: 24px; align-self: center;
+}
+#reader { width: 100%; border-radius: 14px; overflow: hidden; background: #000; }
+.scan-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.scan-header h2 { margin: 0; font-size: 22px; }
+.scan-close { background: none; border: none; font-size: 26px; color: #86868b; cursor: pointer; padding: 4px 10px; }
+.scan-hint { text-align: center; color: #6e6e73; font-size: 16px; margin: 14px 0 0; }
+.scan-torch {
+  display: none; margin-top: 14px; width: 100%; padding: 14px;
+  border-radius: 14px; background: #e5e5e7; border: none;
+  font-size: 17px; font-weight: 600; cursor: pointer;
 }
 </style>
 </head>
 <body>
-<header>
-  <h1>📦 產品圖片查詢</h1>
-  <div class="search-box">
-    <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
-    <input id="q" type="search" placeholder="搜尋 ID / 條碼 / 名稱 / 中文名..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-    <button class="clear-btn" id="clear">✕</button>
-  </div>
-  <div class="stats" id="stats">載入中...</div>
-</header>
 
-<div class="list" id="list">
-  <div class="loading">
-    <div class="spinner"></div>
-    <div>正在載入產品資料...</div>
+<div id="loginScreen" class="login-box" style="display:none">
+  <h1>🔐 請輸入密碼</h1>
+  <input type="password" id="pwdInput" placeholder="輸入密碼" autocomplete="current-password">
+  <button onclick="login()">登入</button>
+</div>
+
+<div id="appScreen" style="display:none">
+  <header>
+    <h1>📦 產品管理</h1>
+    <div class="search-box">
+      <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
+      <input id="q" type="search" placeholder="搜尋 / 條碼 / 位置..." autocomplete="off">
+      <div class="search-actions">
+        <button class="icon-btn" id="btnScanSearch" title="掃碼搜尋">🔍</button>
+        <button class="icon-btn" id="btnSearchByImage" title="以圖搜圖">📷</button>
+        <button class="icon-btn" id="btnClear" title="清除" style="display:none;">✕</button>
+      </div>
+    </div>
+    <div class="stats" id="stats">載入中...</div>
+  </header>
+
+  <div id="phashBanner" class="phash-banner" style="display:none;">
+    <span id="phashBannerText"></span>
+    <button onclick="buildPhashLibrary()">開始建立</button>
+    <div class="phash-progress" id="phashProgress" style="display:none;">
+      <div class="phash-progress-bar" id="phashProgressBar"></div>
+    </div>
   </div>
+
+  <div class="list" id="list"></div>
+  <button class="add-btn" onclick="openAdd()">+</button>
 </div>
 
 <div class="modal" id="modal">
-  <button class="modal-close" id="close">✕</button>
-  <img id="modal-img" src="" alt="">
+  <div class="modal-content">
+    <h2 id="modalTitle">新增產品</h2>
+
+    <div class="section-title">📋 產品資料</div>
+
+    <div class="field">
+      <label>ID *</label>
+      <input id="f_id" autocomplete="off" inputmode="numeric">
+    </div>
+
+    <div class="field">
+      <label>條碼 (Barcode)</label>
+      <div style="display:flex; gap:10px;">
+        <input id="f_barcode" autocomplete="off" inputmode="numeric" style="flex:1;">
+        <button type="button" class="upload-btn" onclick="startEditScan()">📷 掃描</button>
+      </div>
+    </div>
+
+    <div class="field"><label>英文名稱</label><input id="f_name" autocomplete="off"></div>
+    <div class="field"><label>中文名稱</label><input id="f_name_zh" autocomplete="off"></div>
+
+    <div class="row-2">
+      <div class="field"><label>價格</label><input id="f_price" autocomplete="off" inputmode="decimal"></div>
+      <div class="field"><label>原價</label><input id="f_original_price" autocomplete="off" inputmode="decimal"></div>
+    </div>
+
+    <div class="field">
+      <label>產品圖片</label>
+      <input type="file" id="f_imageFile" accept="image/*" style="display:none">
+      <button type="button" class="upload-btn" onclick="document.getElementById('f_imageFile').click()">
+        📷 拍照 / 選擇圖片
+      </button>
+      <img id="f_imagePreview" class="img-preview" style="display:none">
+      <input id="f_image" type="hidden">
+    </div>
+
+    <div class="row-2">
+      <div class="field"><label>分類（英）</label><input id="f_category_en" autocomplete="off"></div>
+      <div class="field"><label>分類（中）</label><input id="f_category_zh" autocomplete="off"></div>
+    </div>
+    <div class="field"><label>描述</label><textarea id="f_description"></textarea></div>
+
+    <div class="section-title">📦 倉庫位置 (L ~ S)</div>
+
+    <div class="row-2">
+      <div class="field"><label>暫存位置 (L)</label><input id="f_temp_location" autocomplete="off"></div>
+      <div class="field"><label>併板 (M)</label><input id="f_combine" autocomplete="off"></div>
+    </div>
+    <div class="field"><label>倉 (N)</label><input id="f_warehouse" autocomplete="off"></div>
+    <div class="row-2">
+      <div class="field"><label>地堆 (O)</label><input id="f_island" autocomplete="off"></div>
+      <div class="field"><label>直道 (P)</label><input id="f_aisle" autocomplete="off"></div>
+    </div>
+    <div class="row-2">
+      <div class="field"><label>橫巷 (Q)</label><input id="f_crosslane" autocomplete="off"></div>
+      <div class="field"><label>架號 (R)</label><input id="f_shelfnumber" autocomplete="off"></div>
+    </div>
+    <div class="field"><label>層 (S)</label><input id="f_floor" autocomplete="off"></div>
+
+    <div class="section-title">🕐 系統資訊 (T ~ U)</div>
+    <div class="field">
+      <label>最後修改時間 (T)</label>
+      <input id="f_last_modified" disabled>
+    </div>
+    <div class="field">
+      <label>來源 (U)</label>
+      <input id="f_last_source" disabled>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">取消</button>
+      <button class="btn-save" id="btnSave" onclick="saveProduct()">儲存</button>
+    </div>
+
+    <button class="btn-unlock" id="btnUnlock" onclick="unlockCurrentProduct()">
+      🔓 解鎖，允許惠康下次抓取更新此筆
+    </button>
+  </div>
 </div>
 
+<div class="modal" id="scanModal" style="align-items: center;">
+  <div class="modal-content">
+    <div class="scan-header">
+      <h2 id="scanTitle">📷 掃描條碼</h2>
+      <button class="scan-close" onclick="onScanCloseClick()">✕</button>
+    </div>
+    <div id="reader"></div>
+    <p class="scan-hint">將條碼放入框內，會自動辨識</p>
+    <button class="scan-torch" id="torchBtn" onclick="toggleTorch()">🔦 開啟手電筒</button>
+    <button class="btn-cancel" style="width:100%; margin-top:14px; padding:16px; border-radius:14px; border:none; font-size:17px; font-weight:700; cursor:pointer;" onclick="onScanCloseClick()">
+      關閉
+    </button>
+  </div>
+</div>
+
+<input type="file" id="imageSearchInput" accept="image/*" style="display:none">
+
+<div class="toast" id="toast"></div>
+
 <script>
-// ============ 配置（已填好你的 SHEET_ID）============
-const SHEET_ID = '1U3zVg2ljge-xxDHvAIRXX8KoDoPZBZq4ZRvH9GBWCww';
-const SHEET_NAME = 'Sheet1';
-// ==================================================
+// ============================================================
+// 配置
+// ============================================================
+const API_URL = 'https://script.google.com/macros/s/AKfycby6NrRUYbt9wnEBhx2pSdC3mtbcdVFZWhtqxYX9gvcV0xVOa-ww5_rm-iQovJwB8dqUmQ/exec';
+const CDN_URL = 'https://raw.githubusercontent.com/charlizelai/product-search/main/data/products.json';
 
+// ★★★ 管理員密碼（只有用這個密碼登入才會看到「建立指紋庫」按鈕）★★★
+const ADMIN_TOKEN = 'charlize-admin-2026';
+
+const LOCAL_CACHE_KEY = 'products_v2';
+const LOCAL_CACHE_TIME_KEY = 'products_v2_time';
+const LOCAL_CACHE_TTL = 5 * 60 * 1000;
+
+// ============================================================
+// 狀態
+// ============================================================
+let TOKEN = localStorage.getItem('token') || '';
+let isAdmin = localStorage.getItem('isAdmin') === '1';
 let allData = [];
-const $q = document.getElementById('q');
-const $list = document.getElementById('list');
-const $stats = document.getElementById('stats');
-const $clear = document.getElementById('clear');
-const $modal = document.getElementById('modal');
-const $modalImg = document.getElementById('modal-img');
-const $close = document.getElementById('close');
+let editingId = null;
+let pendingImage = null;
+let html5QrCode = null;
+let isScanning = false;
+let torchOn = false;
+let searchMode = 'text';
+let scanMode = 'none';  // 'none' | 'search' | 'edit'
+let _bgRefreshing = false;
+let _lastVersion = 0;
 
-async function loadData() {
+const $ = id => document.getElementById(id);
+const FIELDS = ['id','barcode','name','name_zh','price','original_price','image','category_en','category_zh','description',
+                'temp_location','combine','warehouse','island','aisle','crosslane','shelfnumber','floor'];
+
+
+// ============================================================
+// 基礎工具
+// ============================================================
+function toast(msg, ms) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._tid);
+  t._tid = setTimeout(() => t.classList.remove('show'), ms || 2200);
+}
+
+function esc(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function escAttr(s) { return String(s || '').replace(/'/g, "\\'"); }
+
+function login() {
+  const pwd = $('pwdInput').value.trim();
+  if (!pwd) return;
+  TOKEN = pwd;
+  isAdmin = (pwd === ADMIN_TOKEN);
+  localStorage.setItem('token', pwd);
+  localStorage.setItem('isAdmin', isAdmin ? '1' : '0');
+  showApp();
+}
+
+function showApp() {
+  $('loginScreen').style.display = 'none';
+  $('appScreen').style.display = 'block';
+  loadData();
+}
+
+async function apiGet(action, params) {
+  const url = new URL(API_URL);
+  url.searchParams.set('action', action);
+  url.searchParams.set('token', TOKEN);
+  if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  const res = await fetch(url.toString());
+  return res.json();
+}
+
+async function apiPost(body) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({...body, token: TOKEN})
+  });
+  return res.json();
+}
+
+
+// ============================================================
+// CDN 載入
+// ============================================================
+async function fetchFromCDN() {
+  const bucket = Math.floor(Date.now() / 300000);
+  const url = CDN_URL + '?t=' + bucket;
+  const res = await fetch(url, { cache: 'default' });
+  if (!res.ok) throw new Error('CDN HTTP ' + res.status);
+  const data = await res.json();
+  if (!data.items || !Array.isArray(data.items)) throw new Error('資料格式錯誤');
+  _lastVersion = data.version || 0;
+  console.log(`📦 CDN：${data.count} 項，更新於 ${data.updated}`);
+  return data.items;
+}
+
+async function loadData(forceRefresh) {
+  if (!forceRefresh) {
+    try {
+      const cachedStr = localStorage.getItem(LOCAL_CACHE_KEY);
+      const cachedTime = parseInt(localStorage.getItem(LOCAL_CACHE_TIME_KEY) || '0');
+      if (cachedStr && (Date.now() - cachedTime < LOCAL_CACHE_TTL)) {
+        const cached = JSON.parse(cachedStr);
+        if (Array.isArray(cached) && cached.length > 0) {
+          applyProducts(cached);
+          render();
+          $('stats').textContent += ' · 本地快取';
+          backgroundRefresh();
+          checkPhashStatus();
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('本地快取讀取失敗：', e);
+    }
+  }
+
+  $('stats').textContent = '載入中...';
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
-    const res = await fetch(url);
-    const text = await res.text();
-    const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
-    const rows = json.table.rows;
-
-    allData = rows.map(r => {
-      const get = (i) => (r.c && r.c[i] && r.c[i].v != null) ? String(r.c[i].v).trim() : '';
-      return {
-        id: get(0), barcode: get(1), name: get(2), name_zh: get(3),
-        price: get(4), original_price: get(5), image: get(6),
-        category_en: get(7), category_zh: get(8), description: get(9),
-        _search: (get(0)+' '+get(1)+' '+get(2)+' '+get(3)+' '+get(7)+' '+get(8)).toLowerCase()
-      };
-    }).filter(d => d.id || d.name);
-
+    const products = await fetchFromCDN();
+    applyProducts(products);
+    saveLocalCache(products);
     render();
+    checkPhashStatus();
   } catch (e) {
-    $stats.textContent = '載入失敗';
-    $list.innerHTML = `<div class="empty">❌ 載入失敗<br><br><span style="font-size:13px">${e.message}<br><br>請檢查：<br>1. Sheet 已「知道連結的任何人可檢視」<br>2. 網路正常</span></div>`;
+    console.error('CDN 失敗，改用 API：', e);
+    try {
+      const data = await apiGet('list');
+      if (data.error) throw new Error(data.error);
+      applyProducts(data);
+      saveLocalCache(data);
+      render();
+      checkPhashStatus();
+    } catch (e2) {
+      $('stats').textContent = '載入失敗：' + e2.message;
+    }
   }
 }
 
+async function backgroundRefresh() {
+  if (_bgRefreshing) return;
+  _bgRefreshing = true;
+  try {
+    const products = await fetchFromCDN();
+    applyProducts(products);
+    saveLocalCache(products);
+    render();
+  } catch (e) {
+    console.warn('背景更新失敗：', e);
+  } finally {
+    _bgRefreshing = false;
+  }
+}
+
+function applyProducts(data) {
+  const previewMap = {};
+  allData.forEach(d => { if (d._preview) previewMap[d.id] = d._preview; });
+  allData = data.map(d => {
+    if (previewMap[d.id]) d._preview = previewMap[d.id];
+    return d;
+  });
+  searchMode = 'text';
+}
+
+function saveLocalCache(data) {
+  try {
+    localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(data));
+    localStorage.setItem(LOCAL_CACHE_TIME_KEY, String(Date.now()));
+  } catch (e) {
+    try {
+      const lite = data.map(p => ({
+        id: p.id, barcode: p.barcode, name: p.name, name_zh: p.name_zh,
+        price: p.price, image: p.image,
+        temp_location: p.temp_location, combine: p.combine,
+        warehouse: p.warehouse, island: p.island, aisle: p.aisle,
+        crosslane: p.crosslane, shelfnumber: p.shelfnumber, floor: p.floor,
+        _last_modified: p._last_modified, _last_source: p._last_source
+      }));
+      localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(lite));
+      localStorage.setItem(LOCAL_CACHE_TIME_KEY, String(Date.now()));
+    } catch (e2) {
+      console.warn('本地快取寫入失敗：', e2);
+    }
+  }
+}
+
+function clearLocalCache() {
+  try {
+    localStorage.removeItem(LOCAL_CACHE_KEY);
+    localStorage.removeItem(LOCAL_CACHE_TIME_KEY);
+  } catch (e) {}
+}
+
+
+// ============================================================
+// 渲染
+// ============================================================
 function render() {
-  const term = $q.value.trim().toLowerCase();
-  const filtered = term ? allData.filter(d => d._search.includes(term)) : allData;
+  const term = $('q').value.trim().toLowerCase();
+  const filtered = term
+    ? allData.filter(d => {
+        const s = (d.id + ' ' + d.name + ' ' + d.name_zh + ' ' + d.barcode + ' ' + 
+                   (d.warehouse||'') + ' ' + (d.island||'') + ' ' + (d.aisle||'') + ' ' + 
+                   (d.crosslane||'') + ' ' + (d.shelfnumber||'') + ' ' + (d.floor||'') + ' ' + 
+                   (d.temp_location||'') + ' ' + (d.combine||'')).toLowerCase();
+        return s.includes(term);
+      })
+    : allData;
 
-  $stats.textContent = term
+  $('stats').textContent = term
     ? `找到 ${filtered.length} / ${allData.length} 項`
-    : `共 ${allData.length} 項產品`;
+    : `共 ${allData.length} 項`;
 
-  $clear.classList.toggle('show', !!term);
+  $('btnClear').style.display = term ? 'flex' : 'none';
 
   if (filtered.length === 0) {
-    $list.innerHTML = `<div class="empty">🔍 找不到符合的產品<br><span style="font-size:13px;margin-top:8px;display:block">試試其他關鍵字或條碼</span></div>`;
+    $('list').innerHTML = '<div class="loading">沒有資料</div>';
     return;
   }
 
-  const MAX = 200;
-  const toShow = filtered.slice(0, MAX);
-  const noImg = 'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22><rect width=%2280%22 height=%2280%22 fill=%22%23f5f5f7%22/><text x=%2240%22 y=%2246%22 text-anchor=%22middle%22 fill=%22%23c7c7cc%22 font-size=%2212%22>無圖</text></svg>';
+  const MAX = 100;
+  $('list').innerHTML = filtered.slice(0, MAX).map(d => renderCard(d)).join('') +
+    (filtered.length > MAX ? `<div class="loading">還有 ${filtered.length - MAX} 項，請縮小搜尋範圍</div>` : '');
+}
 
-  $list.innerHTML = toShow.map(d => {
-    const img = d.image ? escapeAttr(d.image) : noImg;
-    return `
-      <div class="card">
-        <img src="${img}" loading="lazy" referrerpolicy="no-referrer" onclick="showImg('${escapeAttr(d.image)}')" onerror="this.onerror=null;this.src='${noImg}'">
+function renderCard(d) {
+  const noImg = 'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect width=%22100%22 height=%22100%22 fill=%22%23f5f5f7%22/><text x=%2250%22 y=%2256%22 text-anchor=%22middle%22 fill=%22%23c7c7cc%22 font-size=%2215%22>無圖</text></svg>';
+
+  const sourceTag = d._last_source === 'user'
+    ? '<span class="lock-tag">🔒 已編輯</span>'
+    : (d._last_source === 'wellcome' ? '<span class="src-tag">🌐 惠康</span>' : '');
+
+  let timeStr = '';
+  if (d._last_modified) {
+    try {
+      const dt = new Date(d._last_modified);
+      if (!isNaN(dt)) {
+        timeStr = dt.toLocaleString('zh-HK', {
+          year:'numeric', month:'2-digit', day:'2-digit',
+          hour:'2-digit', minute:'2-digit'
+        });
+      }
+    } catch (e) {}
+  }
+
+  const locFields = [
+    { label:'暫存', val:d.temp_location }, { label:'併板', val:d.combine },
+    { label:'倉',   val:d.warehouse },     { label:'地堆', val:d.island },
+    { label:'直道', val:d.aisle },         { label:'橫巷', val:d.crosslane },
+    { label:'架號', val:d.shelfnumber },   { label:'層',   val:d.floor }
+  ];
+  const locGridHtml = locFields.map(f => `
+    <div class="loc-item${f.val ? '' : ' empty'}">
+      <span class="loc-item-label">${f.label}</span>
+      <span class="loc-item-value">${esc(f.val) || '—'}</span>
+    </div>`).join('');
+
+  let simBadge = '';
+  if (d._similarity !== undefined) {
+    const score = d._similarity;
+    const color = score >= 80 ? '#2e7d32' : score >= 50 ? '#f57c00' : '#c62828';
+    simBadge = `<span class="sim-badge" style="background:${color};">相似 ${score}%</span>`;
+  }
+
+  const cardClass = d._similarity !== undefined ? 'card search-result' : 'card';
+
+  return `
+    <div class="${cardClass}">
+      <div class="card-main">
+        <img class="thumb" src="${esc(d._preview || d.image) || noImg}" loading="lazy" referrerpolicy="no-referrer"
+             onerror="this.onerror=null;this.src='${noImg}'">
         <div class="info">
-          <div class="name-zh">${escapeHtml(d.name_zh || d.name)}</div>
-          <div class="name">${escapeHtml(d.name)}</div>
+          <div class="name-zh">${esc(d.name_zh || d.name)}</div>
+          <div class="name">${esc(d.name)}</div>
           <div class="meta">
-            <span class="price">$${escapeHtml(d.price)}</span>
-            <span class="id">${escapeHtml(d.id)}</span>
+            <span class="price">$${esc(d.price)}</span>
+            <span class="id">${esc(d.id)}</span>
+            ${simBadge}
           </div>
         </div>
-      </div>`;
-  }).join('') + (filtered.length > MAX
-    ? `<div class="empty" style="padding:20px;font-size:13px">還有 ${filtered.length - MAX} 項未顯示，請輸入更精確的關鍵字</div>`
-    : '');
+      </div>
+      <div class="loc-section">
+        <div class="loc-title">📍 倉庫位置</div>
+        <div class="loc-grid">${locGridHtml}</div>
+      </div>
+      <div class="meta-footer">
+        <span>${timeStr || '未曾修改'}</span>
+        <span>${sourceTag}</span>
+      </div>
+      <div class="card-actions">
+        <button class="btn-edit" onclick="openEdit('${escAttr(d.id)}')">✏️ 編輯</button>
+        <button class="btn-del" onclick="confirmDelete('${escAttr(d.id)}')">🗑️ 刪除</button>
+      </div>
+    </div>`;
 }
 
-function escapeHtml(s) {
-  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-function escapeAttr(s) { return escapeHtml(s); }
 
-function showImg(url) {
-  if (!url) return;
-  $modalImg.src = url;
-  $modal.classList.add('show');
-}
-$close.onclick = () => { $modal.classList.remove('show'); $modalImg.src = ''; };
-$modal.onclick = (e) => { if (e.target === $modal) $close.onclick(); };
+// ============================================================
+// pHash 前端算法
+// ============================================================
+function computePhashFromImage(img) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 32;
+  canvas.height = 32;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, 32, 32);
+  const imageData = ctx.getImageData(0, 0, 32, 32);
+  const data = imageData.data;
 
-let timer;
-$q.addEventListener('input', () => {
-  clearTimeout(timer);
-  timer = setTimeout(render, 150);
+  const gray = new Float32Array(1024);
+  for (let i = 0; i < 1024; i++) {
+    gray[i] = 0.299 * data[i*4] + 0.587 * data[i*4+1] + 0.114 * data[i*4+2];
+  }
+
+  const N = 32;
+  const cos = [];
+  for (let u = 0; u < 8; u++) {
+    cos[u] = new Float32Array(N);
+    for (let x = 0; x < N; x++) {
+      cos[u][x] = Math.cos(((2 * x + 1) * u * Math.PI) / (2 * N));
+    }
+  }
+
+  const dct = new Float32Array(64);
+  let idx = 0;
+  for (let u = 0; u < 8; u++) {
+    for (let v = 0; v < 8; v++) {
+      let sum = 0;
+      for (let y = 0; y < N; y++) {
+        for (let x = 0; x < N; x++) {
+          sum += gray[y*N + x] * cos[u][x] * cos[v][y];
+        }
+      }
+      const cu = u === 0 ? 1/Math.sqrt(2) : 1;
+      const cv = v === 0 ? 1/Math.sqrt(2) : 1;
+      dct[idx++] = 0.25 * cu * cv * sum;
+    }
+  }
+
+  const ac = [];
+  for (let i = 1; i < 64; i++) ac.push(dct[i]);
+  const sorted = [...ac].sort((a,b) => a-b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+
+  let binary = '';
+  for (let i = 0; i < 64; i++) binary += ac[i] > median ? '1' : '0';
+
+  let hex = '';
+  for (let i = 0; i < 64; i += 4) {
+    hex += parseInt(binary.substr(i, 4), 2).toString(16);
+  }
+  return hex;
+}
+
+function computePhashFromUrl(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try { resolve(computePhashFromImage(img)); }
+      catch (e) { reject(new Error('無法讀取像素（CORS）')); }
+    };
+    img.onerror = () => reject(new Error('圖片載入失敗'));
+    img.src = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
+  });
+}
+
+function computePhashFromBlob(blob) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      try { resolve(computePhashFromImage(img)); }
+      catch (e) { reject(e); }
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('圖片載入失敗'));
+    };
+    img.src = url;
+  });
+}
+
+
+// ============================================================
+// pHash 庫（僅管理員可見）
+// ============================================================
+async function checkPhashStatus() {
+  if (!isAdmin) {
+    $('phashBanner').style.display = 'none';
+    return;
+  }
+  try {
+    const status = await apiGet('phashStatus');
+    if (status.error) return;
+    const missing = status.missing || [];
+    if (missing.length === 0) {
+      $('phashBanner').style.display = 'none';
+      return;
+    }
+    $('phashBanner').style.display = 'flex';
+    $('phashBannerText').textContent = `📸 有 ${missing.length} 張圖片尚未建立指紋`;
+  } catch (e) {}
+}
+
+async function buildPhashLibrary() {
+  const lock = await apiGet('phashLock');
+  if (lock.error) { toast('❌ ' + lock.error); return; }
+  if (!lock.ok) {
+    toast(`⏳ 已有人正在建立，請等 ${lock.remainSec} 秒後再試`, 4000);
+    return;
+  }
+
+  try {
+    const status = await apiGet('phashStatus');
+    if (status.error) { toast('❌ ' + status.error); return; }
+    const missing = status.missing || [];
+    if (missing.length === 0) {
+      toast('✅ 所有圖片已有指紋');
+      $('phashBanner').style.display = 'none';
+      return;
+    }
+
+    if (!confirm(`將為 ${missing.length} 張圖片建立指紋，可能需要 10-30 分鐘。\n\n過程中請保持頁面開啟。確定開始？`)) return;
+
+    $('phashProgress').style.display = 'block';
+    const bar = $('phashProgressBar');
+    bar.style.width = '0%';
+
+    const idMap = {};
+    allData.forEach(d => { idMap[String(d.id)] = d; });
+
+    const batch = [];
+    let done = 0, failed = 0;
+    const total = missing.length;
+
+    for (const id of missing) {
+      const p = idMap[String(id)];
+      if (!p || !p.image) { failed++; continue; }
+
+      try {
+        const phash = await computePhashFromUrl(p.image);
+        batch.push({ id: p.id, phash });
+        done++;
+      } catch (e) {
+        failed++;
+      }
+
+      if (batch.length >= 20) {
+        try { await apiPost({ action: 'savePhashBatch', items: batch.splice(0) }); } catch (e) {}
+      }
+
+      const pct = ((done + failed) / total * 100).toFixed(1);
+      bar.style.width = pct + '%';
+      $('phashBannerText').textContent = `建立中... ${done + failed}/${total}（成功 ${done}，失敗 ${failed}）`;
+    }
+
+    if (batch.length > 0) {
+      try { await apiPost({ action: 'savePhashBatch', items: batch }); } catch (e) {}
+    }
+
+    bar.style.width = '100%';
+    toast(`✅ 完成！成功 ${done}，失敗 ${failed}`, 5000);
+    $('phashBannerText').textContent = `✅ 完成！成功 ${done}，失敗 ${failed}`;
+    setTimeout(() => {
+      $('phashBanner').style.display = 'none';
+      $('phashProgress').style.display = 'none';
+    }, 3000);
+  } finally {
+    try { await apiGet('phashUnlock'); } catch (e) {}
+  }
+}
+
+
+// ============================================================
+// 以圖搜圖
+// ============================================================
+$('btnSearchByImage').onclick = () => $('imageSearchInput').click();
+
+$('imageSearchInput').addEventListener('change', async function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+
+  toast('🔍 分析圖片中...', 3000);
+  try {
+    const compressed = await compressImage(file, 400, 0.75);
+    const phash = await computePhashFromBlob(compressed);
+
+    const result = await apiPost({ action: 'searchByPhash', phash: phash, topN: 15 });
+    if (result.error) { toast('❌ ' + result.error, 3000); return; }
+
+    const results = result.results || [];
+    if (results.length === 0) { toast('😕 找不到相似的產品', 3000); return; }
+
+    const filtered = results.filter(r => r._similarity >= 30);
+    if (filtered.length === 0) { toast('😕 沒有足夠相似的產品', 3000); return; }
+
+    searchMode = 'image';
+    showSearchResults(filtered);
+  } catch (err) {
+    toast('❌ 搜尋失敗：' + err.message, 3000);
+  }
 });
-$clear.onclick = () => { $q.value = ''; render(); $q.focus(); };
 
-loadData();
+function showSearchResults(results) {
+  $('stats').textContent = `找到 ${results.length} 個相似產品（按相似度排序）`;
+  $('btnClear').style.display = 'flex';
+  $('phashBanner').style.display = 'none';
+  $('list').innerHTML = results.map(d => renderCard(d)).join('') +
+    `<div class="loading" style="padding:30px;font-size:15px;">共 ${results.length} 個結果</div>`;
+}
+
+$('btnClear').onclick = () => {
+  $('q').value = '';
+  searchMode = 'text';
+  loadData(true);
+};
+
+
+// ============================================================
+// 新增 / 編輯
+// ============================================================
+function openAdd() {
+  editingId = null;
+  pendingImage = null;
+  $('modalTitle').textContent = '新增產品';
+  FIELDS.forEach(k => $('f_' + k).value = '');
+  $('f_last_modified').value = '';
+  $('f_last_source').value = '';
+  $('f_id').disabled = false;
+  $('f_imagePreview').style.display = 'none';
+  $('f_imagePreview').src = '';
+  $('btnUnlock').style.display = 'none';
+  $('modal').classList.add('show');
+}
+
+function openEdit(id) {
+  const p = allData.find(d => String(d.id) === String(id));
+  if (!p) return;
+  editingId = id;
+  pendingImage = null;
+  $('modalTitle').textContent = '編輯產品';
+  FIELDS.forEach(k => $('f_' + k).value = p[k] || '');
+
+  let timeStr = '';
+  if (p._last_modified) {
+    try {
+      const dt = new Date(p._last_modified);
+      timeStr = isNaN(dt) ? p._last_modified : dt.toLocaleString('zh-HK');
+    } catch (e) { timeStr = p._last_modified; }
+  }
+  $('f_last_modified').value = timeStr || '（未曾修改）';
+  $('f_last_source').value = p._last_source === 'user' ? '🔒 使用者手動編輯'
+                             : p._last_source === 'wellcome' ? '🌐 惠康自動抓取'
+                             : '（無）';
+
+  $('f_id').disabled = true;
+  if (p.image) {
+    $('f_imagePreview').src = p.image;
+    $('f_imagePreview').style.display = 'block';
+  } else {
+    $('f_imagePreview').style.display = 'none';
+  }
+
+  $('btnUnlock').style.display = p._last_source === 'user' ? 'block' : 'none';
+  $('modal').classList.add('show');
+}
+
+function closeModal() {
+  $('modal').classList.remove('show');
+}
+
+
+// ============================================================
+// 圖片處理
+// ============================================================
+$('f_imageFile').addEventListener('change', async function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = ev => {
+    $('f_imagePreview').src = ev.target.result;
+    $('f_imagePreview').style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+
+  if (editingId) {
+    await uploadImageImmediate(file);
+  } else {
+    pendingImage = file;
+    toast('📷 圖片已選擇，儲存後會一併上傳');
+  }
+  e.target.value = '';
+});
+
+function compressImage(file, maxWidth, quality) {
+  maxWidth = maxWidth || 800;
+  quality = quality || 0.8;
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let w = img.width, h = img.height;
+        if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        canvas.toBlob(b => resolve(b), 'image/jpeg', quality);
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadImageImmediate(file) {
+  try {
+    toast('📤 上傳中...');
+    $('btnSave').disabled = true;
+
+    const compressed = await compressImage(file);
+    const base64 = await fileToBase64(compressed);
+    const localPreview = 'data:image/jpeg;base64,' + base64;
+
+    const result = await apiPost({
+      action: 'uploadImage',
+      productId: editingId,
+      fileName: 'photo_' + Date.now() + '.jpg',
+      mimeType: 'image/jpeg',
+      base64: base64
+    });
+
+    if (result.error) { toast('❌ ' + result.error, 3000); return; }
+
+    const p = allData.find(d => String(d.id) === String(editingId));
+    if (p) {
+      p.image = result.imageUrl;
+      p._preview = localPreview;
+      p._last_source = 'user';
+      p._last_modified = new Date().toISOString();
+    }
+    $('f_image').value = result.imageUrl;
+    $('f_imagePreview').src = localPreview;
+    $('f_last_modified').value = new Date().toLocaleString('zh-HK');
+    $('f_last_source').value = '🔒 使用者手動編輯';
+
+    toast('✅ 圖片已上傳');
+    clearLocalCache();
+    render();
+
+    setTimeout(async () => {
+      try {
+        const phash = await computePhashFromBlob(compressed);
+        await apiPost({ action: 'savePhashBatch', items: [{ id: editingId, phash }] });
+      } catch (e) {}
+    }, 500);
+
+    setTimeout(() => loadData(true), 5000);
+  } catch (e) {
+    toast('❌ ' + e.message, 3000);
+  } finally {
+    $('btnSave').disabled = false;
+  }
+}
+
+async function saveProduct() {
+  const data = {};
+  FIELDS.forEach(k => data[k] = $('f_' + k).value.trim());
+  if (!data.id) { toast('❌ ID 不能為空'); return; }
+
+  $('btnSave').disabled = true;
+  try {
+    const result = editingId
+      ? await apiPost({ action: 'update', id: editingId, data })
+      : await apiPost({ action: 'create', data });
+
+    if (result.error) { toast('❌ ' + result.error, 3000); return; }
+
+    if (!editingId && pendingImage) {
+      toast('📤 上傳圖片中...');
+      const compressed = await compressImage(pendingImage);
+      const base64 = await fileToBase64(compressed);
+      const localPreview = 'data:image/jpeg;base64,' + base64;
+
+      const imgResult = await apiPost({
+        action: 'uploadImage',
+        productId: data.id,
+        fileName: 'photo_' + Date.now() + '.jpg',
+        mimeType: 'image/jpeg',
+        base64: base64
+      });
+
+      if (imgResult.error) {
+        toast('⚠️ 產品已存，圖片上傳失敗：' + imgResult.error, 4000);
+      } else {
+        const newP = allData.find(d => String(d.id) === String(data.id));
+        if (newP) { newP.image = imgResult.imageUrl; newP._preview = localPreview; }
+        setTimeout(async () => {
+          try {
+            const phash = await computePhashFromBlob(compressed);
+            await apiPost({ action: 'savePhashBatch', items: [{ id: data.id, phash }] });
+          } catch (e) {}
+        }, 500);
+      }
+      pendingImage = null;
+    }
+
+    toast(editingId ? '✅ 已更新' : '✅ 已新增');
+    closeModal();
+    clearLocalCache();
+    render();
+    setTimeout(() => loadData(true), 5000);
+  } catch (e) {
+    toast('❌ ' + e.message, 3000);
+  } finally {
+    $('btnSave').disabled = false;
+  }
+}
+
+async function confirmDelete(id) {
+  if (!confirm('確定刪除 ID ' + id + '？')) return;
+  try {
+    const result = await apiPost({ action: 'delete', id });
+    if (result.error) { toast('❌ ' + result.error, 3000); return; }
+    toast('✅ 已刪除');
+    clearLocalCache();
+    await loadData(true);
+  } catch (e) { toast('❌ ' + e.message, 3000); }
+}
+
+async function unlockCurrentProduct() {
+  if (!editingId) return;
+  if (!confirm('確定解鎖？下次惠康抓取時會被自動更新覆寫。')) return;
+  try {
+    const result = await apiPost({ action: 'unlock', id: editingId });
+    if (result.error) { toast('❌ ' + result.error); return; }
+    toast('🔓 已解鎖');
+    clearLocalCache();
+    closeModal();
+    await loadData(true);
+  } catch (e) { toast('❌ ' + e.message, 3000); }
+}
+
+
+// ============================================================
+// 條碼掃描（共用）
+// ============================================================
+const SCAN_FORMATS = [
+  Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+  Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E,
+  Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
+  Html5QrcodeSupportedFormats.ITF, Html5QrcodeSupportedFormats.CODABAR,
+  Html5QrcodeSupportedFormats.QR_CODE
+];
+
+// 通用啟動掃描
+async function openScanner(title, mode) {
+  if (isScanning) return;
+  isScanning = true;
+  scanMode = mode;
+  torchOn = false;
+  $('scanTitle').textContent = title;
+  $('scanModal').classList.add('show');
+  $('torchBtn').style.display = 'none';
+
+  setTimeout(async () => {
+    try {
+      html5QrCode = new Html5Qrcode("reader");
+      await html5QrCode.start(
+        { facingMode: "environment" },
+        {
+          fps: 10,
+          qrbox: { width: 300, height: 200 },
+          aspectRatio: 1.0,
+          formatsToSupport: SCAN_FORMATS
+        },
+        onScanSuccess,
+        () => {}
+      );
+      try {
+        const caps = html5QrCode.getRunningTrackCameraCapabilities();
+        if (caps && caps.torchFeature && caps.torchFeature().isSupported()) {
+          $('torchBtn').style.display = 'block';
+        }
+      } catch (e) {}
+    } catch (e) {
+      toast('❌ 無法開啟相機：' + e.message, 3000);
+      closeScan();
+    }
+  }, 300);
+}
+
+// 搜尋欄的掃碼
+$('btnScanSearch').onclick = () => openScanner('🔍 掃碼搜尋', 'search');
+
+// 編輯表單的掃碼
+function startEditScan() {
+  openScanner('📷 掃描條碼', 'edit');
+}
+
+// 掃描 Modal 的關閉按鈕（統一處理）
+function onScanCloseClick() {
+  closeScan();
+}
+
+// 掃到條碼
+function onScanSuccess(decodedText) {
+  if (!isScanning) return;
+  if (navigator.vibrate) navigator.vibrate(80);
+
+  if (scanMode === 'search') {
+    // 搜尋模式：填入搜尋框並關閉
+    $('q').value = decodedText;
+    closeScan();
+    searchMode = 'text';
+    render();
+
+    // 檢查找到
+    const term = decodedText.toLowerCase();
+    const found = allData.filter(d => 
+      String(d.barcode).toLowerCase() === term ||
+      String(d.id).toLowerCase() === term
+    );
+
+    if (found.length > 0) {
+      const p = found[0];
+      toast('✅ 找到：' + (p.name_zh || p.name), 2500);
+    } else {
+      toast('⚠️ 條碼 ' + decodedText + ' 未找到', 3000);
+    }
+  } else if (scanMode === 'edit') {
+    // 編輯模式：填入 barcode 欄位
+    $('f_barcode').value = decodedText;
+    toast('✅ 已辨識：' + decodedText, 2000);
+
+    const existing = allData.find(d => String(d.barcode) === String(decodedText));
+    if (existing) {
+      setTimeout(() => {
+        if (confirm(
+          '此條碼已存在：\n\n' +
+          'ID: ' + existing.id + '\n' +
+          '名稱: ' + (existing.name_zh || existing.name) + '\n\n' +
+          '要載入此產品進行編輯嗎？'
+        )) {
+          closeScan();
+          setTimeout(() => openEdit(existing.id), 300);
+        }
+      }, 200);
+    } else {
+      closeScan();
+    }
+  }
+}
+
+// 關閉掃描
+async function closeScan() {
+  isScanning = false;
+  scanMode = 'none';
+  $('scanModal').classList.remove('show');
+  $('scanTitle').textContent = '📷 掃描條碼';
+  if (html5QrCode) {
+    try { await html5QrCode.stop(); html5QrCode.clear(); } catch (e) {}
+    html5QrCode = null;
+  }
+}
+
+function toggleTorch() {
+  if (!html5QrCode) return;
+  try {
+    const caps = html5QrCode.getRunningTrackCameraCapabilities();
+    if (caps && caps.torchFeature && caps.torchFeature().isSupported()) {
+      torchOn = !torchOn;
+      caps.torchFeature().apply(torchOn);
+      $('torchBtn').textContent = torchOn ? '🔦 關閉手電筒' : '🔦 開啟手電筒';
+    }
+  } catch (e) { toast('此裝置不支援手電筒'); }
+}
+
+
+// ============================================================
+// 搜尋 debounce
+// ============================================================
+let searchTimer;
+$('q').addEventListener('input', () => {
+  if (searchMode === 'image') {
+    searchMode = 'text';
+    loadData(true);
+    return;
+  }
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(render, 150);
+});
+
+
+// ============================================================
+// 啟動
+// ============================================================
+if (TOKEN) showApp();
+else $('loginScreen').style.display = 'block';
 </script>
 </body>
 </html>
