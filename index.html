@@ -185,17 +185,40 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .field input:disabled { background: #f5f5f7; color: #86868b; }
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
-/* 下拉選單 */
+/* 下拉選單（iOS 相容） */
 .field-select {
-  width: 100%; padding: 14px 40px 14px 14px;
-  font-size: 19px; border: 2px solid #d2d2d7; border-radius: 12px;
-  font-family: inherit; -webkit-appearance: none;
-  background: #fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path fill='%2386868b' d='M6 9L1 4h10z'/></svg>") no-repeat right 14px center;
+  width: 100%;
+  padding: 14px 40px 14px 14px;
+  font-size: 19px;
+  border: 2px solid #d2d2d7;
+  border-radius: 12px;
+  font-family: inherit;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-color: #fff;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3e%3cpath fill='%2386868b' d='M6 9L1 4h10z'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
   background-size: 12px;
+  color: #1d1d1f;
+  min-height: 52px;
+  line-height: 1.4;
+  display: block;
 }
 .field-select:focus {
-  border-color: #0071e3; outline: none;
+  border-color: #0071e3;
+  outline: none;
   box-shadow: 0 0 0 3px rgba(0,113,227,.15);
+}
+@supports (-webkit-touch-callout: none) {
+  .field-select {
+    background-color: #fff;
+    padding: 14px 40px 14px 14px;
+    font-size: 19px;
+    -webkit-appearance: none;
+    appearance: none;
+  }
 }
 
 /* 複選框 */
@@ -291,6 +314,12 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   display: none; margin-top: 14px; width: 100%; padding: 14px;
   border-radius: 14px; background: #e5e5e7; border: none;
   font-size: 17px; font-weight: 600; cursor: pointer;
+}
+#debugBtn {
+  position: fixed; bottom: 100px; left: 10px; z-index: 9999;
+  padding: 8px 12px; background: #f00; color: #fff;
+  border: none; border-radius: 8px; font-size: 12px;
+  opacity: 0.5;
 }
 </style>
 </head>
@@ -471,6 +500,8 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 
 <input type="file" id="imageSearchInput" accept="image/*" style="display:none">
 
+<button id="debugBtn" onclick="showDebug()">DEBUG</button>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -479,7 +510,6 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 // ============================================================
 const API_URL = 'https://script.google.com/macros/s/AKfycby6NrRUYbt9wnEBhx2pSdC3mtbcdVFZWhtqxYX9gvcV0xVOa-ww5_rm-iQovJwB8dqUmQ/exec';
 const CDN_URL = 'https://raw.githubusercontent.com/charlizelai/product-search/main/data/products.json';
-
 const ADMIN_TOKEN = 'charlize-admin-2026';
 
 const LOCAL_CACHE_KEY = 'products_v2';
@@ -502,7 +532,6 @@ let scanMode = 'none';
 let _bgRefreshing = false;
 let _lastVersion = 0;
 
-// 選項
 let OPTIONS = {
   warehouse: [], aisle: [], crosslane: [], floor: [],
   combine: [], category_en: []
@@ -543,7 +572,14 @@ function login() {
 function showApp() {
   $('loginScreen').style.display = 'none';
   $('appScreen').style.display = 'block';
-  loadOptions();
+
+  loadOptions().then(() => {
+    console.log('✅ 選項載入流程完成');
+  }).catch(e => {
+    console.error('❌ 選項載入錯誤：', e);
+    if (!optionsLoaded) useDefaultOptions();
+  });
+
   loadData();
 }
 
@@ -572,31 +608,108 @@ async function apiPost(body) {
 async function loadOptions() {
   if (optionsLoaded) return;
   try {
+    console.log('🔍 載入選項中...');
     const result = await apiGet('options');
-    if (result.error) { console.warn('載入選項失敗：', result.error); return; }
+
+    if (result.error) {
+      console.warn('❌ 載入選項失敗：', result.error);
+      console.warn('→ 使用內建預設選項');
+      useDefaultOptions();
+      return;
+    }
+
+    const hasData = ['warehouse','aisle','crosslane','floor','combine','category_en']
+      .some(k => Array.isArray(result[k]) && result[k].length > 0);
+
+    if (!hasData) {
+      console.warn('⚠️ API 回傳空資料，使用內建預設選項');
+      useDefaultOptions();
+      return;
+    }
+
+    console.log('✅ 選項載入成功：', {
+      warehouse: result.warehouse?.length || 0,
+      aisle: result.aisle?.length || 0,
+      crosslane: result.crosslane?.length || 0,
+      floor: result.floor?.length || 0,
+      combine: result.combine?.length || 0,
+      category_en: result.category_en?.length || 0
+    });
+
     OPTIONS = result;
     optionsLoaded = true;
     populateSelects();
     renderCombineCheckboxes();
   } catch (e) {
-    console.warn('載入選項失敗：', e);
+    console.warn('❌ 載入選項錯誤：', e.message);
+    console.warn('→ 使用內建預設選項');
+    useDefaultOptions();
   }
 }
 
+function useDefaultOptions() {
+  OPTIONS = {
+    warehouse: [
+      {value:'A倉', label:'A倉'},
+      {value:'B倉', label:'B倉'},
+      {value:'C倉', label:'C倉'},
+      {value:'D倉', label:'D倉'},
+      {value:'臨時倉', label:'臨時倉'}
+    ],
+    aisle: Array.from({length: 20}, (_, i) => {
+      const n = String(i + 1).padStart(2, '0');
+      return {value: n, label: n + ' 道'};
+    }),
+    crosslane: 'ABCDEFGH'.split('').map(c => ({value: c, label: c + ' 巷'})),
+    floor: ['1','2','3','4','5'].map(n => ({value: n, label: '第 ' + n + ' 層'})),
+    combine: ['涼爽','冷凍','常溫','特別處理'].map(v => ({value: v, label: v})),
+    category_en: [
+      {value:'Beer, Wines & Spirits', label:'啤酒、烈酒'},
+      {value:'Beverages', label:'飲品'},
+      {value:'Frozen Food', label:'急凍食品'},
+      {value:'Breakfast & Bakery', label:'早餐及烘焙'},
+      {value:'Dairy, Chilled & Eggs', label:'奶類、冷藏及蛋'},
+      {value:'Canned, Preserved & Soup', label:'罐頭、醃製及湯'},
+      {value:'Condiment & Sauce', label:'調味醬料'},
+      {value:'Fruits & Vegetables', label:'蔬果'},
+      {value:'Health Care', label:'健康護理'},
+      {value:'Kitchen & Dining', label:'廚房及餐具'},
+      {value:'Meat & Seafood', label:'肉類及海鮮'},
+      {value:'Mother & Baby', label:'母嬰'},
+      {value:'Rice, Oil & Noodles', label:'米、油、麵'},
+      {value:'Snacks & Confectionery', label:'零食及糖果'},
+      {value:'Feminine Care', label:'女性護理'},
+      {value:'Festive items', label:'節日食品'}
+    ]
+  };
+  optionsLoaded = true;
+  populateSelects();
+  renderCombineCheckboxes();
+  console.log('✅ 已套用內建預設選項');
+}
+
 function populateSelects() {
+  console.log('🔧 填充下拉選單...');
   fillSelect('f_warehouse', OPTIONS.warehouse);
   fillSelect('f_aisle', OPTIONS.aisle);
   fillSelect('f_crosslane', OPTIONS.crosslane);
   fillSelect('f_floor', OPTIONS.floor);
   fillSelect('f_category_en', OPTIONS.category_en);
+  console.log('✅ 下拉選單填充完成');
 }
 
 function fillSelect(id, list) {
   const sel = $(id);
-  if (!sel) return;
+  if (!sel) {
+    console.warn('❌ 找不到元素 #' + id);
+    return;
+  }
   const currentValue = sel.value;
   sel.innerHTML = '<option value="">— 請選擇 —</option>';
-  if (!list || !list.length) return;
+  if (!list || !list.length) {
+    console.warn('⚠️ #' + id + ' 無選項');
+    return;
+  }
   list.forEach(opt => {
     const option = document.createElement('option');
     option.value = opt.value;
@@ -604,6 +717,7 @@ function fillSelect(id, list) {
     sel.appendChild(option);
   });
   if (currentValue) sel.value = currentValue;
+  console.log('   #' + id + ' 加入 ' + list.length + ' 個選項');
 }
 
 function renderCombineCheckboxes() {
@@ -1068,13 +1182,11 @@ function openAdd() {
   $('modalTitle').textContent = '新增產品';
   FIELDS.forEach(k => $('f_' + k).value = '');
 
-  // 重置下拉選單
   ['f_warehouse', 'f_aisle', 'f_crosslane', 'f_floor', 'f_category_en'].forEach(id => {
     const el = $(id);
     if (el) el.value = '';
   });
 
-  // 重置複選框
   setCombineValue('');
 
   $('f_last_modified').value = '';
@@ -1093,12 +1205,10 @@ function openEdit(id) {
   pendingImage = null;
   $('modalTitle').textContent = '編輯產品';
 
-  // 文字欄位
   const textFields = ['id','barcode','name','name_zh','price','original_price','image',
                       'category_zh','description','temp_location','island','shelfnumber'];
   textFields.forEach(k => $('f_' + k).value = p[k] || '');
 
-  // 下拉選單
   ['warehouse', 'aisle', 'crosslane', 'floor', 'category_en'].forEach(k => {
     const el = $('f_' + k);
     if (el) {
@@ -1109,10 +1219,8 @@ function openEdit(id) {
     }
   });
 
-  // 複選框
   setCombineValue(p.combine || '');
 
-  // 系統資訊
   let timeStr = '';
   if (p._last_modified) {
     try {
@@ -1439,6 +1547,30 @@ $('q').addEventListener('input', () => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(render, 150);
 });
+
+
+// ============================================================
+// DEBUG
+// ============================================================
+function showDebug() {
+  const info = {
+    'TOKEN': TOKEN ? TOKEN.substring(0, 10) + '...' : 'null',
+    'API_URL': API_URL.substring(0, 60) + '...',
+    'optionsLoaded': optionsLoaded,
+    'warehouse': OPTIONS.warehouse?.length || 0,
+    'aisle': OPTIONS.aisle?.length || 0,
+    'crosslane': OPTIONS.crosslane?.length || 0,
+    'floor': OPTIONS.floor?.length || 0,
+    'combine': OPTIONS.combine?.length || 0,
+    'category_en': OPTIONS.category_en?.length || 0,
+    'f_warehouse 存在': !!$('f_warehouse'),
+    'f_warehouse 選項數': $('f_warehouse')?.options?.length || 0,
+    'allData': allData.length
+  };
+  let msg = '';
+  Object.entries(info).forEach(([k, v]) => msg += k + ': ' + v + '\n');
+  alert(msg);
+}
 
 
 // ============================================================
