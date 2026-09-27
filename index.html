@@ -185,7 +185,6 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .field input:disabled { background: #f5f5f7; color: #86868b; }
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
-/* 下拉選單（iOS 相容） */
 .field-select {
   width: 100%;
   padding: 14px 40px 14px 14px;
@@ -211,17 +210,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   outline: none;
   box-shadow: 0 0 0 3px rgba(0,113,227,.15);
 }
-@supports (-webkit-touch-callout: none) {
-  .field-select {
-    background-color: #fff;
-    padding: 14px 40px 14px 14px;
-    font-size: 19px;
-    -webkit-appearance: none;
-    appearance: none;
-  }
-}
 
-/* 複選框 */
 .checkbox-group {
   display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0;
 }
@@ -321,6 +310,72 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   border: none; border-radius: 8px; font-size: 12px;
   opacity: 0.5;
 }
+
+/* 選項管理 */
+.options-section {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed #e5e5e7;
+}
+.options-section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0071e3;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  background: #e8f0fe;
+  border-radius: 8px;
+}
+.options-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+.options-row .opt-value,
+.options-row .opt-label {
+  flex: 1;
+  padding: 10px 12px;
+  font-size: 16px;
+  border: 2px solid #d2d2d7;
+  border-radius: 8px;
+  font-family: inherit;
+  -webkit-appearance: none;
+  background: #fff;
+  min-width: 0;
+}
+.options-row .opt-value:focus,
+.options-row .opt-label:focus {
+  border-color: #0071e3;
+  outline: none;
+}
+.options-del-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: none;
+  background: #fce8e6;
+  color: #d93025;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.options-add-btn {
+  width: 100%;
+  padding: 12px;
+  margin-top: 8px;
+  border-radius: 10px;
+  border: 2px dashed #0071e3;
+  background: #fff;
+  color: #0071e3;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.options-add-btn:active {
+  background: #e8f0fe;
+}
 </style>
 </head>
 <body>
@@ -333,7 +388,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 
 <div id="appScreen" style="display:none">
   <header>
-    <h1>📦 產品管理</h1>
+    <h1>📦 產品管理 <button id="btnOptionsMgr" onclick="openOptionsModal()" style="display:none;background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">⚙️</button></h1>
     <div class="search-box">
       <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
       <input id="q" type="search" placeholder="搜尋 / 條碼 / 位置..." autocomplete="off">
@@ -498,6 +553,19 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   </div>
 </div>
 
+<div class="modal" id="optionsModal" style="align-items: stretch;">
+  <div class="modal-content" style="border-radius: 0; max-height: 100vh; height: 100vh; padding: 20px 14px calc(20px + env(safe-area-inset-bottom));">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;position:sticky;top:0;background:#fff;padding-bottom:12px;border-bottom:2px solid #e5e5e7;z-index:10;">
+      <h2 style="margin:0;font-size:22px;">⚙️ 選項管理</h2>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-save" style="padding:12px 18px;font-size:16px;border-radius:12px;border:none;font-weight:700;cursor:pointer;" onclick="saveOptionsToServer()">💾 儲存</button>
+        <button class="btn-cancel" style="padding:12px 16px;font-size:16px;border-radius:12px;border:none;font-weight:700;cursor:pointer;" onclick="closeOptionsModal()">✕</button>
+      </div>
+    </div>
+    <div id="optionsEditor"></div>
+  </div>
+</div>
+
 <input type="file" id="imageSearchInput" accept="image/*" style="display:none">
 
 <button id="debugBtn" onclick="showDebug()">DEBUG</button>
@@ -519,8 +587,13 @@ const LOCAL_CACHE_TTL = 5 * 60 * 1000;
 // ============================================================
 // 狀態
 // ============================================================
-let TOKEN = localStorage.getItem('token') || '';
-let isAdmin = localStorage.getItem('isAdmin') === '1';
+let TOKEN = '';
+let isAdmin = false;
+try {
+  TOKEN = localStorage.getItem('token') || '';
+  isAdmin = localStorage.getItem('isAdmin') === '1';
+} catch (e) {}
+
 let allData = [];
 let editingId = null;
 let pendingImage = null;
@@ -538,7 +611,9 @@ let OPTIONS = {
 };
 let optionsLoaded = false;
 
-const $ = id => document.getElementById(id);
+let editingOptions = null;
+
+const $ = function(id) { return document.getElementById(id); };
 const FIELDS = ['id','barcode','name','name_zh','price','original_price','image','category_en','category_zh','description',
                 'temp_location','combine','warehouse','island','aisle','crosslane','shelfnumber','floor'];
 
@@ -547,25 +622,34 @@ const FIELDS = ['id','barcode','name','name_zh','price','original_price','image'
 // 基礎工具
 // ============================================================
 function toast(msg, ms) {
-  const t = $('toast');
+  var t = $('toast');
   t.textContent = msg;
   t.classList.add('show');
   clearTimeout(t._tid);
-  t._tid = setTimeout(() => t.classList.remove('show'), ms || 2200);
+  t._tid = setTimeout(function() { t.classList.remove('show'); }, ms || 2200);
 }
 
 function esc(s) {
-  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  return String(s || '').replace(/[&<>"']/g, function(c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
 }
 function escAttr(s) { return String(s || '').replace(/'/g, "\\'"); }
 
+function safeGetLS(key) {
+  try { return localStorage.getItem(key); } catch (e) { return null; }
+}
+function safeSetLS(key, value) {
+  try { localStorage.setItem(key, value); return true; } catch (e) { return false; }
+}
+
 function login() {
-  const pwd = $('pwdInput').value.trim();
+  var pwd = $('pwdInput').value.trim();
   if (!pwd) return;
   TOKEN = pwd;
   isAdmin = (pwd === ADMIN_TOKEN);
-  localStorage.setItem('token', pwd);
-  localStorage.setItem('isAdmin', isAdmin ? '1' : '0');
+  safeSetLS('token', pwd);
+  safeSetLS('isAdmin', isAdmin ? '1' : '0');
   showApp();
 }
 
@@ -573,9 +657,11 @@ function showApp() {
   $('loginScreen').style.display = 'none';
   $('appScreen').style.display = 'block';
 
-  loadOptions().then(() => {
+  $('btnOptionsMgr').style.display = isAdmin ? 'inline-block' : 'none';
+
+  loadOptions().then(function() {
     console.log('✅ 選項載入流程完成');
-  }).catch(e => {
+  }).catch(function(e) {
     console.error('❌ 選項載入錯誤：', e);
     if (!optionsLoaded) useDefaultOptions();
   });
@@ -584,19 +670,22 @@ function showApp() {
 }
 
 async function apiGet(action, params) {
-  const url = new URL(API_URL);
-  url.searchParams.set('action', action);
-  url.searchParams.set('token', TOKEN);
-  if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  const res = await fetch(url.toString());
+  var url = API_URL + '?action=' + encodeURIComponent(action) + '&token=' + encodeURIComponent(TOKEN);
+  if (params) {
+    Object.keys(params).forEach(function(k) {
+      url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+    });
+  }
+  var res = await fetch(url);
   return res.json();
 }
 
 async function apiPost(body) {
-  const res = await fetch(API_URL, {
+  var payload = Object.assign({}, body, {token: TOKEN});
+  var res = await fetch(API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({...body, token: TOKEN})
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(payload)
   });
   return res.json();
 }
@@ -609,17 +698,18 @@ async function loadOptions() {
   if (optionsLoaded) return;
   try {
     console.log('🔍 載入選項中...');
-    const result = await apiGet('options');
+    var result = await apiGet('options');
 
     if (result.error) {
       console.warn('❌ 載入選項失敗：', result.error);
-      console.warn('→ 使用內建預設選項');
       useDefaultOptions();
       return;
     }
 
-    const hasData = ['warehouse','aisle','crosslane','floor','combine','category_en']
-      .some(k => Array.isArray(result[k]) && result[k].length > 0);
+    var hasData = false;
+    ['warehouse','aisle','crosslane','floor','combine','category_en'].forEach(function(k) {
+      if (Array.isArray(result[k]) && result[k].length > 0) hasData = true;
+    });
 
     if (!hasData) {
       console.warn('⚠️ API 回傳空資料，使用內建預設選項');
@@ -628,12 +718,12 @@ async function loadOptions() {
     }
 
     console.log('✅ 選項載入成功：', {
-      warehouse: result.warehouse?.length || 0,
-      aisle: result.aisle?.length || 0,
-      crosslane: result.crosslane?.length || 0,
-      floor: result.floor?.length || 0,
-      combine: result.combine?.length || 0,
-      category_en: result.category_en?.length || 0
+      warehouse: (result.warehouse || []).length,
+      aisle: (result.aisle || []).length,
+      crosslane: (result.crosslane || []).length,
+      floor: (result.floor || []).length,
+      combine: (result.combine || []).length,
+      category_en: (result.category_en || []).length
     });
 
     OPTIONS = result;
@@ -642,7 +732,6 @@ async function loadOptions() {
     renderCombineCheckboxes();
   } catch (e) {
     console.warn('❌ 載入選項錯誤：', e.message);
-    console.warn('→ 使用內建預設選項');
     useDefaultOptions();
   }
 }
@@ -656,13 +745,13 @@ function useDefaultOptions() {
       {value:'D倉', label:'D倉'},
       {value:'臨時倉', label:'臨時倉'}
     ],
-    aisle: Array.from({length: 20}, (_, i) => {
-      const n = String(i + 1).padStart(2, '0');
+    aisle: Array.from({length: 20}, function(_, i) {
+      var n = String(i + 1).padStart(2, '0');
       return {value: n, label: n + ' 道'};
     }),
-    crosslane: 'ABCDEFGH'.split('').map(c => ({value: c, label: c + ' 巷'})),
-    floor: ['1','2','3','4','5'].map(n => ({value: n, label: '第 ' + n + ' 層'})),
-    combine: ['涼爽','冷凍','常溫','特別處理'].map(v => ({value: v, label: v})),
+    crosslane: 'ABCDEFGH'.split('').map(function(c) { return {value: c, label: c + ' 巷'}; }),
+    floor: ['1','2','3','4','5'].map(function(n) { return {value: n, label: '第 ' + n + ' 層'}; }),
+    combine: ['涼爽','冷凍','常溫','特別處理'].map(function(v) { return {value: v, label: v}; }),
     category_en: [
       {value:'Beer, Wines & Spirits', label:'啤酒、烈酒'},
       {value:'Beverages', label:'飲品'},
@@ -689,58 +778,50 @@ function useDefaultOptions() {
 }
 
 function populateSelects() {
-  console.log('🔧 填充下拉選單...');
   fillSelect('f_warehouse', OPTIONS.warehouse);
   fillSelect('f_aisle', OPTIONS.aisle);
   fillSelect('f_crosslane', OPTIONS.crosslane);
   fillSelect('f_floor', OPTIONS.floor);
   fillSelect('f_category_en', OPTIONS.category_en);
-  console.log('✅ 下拉選單填充完成');
 }
 
 function fillSelect(id, list) {
-  const sel = $(id);
-  if (!sel) {
-    console.warn('❌ 找不到元素 #' + id);
-    return;
-  }
-  const currentValue = sel.value;
+  var sel = $(id);
+  if (!sel) return;
+  var currentValue = sel.value;
   sel.innerHTML = '<option value="">— 請選擇 —</option>';
-  if (!list || !list.length) {
-    console.warn('⚠️ #' + id + ' 無選項');
-    return;
-  }
-  list.forEach(opt => {
-    const option = document.createElement('option');
+  if (!list || !list.length) return;
+  list.forEach(function(opt) {
+    var option = document.createElement('option');
     option.value = opt.value;
     option.textContent = opt.label || opt.value;
     sel.appendChild(option);
   });
   if (currentValue) sel.value = currentValue;
-  console.log('   #' + id + ' 加入 ' + list.length + ' 個選項');
 }
 
 function renderCombineCheckboxes() {
-  const container = $('f_combine_group');
+  var container = $('f_combine_group');
   if (!container) return;
   if (!OPTIONS.combine || !OPTIONS.combine.length) {
     container.innerHTML = '<div style="color:#86868b;font-size:14px;">無選項</div>';
     return;
   }
-  const currentValue = $('f_combine').value || '';
-  const selected = currentValue.split(',').map(s => s.trim()).filter(s => s);
-  container.innerHTML = OPTIONS.combine.map(opt => `
-    <label class="checkbox-item${selected.includes(opt.value) ? ' checked' : ''}" data-value="${escAttr(opt.value)}">
-      <span class="check-mark">✓</span>
-      <input type="checkbox" value="${escAttr(opt.value)}" ${selected.includes(opt.value) ? 'checked' : ''}>
-      <span>${esc(opt.label)}</span>
-    </label>
-  `).join('');
+  var currentValue = $('f_combine').value || '';
+  var selected = currentValue.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
+  container.innerHTML = OPTIONS.combine.map(function(opt) {
+    var checked = selected.indexOf(opt.value) >= 0;
+    return '<label class="checkbox-item' + (checked ? ' checked' : '') + '" data-value="' + escAttr(opt.value) + '">' +
+      '<span class="check-mark">✓</span>' +
+      '<input type="checkbox" value="' + escAttr(opt.value) + '"' + (checked ? ' checked' : '') + '>' +
+      '<span>' + esc(opt.label) + '</span>' +
+    '</label>';
+  }).join('');
 
-  container.querySelectorAll('.checkbox-item').forEach(item => {
-    item.onclick = (e) => {
+  container.querySelectorAll('.checkbox-item').forEach(function(item) {
+    item.onclick = function(e) {
       e.preventDefault();
-      const cb = item.querySelector('input[type="checkbox"]');
+      var cb = item.querySelector('input[type="checkbox"]');
       cb.checked = !cb.checked;
       item.classList.toggle('checked', cb.checked);
       updateCombineValue();
@@ -749,10 +830,10 @@ function renderCombineCheckboxes() {
 }
 
 function updateCombineValue() {
-  const container = $('f_combine_group');
+  var container = $('f_combine_group');
   if (!container) return;
-  const checked = [];
-  container.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
+  var checked = [];
+  container.querySelectorAll('input[type="checkbox"]:checked').forEach(function(cb) {
     checked.push(cb.value);
   });
   $('f_combine').value = checked.join(',');
@@ -767,27 +848,154 @@ function setCombineValue(value) {
 
 
 // ============================================================
+// 選項管理界面
+// ============================================================
+function openOptionsModal() {
+  if (!isAdmin) {
+    toast('只有管理員可編輯選項');
+    return;
+  }
+  editingOptions = JSON.parse(JSON.stringify(OPTIONS));
+  renderOptionsEditor();
+  $('optionsModal').classList.add('show');
+}
+
+function renderOptionsEditor() {
+  var container = $('optionsEditor');
+  var TYPES = [
+    {key: 'warehouse',  label: '倉 (warehouse)'},
+    {key: 'aisle',      label: '直道 (aisle)'},
+    {key: 'crosslane',  label: '橫巷 (crosslane)'},
+    {key: 'floor',      label: '層 (floor)'},
+    {key: 'combine',    label: '併板 (combine) — 可多選'},
+    {key: 'category_en',label: '分類（英）(category_en)'}
+  ];
+
+  container.innerHTML = TYPES.map(function(t) {
+    var list = editingOptions[t.key] || [];
+    return [
+      '<div class="options-section">',
+      '  <div class="options-section-title">' + esc(t.label) + '</div>',
+      '  <div class="options-list" id="options-' + t.key + '">',
+      list.map(function(opt, i) {
+        return renderOptionRow(t.key, i, opt);
+      }).join(''),
+      '  </div>',
+      '  <button type="button" class="options-add-btn" onclick="addOption(\'' + t.key + '\')">+ 新增選項</button>',
+      '</div>'
+    ].join('');
+  }).join('');
+}
+
+function renderOptionRow(type, index, opt) {
+  return [
+    '<div class="options-row">',
+    '  <input class="opt-value" placeholder="儲存值" value="' + escAttr(opt.value) + '"',
+    '         onchange="updateOption(\'' + type + '\', ' + index + ', \'value\', this.value)">',
+    '  <input class="opt-label" placeholder="顯示名稱" value="' + escAttr(opt.label) + '"',
+    '         onchange="updateOption(\'' + type + '\', ' + index + ', \'label\', this.value)">',
+    '  <button type="button" class="options-del-btn" onclick="removeOption(\'' + type + '\', ' + index + ')">✕</button>',
+    '</div>'
+  ].join('');
+}
+
+function updateOption(type, index, field, value) {
+  if (!editingOptions[type] || !editingOptions[type][index]) return;
+  editingOptions[type][index][field] = value.trim();
+}
+
+function addOption(type) {
+  if (!editingOptions[type]) editingOptions[type] = [];
+  editingOptions[type].push({value: '', label: ''});
+  renderOptionsEditor();
+  setTimeout(function() {
+    var section = $('options-' + type);
+    if (section && section.lastElementChild) {
+      var inp = section.lastElementChild.querySelector('.opt-value');
+      if (inp) inp.focus();
+    }
+  }, 100);
+}
+
+function removeOption(type, index) {
+  if (!editingOptions[type]) return;
+  if (!confirm('確定刪除此選項？\n\n已使用此值的產品不會受影響。')) return;
+  editingOptions[type].splice(index, 1);
+  renderOptionsEditor();
+}
+
+function closeOptionsModal() {
+  if (editingOptions && JSON.stringify(editingOptions) !== JSON.stringify(OPTIONS)) {
+    if (!confirm('有未儲存的變更，確定要關閉嗎？')) return;
+  }
+  editingOptions = null;
+  $('optionsModal').classList.remove('show');
+}
+
+async function saveOptionsToServer() {
+  if (!editingOptions) return;
+
+  var types = Object.keys(editingOptions);
+  for (var i = 0; i < types.length; i++) {
+    var list = editingOptions[types[i]];
+    for (var j = 0; j < list.length; j++) {
+      if (!list[j].value) {
+        toast('❌ 有選項的「儲存值」是空的，請填寫或刪除該行');
+        return;
+      }
+      if (!list[j].label) list[j].label = list[j].value;
+    }
+  }
+
+  if (!confirm('確定儲存？這會覆寫 _Config 工作表。')) return;
+
+  try {
+    toast('📤 儲存中...');
+    var result = await apiPost({
+      action: 'saveOptions',
+      options: editingOptions
+    });
+
+    if (result.error) {
+      toast('❌ ' + result.error, 3000);
+      return;
+    }
+
+    OPTIONS = JSON.parse(JSON.stringify(editingOptions));
+    optionsLoaded = true;
+    populateSelects();
+    renderCombineCheckboxes();
+    editingOptions = null;
+    $('optionsModal').classList.remove('show');
+    toast('✅ 選項已儲存，共 ' + result.count + ' 個', 2500);
+  } catch (e) {
+    toast('❌ ' + e.message, 3000);
+  }
+}
+
+
+// ============================================================
 // CDN 載入
 // ============================================================
 async function fetchFromCDN() {
-  const bucket = Math.floor(Date.now() / 300000);
-  const url = CDN_URL + '?t=' + bucket;
-  const res = await fetch(url, { cache: 'default' });
+  var bucket = Math.floor(Date.now() / 300000);
+  var url = CDN_URL + '?t=' + bucket;
+  var res = await fetch(url, { cache: 'default' });
   if (!res.ok) throw new Error('CDN HTTP ' + res.status);
-  const data = await res.json();
+  var data = await res.json();
   if (!data.items || !Array.isArray(data.items)) throw new Error('資料格式錯誤');
   _lastVersion = data.version || 0;
-  console.log(`📦 CDN：${data.count} 項，更新於 ${data.updated}`);
+  console.log('📦 CDN：' + data.count + ' 項，更新於 ' + data.updated);
   return data.items;
 }
 
 async function loadData(forceRefresh) {
   if (!forceRefresh) {
     try {
-      const cachedStr = localStorage.getItem(LOCAL_CACHE_KEY);
-      const cachedTime = parseInt(localStorage.getItem(LOCAL_CACHE_TIME_KEY) || '0');
+      var cachedStr = safeGetLS(LOCAL_CACHE_KEY);
+      var cachedTime = parseInt(safeGetLS(LOCAL_CACHE_TIME_KEY) || '0');
       if (cachedStr && (Date.now() - cachedTime < LOCAL_CACHE_TTL)) {
-        const cached = JSON.parse(cachedStr);
+        var cached = JSON.parse(cachedStr);
         if (Array.isArray(cached) && cached.length > 0) {
           applyProducts(cached);
           render();
@@ -804,7 +1012,7 @@ async function loadData(forceRefresh) {
 
   $('stats').textContent = '載入中...';
   try {
-    const products = await fetchFromCDN();
+    var products = await fetchFromCDN();
     applyProducts(products);
     saveLocalCache(products);
     render();
@@ -812,7 +1020,7 @@ async function loadData(forceRefresh) {
   } catch (e) {
     console.error('CDN 失敗，改用 API：', e);
     try {
-      const data = await apiGet('list');
+      var data = await apiGet('list');
       if (data.error) throw new Error(data.error);
       applyProducts(data);
       saveLocalCache(data);
@@ -828,7 +1036,7 @@ async function backgroundRefresh() {
   if (_bgRefreshing) return;
   _bgRefreshing = true;
   try {
-    const products = await fetchFromCDN();
+    var products = await fetchFromCDN();
     applyProducts(products);
     saveLocalCache(products);
     render();
@@ -840,9 +1048,9 @@ async function backgroundRefresh() {
 }
 
 function applyProducts(data) {
-  const previewMap = {};
-  allData.forEach(d => { if (d._preview) previewMap[d.id] = d._preview; });
-  allData = data.map(d => {
+  var previewMap = {};
+  allData.forEach(function(d) { if (d._preview) previewMap[d.id] = d._preview; });
+  allData = data.map(function(d) {
     if (previewMap[d.id]) d._preview = previewMap[d.id];
     return d;
   });
@@ -851,20 +1059,22 @@ function applyProducts(data) {
 
 function saveLocalCache(data) {
   try {
-    localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(data));
-    localStorage.setItem(LOCAL_CACHE_TIME_KEY, String(Date.now()));
+    safeSetLS(LOCAL_CACHE_KEY, JSON.stringify(data));
+    safeSetLS(LOCAL_CACHE_TIME_KEY, String(Date.now()));
   } catch (e) {
     try {
-      const lite = data.map(p => ({
-        id: p.id, barcode: p.barcode, name: p.name, name_zh: p.name_zh,
-        price: p.price, image: p.image,
-        temp_location: p.temp_location, combine: p.combine,
-        warehouse: p.warehouse, island: p.island, aisle: p.aisle,
-        crosslane: p.crosslane, shelfnumber: p.shelfnumber, floor: p.floor,
-        _last_modified: p._last_modified, _last_source: p._last_source
-      }));
-      localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(lite));
-      localStorage.setItem(LOCAL_CACHE_TIME_KEY, String(Date.now()));
+      var lite = data.map(function(p) {
+        return {
+          id: p.id, barcode: p.barcode, name: p.name, name_zh: p.name_zh,
+          price: p.price, image: p.image,
+          temp_location: p.temp_location, combine: p.combine,
+          warehouse: p.warehouse, island: p.island, aisle: p.aisle,
+          crosslane: p.crosslane, shelfnumber: p.shelfnumber, floor: p.floor,
+          _last_modified: p._last_modified, _last_source: p._last_source
+        };
+      });
+      safeSetLS(LOCAL_CACHE_KEY, JSON.stringify(lite));
+      safeSetLS(LOCAL_CACHE_TIME_KEY, String(Date.now()));
     } catch (e2) {}
   }
 }
@@ -881,20 +1091,20 @@ function clearLocalCache() {
 // 渲染
 // ============================================================
 function render() {
-  const term = $('q').value.trim().toLowerCase();
-  const filtered = term
-    ? allData.filter(d => {
-        const s = (d.id + ' ' + d.name + ' ' + d.name_zh + ' ' + d.barcode + ' ' + 
+  var term = $('q').value.trim().toLowerCase();
+  var filtered = term
+    ? allData.filter(function(d) {
+        var s = (d.id + ' ' + d.name + ' ' + d.name_zh + ' ' + d.barcode + ' ' + 
                    (d.warehouse||'') + ' ' + (d.island||'') + ' ' + (d.aisle||'') + ' ' + 
                    (d.crosslane||'') + ' ' + (d.shelfnumber||'') + ' ' + (d.floor||'') + ' ' + 
                    (d.temp_location||'') + ' ' + (d.combine||'')).toLowerCase();
-        return s.includes(term);
+        return s.indexOf(term) >= 0;
       })
     : allData;
 
   $('stats').textContent = term
-    ? `找到 ${filtered.length} / ${allData.length} 項`
-    : `共 ${allData.length} 項`;
+    ? '找到 ' + filtered.length + ' / ' + allData.length + ' 項'
+    : '共 ' + allData.length + ' 項';
 
   $('btnClear').style.display = term ? 'flex' : 'none';
 
@@ -903,22 +1113,25 @@ function render() {
     return;
   }
 
-  const MAX = 100;
-  $('list').innerHTML = filtered.slice(0, MAX).map(d => renderCard(d)).join('') +
-    (filtered.length > MAX ? `<div class="loading">還有 ${filtered.length - MAX} 項，請縮小搜尋範圍</div>` : '');
+  var MAX = 100;
+  var html = filtered.slice(0, MAX).map(function(d) { return renderCard(d); }).join('');
+  if (filtered.length > MAX) {
+    html += '<div class="loading">還有 ' + (filtered.length - MAX) + ' 項，請縮小搜尋範圍</div>';
+  }
+  $('list').innerHTML = html;
 }
 
 function renderCard(d) {
-  const noImg = 'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect width=%22100%22 height=%22100%22 fill=%22%23f5f5f7%22/><text x=%2250%22 y=%2256%22 text-anchor=%22middle%22 fill=%22%23c7c7cc%22 font-size=%2215%22>無圖</text></svg>';
+  var noImg = 'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect width=%22100%22 height=%22100%22 fill=%22%23f5f5f7%22/><text x=%2250%22 y=%2256%22 text-anchor=%22middle%22 fill=%22%23c7c7cc%22 font-size=%2215%22>無圖</text></svg>';
 
-  const sourceTag = d._last_source === 'user'
+  var sourceTag = d._last_source === 'user'
     ? '<span class="lock-tag">🔒 已編輯</span>'
     : (d._last_source === 'wellcome' ? '<span class="src-tag">🌐 惠康</span>' : '');
 
-  let timeStr = '';
+  var timeStr = '';
   if (d._last_modified) {
     try {
-      const dt = new Date(d._last_modified);
+      var dt = new Date(d._last_modified);
       if (!isNaN(dt)) {
         timeStr = dt.toLocaleString('zh-HK', {
           year:'numeric', month:'2-digit', day:'2-digit',
@@ -928,55 +1141,55 @@ function renderCard(d) {
     } catch (e) {}
   }
 
-  const locFields = [
+  var locFields = [
     { label:'暫存', val:d.temp_location }, { label:'併板', val:d.combine },
     { label:'倉',   val:d.warehouse },     { label:'地堆', val:d.island },
     { label:'直道', val:d.aisle },         { label:'橫巷', val:d.crosslane },
     { label:'架號', val:d.shelfnumber },   { label:'層',   val:d.floor }
   ];
-  const locGridHtml = locFields.map(f => `
-    <div class="loc-item${f.val ? '' : ' empty'}">
-      <span class="loc-item-label">${f.label}</span>
-      <span class="loc-item-value">${esc(f.val) || '—'}</span>
-    </div>`).join('');
+  var locGridHtml = locFields.map(function(f) {
+    return '<div class="loc-item' + (f.val ? '' : ' empty') + '">' +
+      '<span class="loc-item-label">' + f.label + '</span>' +
+      '<span class="loc-item-value">' + (esc(f.val) || '—') + '</span>' +
+    '</div>';
+  }).join('');
 
-  let simBadge = '';
+  var simBadge = '';
   if (d._similarity !== undefined) {
-    const score = d._similarity;
-    const color = score >= 80 ? '#2e7d32' : score >= 50 ? '#f57c00' : '#c62828';
-    simBadge = `<span class="sim-badge" style="background:${color};">相似 ${score}%</span>`;
+    var score = d._similarity;
+    var color = score >= 80 ? '#2e7d32' : score >= 50 ? '#f57c00' : '#c62828';
+    simBadge = '<span class="sim-badge" style="background:' + color + ';">相似 ' + score + '%</span>';
   }
 
-  const cardClass = d._similarity !== undefined ? 'card search-result' : 'card';
+  var cardClass = d._similarity !== undefined ? 'card search-result' : 'card';
 
-  return `
-    <div class="${cardClass}">
-      <div class="card-main">
-        <img class="thumb" src="${esc(d._preview || d.image) || noImg}" loading="lazy" referrerpolicy="no-referrer"
-             onerror="this.onerror=null;this.src='${noImg}'">
-        <div class="info">
-          <div class="name-zh">${esc(d.name_zh || d.name)}</div>
-          <div class="name">${esc(d.name)}</div>
-          <div class="meta">
-            <span class="price">$${esc(d.price)}</span>
-            <span class="id">${esc(d.id)}</span>
-            ${simBadge}
-          </div>
-        </div>
-      </div>
-      <div class="loc-section">
-        <div class="loc-title">📍 倉庫位置</div>
-        <div class="loc-grid">${locGridHtml}</div>
-      </div>
-      <div class="meta-footer">
-        <span>${timeStr || '未曾修改'}</span>
-        <span>${sourceTag}</span>
-      </div>
-      <div class="card-actions">
-        <button class="btn-edit" onclick="openEdit('${escAttr(d.id)}')">✏️ 編輯</button>
-        <button class="btn-del" onclick="confirmDelete('${escAttr(d.id)}')">🗑️ 刪除</button>
-      </div>
-    </div>`;
+  return '<div class="' + cardClass + '">' +
+    '<div class="card-main">' +
+      '<img class="thumb" src="' + (esc(d._preview || d.image) || noImg) + '" loading="lazy" referrerpolicy="no-referrer" ' +
+        'onerror="this.onerror=null;this.src=\'' + noImg + '\'">' +
+      '<div class="info">' +
+        '<div class="name-zh">' + esc(d.name_zh || d.name) + '</div>' +
+        '<div class="name">' + esc(d.name) + '</div>' +
+        '<div class="meta">' +
+          '<span class="price">$' + esc(d.price) + '</span>' +
+          '<span class="id">' + esc(d.id) + '</span>' +
+          simBadge +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="loc-section">' +
+      '<div class="loc-title">📍 倉庫位置</div>' +
+      '<div class="loc-grid">' + locGridHtml + '</div>' +
+    '</div>' +
+    '<div class="meta-footer">' +
+      '<span>' + (timeStr || '未曾修改') + '</span>' +
+      '<span>' + sourceTag + '</span>' +
+    '</div>' +
+    '<div class="card-actions">' +
+      '<button class="btn-edit" onclick="openEdit(\'' + escAttr(d.id) + '\')">✏️ 編輯</button>' +
+      '<button class="btn-del" onclick="confirmDelete(\'' + escAttr(d.id) + '\')">🗑️ 刪除</button>' +
+    '</div>' +
+  '</div>';
 }
 
 
@@ -984,76 +1197,76 @@ function renderCard(d) {
 // pHash
 // ============================================================
 function computePhashFromImage(img) {
-  const canvas = document.createElement('canvas');
+  var canvas = document.createElement('canvas');
   canvas.width = 32;
   canvas.height = 32;
-  const ctx = canvas.getContext('2d');
+  var ctx = canvas.getContext('2d');
   ctx.drawImage(img, 0, 0, 32, 32);
-  const imageData = ctx.getImageData(0, 0, 32, 32);
-  const data = imageData.data;
-  const gray = new Float32Array(1024);
-  for (let i = 0; i < 1024; i++) {
+  var imageData = ctx.getImageData(0, 0, 32, 32);
+  var data = imageData.data;
+  var gray = new Float32Array(1024);
+  for (var i = 0; i < 1024; i++) {
     gray[i] = 0.299 * data[i*4] + 0.587 * data[i*4+1] + 0.114 * data[i*4+2];
   }
-  const N = 32;
-  const cos = [];
-  for (let u = 0; u < 8; u++) {
+  var N = 32;
+  var cos = [];
+  for (var u = 0; u < 8; u++) {
     cos[u] = new Float32Array(N);
-    for (let x = 0; x < N; x++) {
+    for (var x = 0; x < N; x++) {
       cos[u][x] = Math.cos(((2 * x + 1) * u * Math.PI) / (2 * N));
     }
   }
-  const dct = new Float32Array(64);
-  let idx = 0;
-  for (let u = 0; u < 8; u++) {
-    for (let v = 0; v < 8; v++) {
-      let sum = 0;
-      for (let y = 0; y < N; y++) {
-        for (let x = 0; x < N; x++) {
-          sum += gray[y*N + x] * cos[u][x] * cos[v][y];
+  var dct = new Float32Array(64);
+  var idx = 0;
+  for (var u2 = 0; u2 < 8; u2++) {
+    for (var v = 0; v < 8; v++) {
+      var sum = 0;
+      for (var y = 0; y < N; y++) {
+        for (var x2 = 0; x2 < N; x2++) {
+          sum += gray[y*N + x2] * cos[u2][x2] * cos[v][y];
         }
       }
-      const cu = u === 0 ? 1/Math.sqrt(2) : 1;
-      const cv = v === 0 ? 1/Math.sqrt(2) : 1;
+      var cu = u2 === 0 ? 1/Math.sqrt(2) : 1;
+      var cv = v === 0 ? 1/Math.sqrt(2) : 1;
       dct[idx++] = 0.25 * cu * cv * sum;
     }
   }
-  const ac = [];
-  for (let i = 1; i < 64; i++) ac.push(dct[i]);
-  const sorted = [...ac].sort((a,b) => a-b);
-  const median = sorted[Math.floor(sorted.length / 2)];
-  let binary = '';
-  for (let i = 0; i < 64; i++) binary += ac[i] > median ? '1' : '0';
-  let hex = '';
-  for (let i = 0; i < 64; i += 4) {
-    hex += parseInt(binary.substr(i, 4), 2).toString(16);
+  var ac = [];
+  for (var k = 1; k < 64; k++) ac.push(dct[k]);
+  var sorted = ac.slice().sort(function(a,b) { return a-b; });
+  var median = sorted[Math.floor(sorted.length / 2)];
+  var binary = '';
+  for (var m = 0; m < 64; m++) binary += ac[m] > median ? '1' : '0';
+  var hex = '';
+  for (var n = 0; n < 64; n += 4) {
+    hex += parseInt(binary.substr(n, 4), 2).toString(16);
   }
   return hex;
 }
 
 function computePhashFromUrl(url) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
+  return new Promise(function(resolve, reject) {
+    var img = new Image();
     img.crossOrigin = 'anonymous';
-    img.onload = () => {
+    img.onload = function() {
       try { resolve(computePhashFromImage(img)); }
       catch (e) { reject(new Error('CORS')); }
     };
-    img.onerror = () => reject(new Error('圖片載入失敗'));
-    img.src = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
+    img.onerror = function() { reject(new Error('圖片載入失敗')); };
+    img.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + '_t=' + Date.now();
   });
 }
 
 function computePhashFromBlob(blob) {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(blob);
-    const img = new Image();
-    img.onload = () => {
+  return new Promise(function(resolve, reject) {
+    var url = URL.createObjectURL(blob);
+    var img = new Image();
+    img.onload = function() {
       URL.revokeObjectURL(url);
       try { resolve(computePhashFromImage(img)); }
       catch (e) { reject(e); }
     };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('圖片載入失敗')); };
+    img.onerror = function() { URL.revokeObjectURL(url); reject(new Error('圖片載入失敗')); };
     img.src = url;
   });
 }
@@ -1065,63 +1278,64 @@ function computePhashFromBlob(blob) {
 async function checkPhashStatus() {
   if (!isAdmin) { $('phashBanner').style.display = 'none'; return; }
   try {
-    const status = await apiGet('phashStatus');
+    var status = await apiGet('phashStatus');
     if (status.error) return;
-    const missing = status.missing || [];
+    var missing = status.missing || [];
     if (missing.length === 0) { $('phashBanner').style.display = 'none'; return; }
     $('phashBanner').style.display = 'flex';
-    $('phashBannerText').textContent = `📸 有 ${missing.length} 張圖片尚未建立指紋`;
+    $('phashBannerText').textContent = '📸 有 ' + missing.length + ' 張圖片尚未建立指紋';
   } catch (e) {}
 }
 
 async function buildPhashLibrary() {
-  const lock = await apiGet('phashLock');
+  var lock = await apiGet('phashLock');
   if (lock.error) { toast('❌ ' + lock.error); return; }
-  if (!lock.ok) { toast(`⏳ 已有人正在建立，請等 ${lock.remainSec} 秒後再試`, 4000); return; }
+  if (!lock.ok) { toast('⏳ 已有人正在建立，請等 ' + lock.remainSec + ' 秒後再試', 4000); return; }
 
   try {
-    const status = await apiGet('phashStatus');
+    var status = await apiGet('phashStatus');
     if (status.error) { toast('❌ ' + status.error); return; }
-    const missing = status.missing || [];
+    var missing = status.missing || [];
     if (missing.length === 0) { toast('✅ 所有圖片已有指紋'); $('phashBanner').style.display = 'none'; return; }
 
-    if (!confirm(`將為 ${missing.length} 張圖片建立指紋，可能需要 10-30 分鐘。\n\n過程中請保持頁面開啟。確定開始？`)) return;
+    if (!confirm('將為 ' + missing.length + ' 張圖片建立指紋，可能需要 10-30 分鐘。\n\n過程中請保持頁面開啟。確定開始？')) return;
 
     $('phashProgress').style.display = 'block';
-    const bar = $('phashProgressBar');
+    var bar = $('phashProgressBar');
     bar.style.width = '0%';
 
-    const idMap = {};
-    allData.forEach(d => { idMap[String(d.id)] = d; });
+    var idMap = {};
+    allData.forEach(function(d) { idMap[String(d.id)] = d; });
 
-    const batch = [];
-    let done = 0, failed = 0;
-    const total = missing.length;
+    var batch = [];
+    var done = 0, failed = 0;
+    var total = missing.length;
 
-    for (const id of missing) {
-      const p = idMap[String(id)];
+    for (var i = 0; i < missing.length; i++) {
+      var id = missing[i];
+      var p = idMap[String(id)];
       if (!p || !p.image) { failed++; continue; }
       try {
-        const phash = await computePhashFromUrl(p.image);
-        batch.push({ id: p.id, phash });
+        var phash = await computePhashFromUrl(p.image);
+        batch.push({ id: p.id, phash: phash });
         done++;
       } catch (e) { failed++; }
 
       if (batch.length >= 20) {
         try { await apiPost({ action: 'savePhashBatch', items: batch.splice(0) }); } catch (e) {}
       }
-      const pct = ((done + failed) / total * 100).toFixed(1);
+      var pct = ((done + failed) / total * 100).toFixed(1);
       bar.style.width = pct + '%';
-      $('phashBannerText').textContent = `建立中... ${done + failed}/${total}（成功 ${done}，失敗 ${failed}）`;
+      $('phashBannerText').textContent = '建立中... ' + (done + failed) + '/' + total + '（成功 ' + done + '，失敗 ' + failed + '）';
     }
 
     if (batch.length > 0) {
       try { await apiPost({ action: 'savePhashBatch', items: batch }); } catch (e) {}
     }
     bar.style.width = '100%';
-    toast(`✅ 完成！成功 ${done}，失敗 ${failed}`, 5000);
-    $('phashBannerText').textContent = `✅ 完成！成功 ${done}，失敗 ${failed}`;
-    setTimeout(() => {
+    toast('✅ 完成！成功 ' + done + '，失敗 ' + failed, 5000);
+    $('phashBannerText').textContent = '✅ 完成！成功 ' + done + '，失敗 ' + failed;
+    setTimeout(function() {
       $('phashBanner').style.display = 'none';
       $('phashProgress').style.display = 'none';
     }, 3000);
@@ -1134,22 +1348,22 @@ async function buildPhashLibrary() {
 // ============================================================
 // 以圖搜圖
 // ============================================================
-$('btnSearchByImage').onclick = () => $('imageSearchInput').click();
+$('btnSearchByImage').onclick = function() { $('imageSearchInput').click(); };
 
 $('imageSearchInput').addEventListener('change', async function(e) {
-  const file = e.target.files[0];
+  var file = e.target.files[0];
   if (!file) return;
   e.target.value = '';
 
   toast('🔍 分析圖片中...', 3000);
   try {
-    const compressed = await compressImage(file, 400, 0.75);
-    const phash = await computePhashFromBlob(compressed);
-    const result = await apiPost({ action: 'searchByPhash', phash: phash, topN: 15 });
+    var compressed = await compressImage(file, 400, 0.75);
+    var phash = await computePhashFromBlob(compressed);
+    var result = await apiPost({ action: 'searchByPhash', phash: phash, topN: 15 });
     if (result.error) { toast('❌ ' + result.error, 3000); return; }
-    const results = result.results || [];
+    var results = result.results || [];
     if (results.length === 0) { toast('😕 找不到相似的產品', 3000); return; }
-    const filtered = results.filter(r => r._similarity >= 30);
+    var filtered = results.filter(function(r) { return r._similarity >= 30; });
     if (filtered.length === 0) { toast('😕 沒有足夠相似的產品', 3000); return; }
     searchMode = 'image';
     showSearchResults(filtered);
@@ -1159,14 +1373,14 @@ $('imageSearchInput').addEventListener('change', async function(e) {
 });
 
 function showSearchResults(results) {
-  $('stats').textContent = `找到 ${results.length} 個相似產品（按相似度排序）`;
+  $('stats').textContent = '找到 ' + results.length + ' 個相似產品（按相似度排序）';
   $('btnClear').style.display = 'flex';
   $('phashBanner').style.display = 'none';
-  $('list').innerHTML = results.map(d => renderCard(d)).join('') +
-    `<div class="loading" style="padding:30px;font-size:15px;">共 ${results.length} 個結果</div>`;
+  $('list').innerHTML = results.map(function(d) { return renderCard(d); }).join('') +
+    '<div class="loading" style="padding:30px;font-size:15px;">共 ' + results.length + ' 個結果</div>';
 }
 
-$('btnClear').onclick = () => {
+$('btnClear').onclick = function() {
   $('q').value = '';
   searchMode = 'text';
   loadData(true);
@@ -1180,10 +1394,10 @@ function openAdd() {
   editingId = null;
   pendingImage = null;
   $('modalTitle').textContent = '新增產品';
-  FIELDS.forEach(k => $('f_' + k).value = '');
+  FIELDS.forEach(function(k) { $('f_' + k).value = ''; });
 
-  ['f_warehouse', 'f_aisle', 'f_crosslane', 'f_floor', 'f_category_en'].forEach(id => {
-    const el = $(id);
+  ['f_warehouse', 'f_aisle', 'f_crosslane', 'f_floor', 'f_category_en'].forEach(function(id) {
+    var el = $(id);
     if (el) el.value = '';
   });
 
@@ -1199,18 +1413,18 @@ function openAdd() {
 }
 
 function openEdit(id) {
-  const p = allData.find(d => String(d.id) === String(id));
+  var p = allData.find(function(d) { return String(d.id) === String(id); });
   if (!p) return;
   editingId = id;
   pendingImage = null;
   $('modalTitle').textContent = '編輯產品';
 
-  const textFields = ['id','barcode','name','name_zh','price','original_price','image',
-                      'category_zh','description','temp_location','island','shelfnumber'];
-  textFields.forEach(k => $('f_' + k).value = p[k] || '');
+  var textFields = ['id','barcode','name','name_zh','price','original_price','image',
+                    'category_zh','description','temp_location','island','shelfnumber'];
+  textFields.forEach(function(k) { $('f_' + k).value = p[k] || ''; });
 
-  ['warehouse', 'aisle', 'crosslane', 'floor', 'category_en'].forEach(k => {
-    const el = $('f_' + k);
+  ['warehouse', 'aisle', 'crosslane', 'floor', 'category_en'].forEach(function(k) {
+    var el = $('f_' + k);
     if (el) {
       if (el.options.length <= 1 && OPTIONS[k] && OPTIONS[k].length > 0) {
         fillSelect('f_' + k, OPTIONS[k]);
@@ -1221,10 +1435,10 @@ function openEdit(id) {
 
   setCombineValue(p.combine || '');
 
-  let timeStr = '';
+  var timeStr = '';
   if (p._last_modified) {
     try {
-      const dt = new Date(p._last_modified);
+      var dt = new Date(p._last_modified);
       timeStr = isNaN(dt) ? p._last_modified : dt.toLocaleString('zh-HK');
     } catch (e) { timeStr = p._last_modified; }
   }
@@ -1254,10 +1468,10 @@ function closeModal() {
 // 圖片處理
 // ============================================================
 $('f_imageFile').addEventListener('change', async function(e) {
-  const file = e.target.files[0];
+  var file = e.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
+  var reader = new FileReader();
+  reader.onload = function(ev) {
     $('f_imagePreview').src = ev.target.result;
     $('f_imagePreview').style.display = 'block';
   };
@@ -1274,18 +1488,18 @@ $('f_imageFile').addEventListener('change', async function(e) {
 function compressImage(file, maxWidth, quality) {
   maxWidth = maxWidth || 800;
   quality = quality || 0.8;
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let w = img.width, h = img.height;
+  return new Promise(function(resolve, reject) {
+    var img = new Image();
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      img.onload = function() {
+        var canvas = document.createElement('canvas');
+        var w = img.width, h = img.height;
         if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
         canvas.width = w;
         canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        canvas.toBlob(b => resolve(b), 'image/jpeg', quality);
+        canvas.toBlob(function(b) { resolve(b); }, 'image/jpeg', quality);
       };
       img.onerror = reject;
       img.src = e.target.result;
@@ -1296,9 +1510,9 @@ function compressImage(file, maxWidth, quality) {
 }
 
 function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result.split(',')[1]);
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function() { resolve(reader.result.split(',')[1]); };
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
@@ -1308,10 +1522,10 @@ async function uploadImageImmediate(file) {
   try {
     toast('📤 上傳中...');
     $('btnSave').disabled = true;
-    const compressed = await compressImage(file);
-    const base64 = await fileToBase64(compressed);
-    const localPreview = 'data:image/jpeg;base64,' + base64;
-    const result = await apiPost({
+    var compressed = await compressImage(file);
+    var base64 = await fileToBase64(compressed);
+    var localPreview = 'data:image/jpeg;base64,' + base64;
+    var result = await apiPost({
       action: 'uploadImage',
       productId: editingId,
       fileName: 'photo_' + Date.now() + '.jpg',
@@ -1319,7 +1533,7 @@ async function uploadImageImmediate(file) {
       base64: base64
     });
     if (result.error) { toast('❌ ' + result.error, 3000); return; }
-    const p = allData.find(d => String(d.id) === String(editingId));
+    var p = allData.find(function(d) { return String(d.id) === String(editingId); });
     if (p) {
       p.image = result.imageUrl;
       p._preview = localPreview;
@@ -1333,13 +1547,13 @@ async function uploadImageImmediate(file) {
     toast('✅ 圖片已上傳');
     clearLocalCache();
     render();
-    setTimeout(async () => {
+    setTimeout(async function() {
       try {
-        const phash = await computePhashFromBlob(compressed);
-        await apiPost({ action: 'savePhashBatch', items: [{ id: editingId, phash }] });
+        var phash = await computePhashFromBlob(compressed);
+        await apiPost({ action: 'savePhashBatch', items: [{ id: editingId, phash: phash }] });
       } catch (e) {}
     }, 500);
-    setTimeout(() => loadData(true), 5000);
+    setTimeout(function() { loadData(true); }, 5000);
   } catch (e) {
     toast('❌ ' + e.message, 3000);
   } finally {
@@ -1348,23 +1562,23 @@ async function uploadImageImmediate(file) {
 }
 
 async function saveProduct() {
-  const data = {};
-  FIELDS.forEach(k => data[k] = $('f_' + k).value.trim());
+  var data = {};
+  FIELDS.forEach(function(k) { data[k] = $('f_' + k).value.trim(); });
   if (!data.id) { toast('❌ ID 不能為空'); return; }
 
   $('btnSave').disabled = true;
   try {
-    const result = editingId
-      ? await apiPost({ action: 'update', id: editingId, data })
-      : await apiPost({ action: 'create', data });
+    var result = editingId
+      ? await apiPost({ action: 'update', id: editingId, data: data })
+      : await apiPost({ action: 'create', data: data });
     if (result.error) { toast('❌ ' + result.error, 3000); return; }
 
     if (!editingId && pendingImage) {
       toast('📤 上傳圖片中...');
-      const compressed = await compressImage(pendingImage);
-      const base64 = await fileToBase64(compressed);
-      const localPreview = 'data:image/jpeg;base64,' + base64;
-      const imgResult = await apiPost({
+      var compressed = await compressImage(pendingImage);
+      var base64 = await fileToBase64(compressed);
+      var localPreview = 'data:image/jpeg;base64,' + base64;
+      var imgResult = await apiPost({
         action: 'uploadImage',
         productId: data.id,
         fileName: 'photo_' + Date.now() + '.jpg',
@@ -1374,12 +1588,12 @@ async function saveProduct() {
       if (imgResult.error) {
         toast('⚠️ 產品已存，圖片上傳失敗：' + imgResult.error, 4000);
       } else {
-        const newP = allData.find(d => String(d.id) === String(data.id));
+        var newP = allData.find(function(d) { return String(d.id) === String(data.id); });
         if (newP) { newP.image = imgResult.imageUrl; newP._preview = localPreview; }
-        setTimeout(async () => {
+        setTimeout(async function() {
           try {
-            const phash = await computePhashFromBlob(compressed);
-            await apiPost({ action: 'savePhashBatch', items: [{ id: data.id, phash }] });
+            var phash = await computePhashFromBlob(compressed);
+            await apiPost({ action: 'savePhashBatch', items: [{ id: data.id, phash: phash }] });
           } catch (e) {}
         }, 500);
       }
@@ -1389,7 +1603,7 @@ async function saveProduct() {
     closeModal();
     clearLocalCache();
     render();
-    setTimeout(() => loadData(true), 5000);
+    setTimeout(function() { loadData(true); }, 5000);
   } catch (e) {
     toast('❌ ' + e.message, 3000);
   } finally {
@@ -1400,7 +1614,7 @@ async function saveProduct() {
 async function confirmDelete(id) {
   if (!confirm('確定刪除 ID ' + id + '？')) return;
   try {
-    const result = await apiPost({ action: 'delete', id });
+    var result = await apiPost({ action: 'delete', id: id });
     if (result.error) { toast('❌ ' + result.error, 3000); return; }
     toast('✅ 已刪除');
     clearLocalCache();
@@ -1412,7 +1626,7 @@ async function unlockCurrentProduct() {
   if (!editingId) return;
   if (!confirm('確定解鎖？下次惠康抓取時會被自動更新覆寫。')) return;
   try {
-    const result = await apiPost({ action: 'unlock', id: editingId });
+    var result = await apiPost({ action: 'unlock', id: editingId });
     if (result.error) { toast('❌ ' + result.error); return; }
     toast('🔓 已解鎖');
     clearLocalCache();
@@ -1425,7 +1639,7 @@ async function unlockCurrentProduct() {
 // ============================================================
 // 條碼掃描
 // ============================================================
-const SCAN_FORMATS = [
+var SCAN_FORMATS = [
   Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
   Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E,
   Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
@@ -1442,17 +1656,17 @@ async function openScanner(title, mode) {
   $('scanModal').classList.add('show');
   $('torchBtn').style.display = 'none';
 
-  setTimeout(async () => {
+  setTimeout(async function() {
     try {
       html5QrCode = new Html5Qrcode("reader");
       await html5QrCode.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: {width:300,height:200}, aspectRatio: 1.0, formatsToSupport: SCAN_FORMATS },
         onScanSuccess,
-        () => {}
+        function() {}
       );
       try {
-        const caps = html5QrCode.getRunningTrackCameraCapabilities();
+        var caps = html5QrCode.getRunningTrackCameraCapabilities();
         if (caps && caps.torchFeature && caps.torchFeature().isSupported()) {
           $('torchBtn').style.display = 'block';
         }
@@ -1464,7 +1678,7 @@ async function openScanner(title, mode) {
   }, 300);
 }
 
-$('btnScanSearch').onclick = () => openScanner('🔍 掃碼搜尋', 'search');
+$('btnScanSearch').onclick = function() { openScanner('🔍 掃碼搜尋', 'search'); };
 
 function startEditScan() {
   openScanner('📷 掃描條碼', 'edit');
@@ -1483,11 +1697,11 @@ function onScanSuccess(decodedText) {
     closeScan();
     searchMode = 'text';
     render();
-    const term = decodedText.toLowerCase();
-    const found = allData.filter(d => 
-      String(d.barcode).toLowerCase() === term ||
-      String(d.id).toLowerCase() === term
-    );
+    var term = decodedText.toLowerCase();
+    var found = allData.filter(function(d) { 
+      return String(d.barcode).toLowerCase() === term ||
+             String(d.id).toLowerCase() === term;
+    });
     if (found.length > 0) {
       toast('✅ 找到：' + (found[0].name_zh || found[0].name), 2500);
     } else {
@@ -1496,12 +1710,12 @@ function onScanSuccess(decodedText) {
   } else if (scanMode === 'edit') {
     $('f_barcode').value = decodedText;
     toast('✅ 已辨識：' + decodedText, 2000);
-    const existing = allData.find(d => String(d.barcode) === String(decodedText));
+    var existing = allData.find(function(d) { return String(d.barcode) === String(decodedText); });
     if (existing) {
-      setTimeout(() => {
+      setTimeout(function() {
         if (confirm('此條碼已存在：\n\nID: ' + existing.id + '\n名稱: ' + (existing.name_zh || existing.name) + '\n\n要載入此產品進行編輯嗎？')) {
           closeScan();
-          setTimeout(() => openEdit(existing.id), 300);
+          setTimeout(function() { openEdit(existing.id); }, 300);
         }
       }, 200);
     } else {
@@ -1524,7 +1738,7 @@ async function closeScan() {
 function toggleTorch() {
   if (!html5QrCode) return;
   try {
-    const caps = html5QrCode.getRunningTrackCameraCapabilities();
+    var caps = html5QrCode.getRunningTrackCameraCapabilities();
     if (caps && caps.torchFeature && caps.torchFeature().isSupported()) {
       torchOn = !torchOn;
       caps.torchFeature().apply(torchOn);
@@ -1537,8 +1751,8 @@ function toggleTorch() {
 // ============================================================
 // 搜尋 debounce
 // ============================================================
-let searchTimer;
-$('q').addEventListener('input', () => {
+var searchTimer;
+$('q').addEventListener('input', function() {
   if (searchMode === 'image') {
     searchMode = 'text';
     loadData(true);
@@ -1553,22 +1767,30 @@ $('q').addEventListener('input', () => {
 // DEBUG
 // ============================================================
 function showDebug() {
-  const info = {
+  var wh = OPTIONS.warehouse || [];
+  var ai = OPTIONS.aisle || [];
+  var cl = OPTIONS.crosslane || [];
+  var fl = OPTIONS.floor || [];
+  var cb = OPTIONS.combine || [];
+  var ce = OPTIONS.category_en || [];
+  var fw = $('f_warehouse');
+  var info = {
     'TOKEN': TOKEN ? TOKEN.substring(0, 10) + '...' : 'null',
     'API_URL': API_URL.substring(0, 60) + '...',
+    'isAdmin': isAdmin,
     'optionsLoaded': optionsLoaded,
-    'warehouse': OPTIONS.warehouse?.length || 0,
-    'aisle': OPTIONS.aisle?.length || 0,
-    'crosslane': OPTIONS.crosslane?.length || 0,
-    'floor': OPTIONS.floor?.length || 0,
-    'combine': OPTIONS.combine?.length || 0,
-    'category_en': OPTIONS.category_en?.length || 0,
-    'f_warehouse 存在': !!$('f_warehouse'),
-    'f_warehouse 選項數': $('f_warehouse')?.options?.length || 0,
+    'warehouse': wh.length,
+    'aisle': ai.length,
+    'crosslane': cl.length,
+    'floor': fl.length,
+    'combine': cb.length,
+    'category_en': ce.length,
+    'f_warehouse 存在': !!fw,
+    'f_warehouse 選項數': fw && fw.options ? fw.options.length : 0,
     'allData': allData.length
   };
-  let msg = '';
-  Object.entries(info).forEach(([k, v]) => msg += k + ': ' + v + '\n');
+  var msg = '';
+  Object.keys(info).forEach(function(k) { msg += k + ': ' + info[k] + '\n'; });
   alert(msg);
 }
 
