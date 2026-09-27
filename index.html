@@ -392,6 +392,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 </head>
 <body>
 
+<!-- ============ 登入畫面 ============ -->
 <div id="loginScreen" class="login-box" style="display:none">
   <h1>🔐 請輸入密碼</h1>
   <input type="password" id="pwdInput" placeholder="輸入密碼" autocomplete="current-password">
@@ -402,12 +403,15 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   <button onclick="login()">登入</button>
 </div>
 
+<!-- ============ 主畫面 ============ -->
 <div id="appScreen" style="display:none">
   <header>
     <h1 style="display:flex;justify-content:center;align-items:center;gap:8px;">
       <span>📦 產品管理</span>
-      <button id="btnOptionsMgr" onclick="openOptionsModal()" title="選項管理" style="display:none;background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">⚙️</button>
-      <button id="btnLogout" onclick="logout()" title="登出" style="background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">🚪</button>
+      <button id="btnOptionsMgr" onclick="openOptionsModal()" title="選項管理"
+        style="display:none;background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">⚙️</button>
+      <button id="btnLogout" onclick="logout()" title="登出"
+        style="background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">🚪</button>
     </h1>
     <div class="search-box">
       <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
@@ -433,6 +437,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   <button class="add-btn" onclick="openAdd()">+</button>
 </div>
 
+<!-- ============ 產品編輯 Modal ============ -->
 <div class="modal" id="modal">
   <div class="modal-content">
     <h2 id="modalTitle">新增產品</h2>
@@ -558,6 +563,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   </div>
 </div>
 
+<!-- ============ 掃碼 Modal ============ -->
 <div class="modal" id="scanModal" style="align-items: center;">
   <div class="modal-content">
     <div class="scan-header">
@@ -573,6 +579,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   </div>
 </div>
 
+<!-- ============ 選項管理 Modal ============ -->
 <div class="modal" id="optionsModal" style="align-items: stretch;">
   <div class="modal-content" style="border-radius: 0; max-height: 100vh; height: 100vh; padding: 20px 14px calc(20px + env(safe-area-inset-bottom));">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;position:sticky;top:0;background:#fff;padding-bottom:12px;border-bottom:2px solid #e5e5e7;z-index:10;">
@@ -611,7 +618,6 @@ let TOKEN = '';
 let isAdmin = false;
 let rememberLogin = true;
 
-// ★ 同時從 localStorage 和 sessionStorage 讀取登入狀態
 try {
   var lsToken = localStorage.getItem('token');
   var ssToken = sessionStorage.getItem('token');
@@ -675,7 +681,10 @@ function safeSetLS(key, value) {
   try { localStorage.setItem(key, value); return true; } catch (e) { return false; }
 }
 
-// ★ 登入 / 登出
+
+// ============================================================
+// 登入 / 登出
+// ============================================================
 function login() {
   var pwd = $('pwdInput').value.trim();
   if (!pwd) return;
@@ -686,7 +695,6 @@ function login() {
   var remember = $('rememberMe').checked;
   rememberLogin = remember;
 
-  // 先清掉兩邊
   try {
     localStorage.removeItem('token');
     localStorage.removeItem('isAdmin');
@@ -694,7 +702,6 @@ function login() {
     sessionStorage.removeItem('isAdmin');
   } catch (e) {}
 
-  // 依勾選存到對應位置
   var store = remember ? localStorage : sessionStorage;
   try {
     store.setItem('token', pwd);
@@ -1893,7 +1900,6 @@ function showDebug() {
 // ============================================================
 // 啟動
 // ============================================================
-// 密碼框按 Enter 直接登入
 $('pwdInput').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') login();
 });
