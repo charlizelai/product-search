@@ -279,7 +279,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .toast.show { opacity: 1; }
 .login-box { padding: 60px 24px; max-width: 420px; margin: 0 auto; }
 .login-box h1 { margin-bottom: 28px; font-size: 26px; text-align: center; }
-.login-box input {
+.login-box input[type="password"] {
   width: 100%; padding: 16px; font-size: 19px;
   border: 2px solid #d2d2d7; border-radius: 14px;
   margin-bottom: 16px; -webkit-appearance: none;
@@ -289,6 +289,18 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   background: #0071e3; color: #fff;
   border: none; border-radius: 14px;
   font-size: 19px; font-weight: 700; cursor: pointer;
+}
+.remember-row {
+  display: flex; align-items: center; gap: 10px;
+  margin: -4px 0 18px;
+  font-size: 16px; color: #1d1d1f;
+  cursor: pointer; user-select: none;
+}
+.remember-row input[type="checkbox"] {
+  width: 22px; height: 22px;
+  accent-color: #0071e3;
+  cursor: pointer;
+  margin: 0;
 }
 #scanModal .modal-content {
   border-radius: 24px; margin: 16px; max-height: 95vh;
@@ -383,12 +395,20 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 <div id="loginScreen" class="login-box" style="display:none">
   <h1>🔐 請輸入密碼</h1>
   <input type="password" id="pwdInput" placeholder="輸入密碼" autocomplete="current-password">
+  <label class="remember-row">
+    <input type="checkbox" id="rememberMe" checked>
+    <span>記住我（下次自動登入）</span>
+  </label>
   <button onclick="login()">登入</button>
 </div>
 
 <div id="appScreen" style="display:none">
   <header>
-    <h1>📦 產品管理 <button id="btnOptionsMgr" onclick="openOptionsModal()" style="display:none;background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">⚙️</button></h1>
+    <h1 style="display:flex;justify-content:center;align-items:center;gap:8px;">
+      <span>📦 產品管理</span>
+      <button id="btnOptionsMgr" onclick="openOptionsModal()" title="選項管理" style="display:none;background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">⚙️</button>
+      <button id="btnLogout" onclick="logout()" title="登出" style="background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">🚪</button>
+    </h1>
     <div class="search-box">
       <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
       <input id="q" type="search" placeholder="搜尋 / 條碼 / 位置..." autocomplete="off">
@@ -589,9 +609,21 @@ const LOCAL_CACHE_TTL = 5 * 60 * 1000;
 // ============================================================
 let TOKEN = '';
 let isAdmin = false;
+let rememberLogin = true;
+
+// ★ 同時從 localStorage 和 sessionStorage 讀取登入狀態
 try {
-  TOKEN = localStorage.getItem('token') || '';
-  isAdmin = localStorage.getItem('isAdmin') === '1';
+  var lsToken = localStorage.getItem('token');
+  var ssToken = sessionStorage.getItem('token');
+  if (lsToken) {
+    TOKEN = lsToken;
+    isAdmin = localStorage.getItem('isAdmin') === '1';
+    rememberLogin = true;
+  } else if (ssToken) {
+    TOKEN = ssToken;
+    isAdmin = sessionStorage.getItem('isAdmin') === '1';
+    rememberLogin = false;
+  }
 } catch (e) {}
 
 let allData = [];
@@ -643,14 +675,69 @@ function safeSetLS(key, value) {
   try { localStorage.setItem(key, value); return true; } catch (e) { return false; }
 }
 
+// ★ 登入 / 登出
 function login() {
   var pwd = $('pwdInput').value.trim();
   if (!pwd) return;
+
   TOKEN = pwd;
   isAdmin = (pwd === ADMIN_TOKEN);
-  safeSetLS('token', pwd);
-  safeSetLS('isAdmin', isAdmin ? '1' : '0');
+
+  var remember = $('rememberMe').checked;
+  rememberLogin = remember;
+
+  // 先清掉兩邊
+  try {
+    localStorage.removeItem('token');
+    localStorage.removeItem('isAdmin');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('isAdmin');
+  } catch (e) {}
+
+  // 依勾選存到對應位置
+  var store = remember ? localStorage : sessionStorage;
+  try {
+    store.setItem('token', pwd);
+    store.setItem('isAdmin', isAdmin ? '1' : '0');
+  } catch (e) {}
+
   showApp();
+}
+
+function logout() {
+  if (!confirm('確定要登出嗎？')) return;
+
+  TOKEN = '';
+  isAdmin = false;
+  rememberLogin = true;
+
+  try {
+    localStorage.removeItem('token');
+    localStorage.removeItem('isAdmin');
+    localStorage.removeItem(LOCAL_CACHE_KEY);
+    localStorage.removeItem(LOCAL_CACHE_TIME_KEY);
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('isAdmin');
+  } catch (e) {}
+
+  allData = [];
+  optionsLoaded = false;
+  OPTIONS = {
+    warehouse: [], aisle: [], crosslane: [], floor: [],
+    combine: [], category_en: []
+  };
+
+  $('appScreen').style.display = 'none';
+  $('loginScreen').style.display = 'block';
+  $('pwdInput').value = '';
+  $('rememberMe').checked = true;
+  $('q').value = '';
+  $('list').innerHTML = '';
+  $('stats').textContent = '載入中...';
+  $('btnOptionsMgr').style.display = 'none';
+  $('phashBanner').style.display = 'none';
+
+  toast('👋 已登出');
 }
 
 function showApp() {
@@ -1778,6 +1865,14 @@ function showDebug() {
     'TOKEN': TOKEN ? TOKEN.substring(0, 18) + '...' : 'null',
     'API_URL': API_URL.substring(0, 60) + '...',
     'isAdmin': isAdmin,
+    'rememberLogin': rememberLogin,
+    'storage': (function() {
+      try {
+        if (localStorage.getItem('token')) return 'localStorage';
+        if (sessionStorage.getItem('token')) return 'sessionStorage';
+        return 'none';
+      } catch (e) { return 'error'; }
+    })(),
     'optionsLoaded': optionsLoaded,
     'warehouse': wh.length,
     'aisle': ai.length,
@@ -1798,6 +1893,11 @@ function showDebug() {
 // ============================================================
 // 啟動
 // ============================================================
+// 密碼框按 Enter 直接登入
+$('pwdInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') login();
+});
+
 if (TOKEN) showApp();
 else $('loginScreen').style.display = 'block';
 </script>
