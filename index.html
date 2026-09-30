@@ -603,7 +603,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 // ============================================================
 // 配置
 // ============================================================
-const API_URL = 'https://script.google.com/macros/library/d/1IcjDkLBSm-cXeE8skbjeVYRuBJle6nGF4GBP5mnz2VDOKoAhGJVO_MyA/19';
+const API_URL = 'https://script.google.com/macros/s/AKfycby6NrRUYbt9wnEBhx2pSdC3mtbcdVFZWhtqxYX9gvcV0xVOa-ww5_rm-iQovJwB8dqUmQ/exec';
 const CDN_URL = 'https://raw.githubusercontent.com/charlizelai/product-search/main/data/products.json';
 const ADMIN_TOKEN = 'charlize-admin-2026';
 
@@ -683,6 +683,42 @@ function safeSetLS(key, value) {
 
 
 // ============================================================
+// 🚀 SyncEngine 整合（依 README 第 4 步）
+// ============================================================
+// SyncEngine 完成初次全量或差量同步後，會呼叫此回呼
+window.__onDataLoaded = function(products) {
+  console.log('✅ __onDataLoaded 觸發，資料筆數：', products ? products.length : 0);
+  if (Array.isArray(products) && products.length > 0) {
+    applyProducts(products);
+    // 保留本地快取供離線使用（Sync 內部也會處理，但雙保險）
+    try { saveLocalCache(products); } catch (e) {}
+  }
+  render();
+  checkPhashStatus();
+};
+
+// 差量合併後（例如背景更新、其他裝置變更推送）
+window.__onDeltaApplied = function(delta) {
+  console.log('🔄 __onDeltaApplied：', delta);
+  // 若 Sync 已把最新 allData 準備好，直接重繪即可
+  if (Array.isArray(delta) && delta.length > 0 && !Array.isArray(allData)) {
+    applyProducts(delta);
+  }
+  render();
+};
+
+// Sync 錯誤回呼
+window.__onSyncError = function(err) {
+  console.warn('⚠️ Sync error:', err);
+  var msg = err && err.message ? err.message : String(err);
+  // 只有在非「首次載入」情境才提示，避免每次開啟都跳
+  if (allData && allData.length > 0) {
+    toast('⚠️ 同步失敗：' + msg, 3000);
+  }
+};
+
+
+// ============================================================
 // 登入 / 登出
 // ============================================================
 function login() {
@@ -727,6 +763,11 @@ function logout() {
     sessionStorage.removeItem('isAdmin');
   } catch (e) {}
 
+  // 通知 SyncEngine 清狀態（若有提供）
+  try {
+    if (typeof Sync !== 'undefined' && Sync.reset) Sync.reset();
+  } catch (e) {}
+
   allData = [];
   optionsLoaded = false;
   OPTIONS = {
@@ -753,6 +794,7 @@ function showApp() {
 
   $('btnOptionsMgr').style.display = isAdmin ? 'inline-block' : 'none';
 
+  // 選項照舊自己載入（Sync 不接管）
   loadOptions().then(function() {
     console.log('✅ 選項載入流程完成');
   }).catch(function(e) {
@@ -760,7 +802,36 @@ function showApp() {
     if (!optionsLoaded) useDefaultOptions();
   });
 
-  loadData();
+  // 🚀 資料載入策略：
+  //   - 若 SyncEngine 就緒 → 交給 Sync.boot()（已在頁尾呼叫）走 __onDataLoaded 回呼
+  //   - 若 SyncEngine 不可用 → 降級使用舊版 loadData()
+  startDataLoading();
+}
+
+// 等 sync.js 載入（最多等 800ms），再決定用 Sync 還是舊版
+function startDataLoading() {
+  if (typeof Sync !== 'undefined' && Sync.boot) {
+    console.log('🚀 SyncEngine 已就緒，資料由 SyncEngine 載入');
+    // 若這是登入後再次呼叫（非首次），且 Sync 已 boot 過，觸發刷新
+    if (Sync.isReady && Sync.isReady()) {
+      try { Sync.refresh && Sync.refresh(); } catch (e) {}
+    }
+    return;
+  }
+
+  var start = Date.now();
+  (function wait() {
+    if (typeof Sync !== 'undefined' && Sync.boot) {
+      console.log('🚀 SyncEngine 載入完成，交由 SyncEngine');
+      return;
+    }
+    if (Date.now() - start > 800) {
+      console.log('📦 SyncEngine 不可用，降級使用舊版 loadData()');
+      loadData();
+      return;
+    }
+    setTimeout(wait, 60);
+  })();
 }
 
 async function apiGet(action, params) {
@@ -811,15 +882,7 @@ async function loadOptions() {
       return;
     }
 
-    console.log('✅ 選項載入成功：', {
-      warehouse: (result.warehouse || []).length,
-      aisle: (result.aisle || []).length,
-      crosslane: (result.crosslane || []).length,
-      floor: (result.floor || []).length,
-      combine: (result.combine || []).length,
-      category_en: (result.category_en || []).length
-    });
-
+    console.log('✅ 選項載入成功');
     OPTIONS = result;
     optionsLoaded = true;
     populateSelects();
@@ -1069,7 +1132,7 @@ async function saveOptionsToServer() {
 
 
 // ============================================================
-// CDN 載入
+// CDN 載入（舊版 fallback；若 SyncEngine 就緒則不會走這條）
 // ============================================================
 async function fetchFromCDN() {
   var bucket = Math.floor(Date.now() / 300000);
@@ -1647,7 +1710,6 @@ async function uploadImageImmediate(file) {
         await apiPost({ action: 'savePhashBatch', items: [{ id: editingId, phash: phash }] });
       } catch (e) {}
     }, 500);
-    setTimeout(function() { loadData(true); }, 5000);
   } catch (e) {
     toast('❌ ' + e.message, 3000);
   } finally {
@@ -1655,6 +1717,10 @@ async function uploadImageImmediate(file) {
   }
 }
 
+
+// ============================================================
+// 儲存產品（🚀 改用 SyncEngine）
+// ============================================================
 async function saveProduct() {
   var data = {};
   FIELDS.forEach(function(k) { data[k] = $('f_' + k).value.trim(); });
@@ -1662,11 +1728,35 @@ async function saveProduct() {
 
   $('btnSave').disabled = true;
   try {
-    var result = editingId
-      ? await apiPost({ action: 'update', id: editingId, data: data })
-      : await apiPost({ action: 'create', data: data });
-    if (result.error) { toast('❌ ' + result.error, 3000); return; }
+    // 🚀 優先走 SyncEngine（含寫入佇列 + 行級 ETag 衝突偵測）
+    var result = null;
+    var usedSync = false;
 
+    if (typeof Sync !== 'undefined' && typeof Sync.save === 'function') {
+      try {
+        usedSync = true;
+        result = await Sync.save(
+          Object.assign({}, data, { _isNew: !editingId }),
+          'ui'
+        );
+      } catch (e) {
+        if (e && e.stale) {
+          // 衝突 → SyncEngine 已自動 rebase，提示使用者
+          toast('🔄 ' + (e.message || '已同步最新版本，請確認後重試'), 3500);
+        } else {
+          toast('❌ ' + (e.message || e), 3000);
+        }
+        return;
+      }
+    } else {
+      // 降級：舊 API
+      result = editingId
+        ? await apiPost({ action: 'update', id: editingId, data: data })
+        : await apiPost({ action: 'create', data: data });
+      if (result && result.error) { toast('❌ ' + result.error, 3000); return; }
+    }
+
+    // 上傳待處理圖片（新增時）
     if (!editingId && pendingImage) {
       toast('📤 上傳圖片中...');
       var compressed = await compressImage(pendingImage);
@@ -1693,11 +1783,16 @@ async function saveProduct() {
       }
       pendingImage = null;
     }
+
     toast(editingId ? '✅ 已更新' : '✅ 已新增');
     closeModal();
     clearLocalCache();
     render();
-    setTimeout(function() { loadData(true); }, 5000);
+
+    // 若走舊 API，5 秒後重拉 CDN；走 Sync 則由 Sync 自行更新記憶體
+    if (!usedSync) {
+      setTimeout(function() { loadData(true); }, 5000);
+    }
   } catch (e) {
     toast('❌ ' + e.message, 3000);
   } finally {
@@ -1708,8 +1803,14 @@ async function saveProduct() {
 async function confirmDelete(id) {
   if (!confirm('確定刪除 ID ' + id + '？')) return;
   try {
-    var result = await apiPost({ action: 'delete', id: id });
-    if (result.error) { toast('❌ ' + result.error, 3000); return; }
+    var result = null;
+    if (typeof Sync !== 'undefined' && typeof Sync.remove === 'function') {
+      result = await Sync.remove(id, 'ui');
+      if (result && result.error) { toast('❌ ' + result.error, 3000); return; }
+    } else {
+      result = await apiPost({ action: 'delete', id: id });
+      if (result.error) { toast('❌ ' + result.error, 3000); return; }
+    }
     toast('✅ 已刪除');
     clearLocalCache();
     await loadData(true);
@@ -1889,7 +1990,9 @@ function showDebug() {
     'category_en': ce.length,
     'f_warehouse 存在': !!fw,
     'f_warehouse 選項數': fw && fw.options ? fw.options.length : 0,
-    'allData': allData.length
+    'allData': allData.length,
+    'Sync 就緒': (typeof Sync !== 'undefined'),
+    'Sync.boot': (typeof Sync !== 'undefined' && typeof Sync.boot === 'function')
   };
   var msg = '';
   Object.keys(info).forEach(function(k) { msg += k + ': ' + info[k] + '\n'; });
@@ -1906,6 +2009,20 @@ $('pwdInput').addEventListener('keydown', function(e) {
 
 if (TOKEN) showApp();
 else $('loginScreen').style.display = 'block';
+</script>
+<script src="https://raw.githubusercontent.com/charlizelai/product-search/main/js/sync.js"></script>
+<script>
+  // 🚀 SyncEngine 啟動：會讀 localStorage、決定 fullResync 或 delta，
+  //    完成後呼叫 window.__onDataLoaded(products)
+  try {
+    Sync.boot();
+  } catch (e) {
+    console.error('Sync.boot() 失敗，將降級為舊版載入：', e);
+    // 若 boot 失敗，手動觸發一次舊版載入
+    if (typeof allData !== 'undefined' && allData.length === 0) {
+      try { loadData(); } catch (e2) {}
+    }
+  }
 </script>
 </body>
 </html>
