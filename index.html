@@ -643,6 +643,9 @@ let scanMode = 'none';
 let _bgRefreshing = false;
 let _lastVersion = 0;
 
+// ★ 選項載入時間戳（給 DEBUG 面板用）
+window._optionsLoadedAt = 0;
+
 let OPTIONS = {
   warehouse: [], aisle: [], crosslane: [], floor: [],
   combine: [], category_en: []
@@ -770,6 +773,7 @@ function logout() {
 
   allData = [];
   optionsLoaded = false;
+  window._optionsLoadedAt = 0;
   OPTIONS = {
     warehouse: [], aisle: [], crosslane: [], floor: [],
     combine: [], category_en: []
@@ -859,15 +863,18 @@ async function apiPost(body) {
 // ============================================================
 // 選項管理
 // ============================================================
-async function loadOptions() {
-  if (optionsLoaded) return;
+// ★ 改動 1：loadOptions(force) — force=true 時跳過 optionsLoaded 檢查 + 加 _t 破快取
+//    配合 tabbit-code.js 的伺服器端 60s TTL + invalidateOptionsCache
+async function loadOptions(force) {
+  if (optionsLoaded && !force) return;
   try {
-    console.log('🔍 載入選項中...');
-    var result = await apiGet('options');
+    console.log('🔍 載入選項中...' + (force ? '（強制刷新）' : ''));
+    var result = await apiGet('options', force ? { _t: Date.now() } : null);
 
     if (result.error) {
       console.warn('❌ 載入選項失敗：', result.error);
-      useDefaultOptions();
+      // 強制刷新失敗時，不要用預設值覆蓋已存在的選項
+      if (!optionsLoaded) useDefaultOptions();
       return;
     }
 
@@ -878,18 +885,19 @@ async function loadOptions() {
 
     if (!hasData) {
       console.warn('⚠️ API 回傳空資料，使用內建預設選項');
-      useDefaultOptions();
+      if (!optionsLoaded) useDefaultOptions();
       return;
     }
 
     console.log('✅ 選項載入成功');
     OPTIONS = result;
     optionsLoaded = true;
+    window._optionsLoadedAt = Date.now();   // ★ 記錄時間戳
     populateSelects();
     renderCombineCheckboxes();
   } catch (e) {
     console.warn('❌ 載入選項錯誤：', e.message);
-    useDefaultOptions();
+    if (!optionsLoaded) useDefaultOptions();
   }
 }
 
@@ -929,6 +937,7 @@ function useDefaultOptions() {
     ]
   };
   optionsLoaded = true;
+  window._optionsLoadedAt = Date.now();   // ★
   populateSelects();
   renderCombineCheckboxes();
   console.log('✅ 已套用內建預設選項');
@@ -1089,6 +1098,7 @@ function closeOptionsModal() {
   $('optionsModal').classList.remove('show');
 }
 
+// ★ 改動 2：儲存成功後從伺服器強制重抓（因為 tabbit-code.js 已 invalidateOptionsCache）
 async function saveOptionsToServer() {
   if (!editingOptions) return;
 
@@ -1118,10 +1128,20 @@ async function saveOptionsToServer() {
       return;
     }
 
-    OPTIONS = JSON.parse(JSON.stringify(editingOptions));
-    optionsLoaded = true;
-    populateSelects();
-    renderCombineCheckboxes();
+    // ★ 伺服器已 invalidateOptionsCache()，強制重抓確保前後端一致
+    //   （避免只信任本地 editingOptions，可能與伺服器正規化後不同）
+    optionsLoaded = false;             // 先清 flag 讓 loadOptions 能跑
+    await loadOptions(true);
+
+    // 若重抓失敗（例如網路問題），fallback 用本地編輯結果
+    if (!optionsLoaded) {
+      OPTIONS = JSON.parse(JSON.stringify(editingOptions));
+      optionsLoaded = true;
+      window._optionsLoadedAt = Date.now();
+      populateSelects();
+      renderCombineCheckboxes();
+    }
+
     editingOptions = null;
     $('optionsModal').classList.remove('show');
     toast('✅ 選項已儲存，共 ' + result.count + ' 個', 2500);
@@ -1982,6 +2002,10 @@ function showDebug() {
       } catch (e) { return 'error'; }
     })(),
     'optionsLoaded': optionsLoaded,
+    // ★ 改動 3：顯示 OPTIONS 載入時間
+    'OPTIONS 時間': window._optionsLoadedAt
+      ? new Date(window._optionsLoadedAt).toLocaleTimeString('zh-HK')
+      : '(未載入)',
     'warehouse': wh.length,
     'aisle': ai.length,
     'crosslane': cl.length,
