@@ -812,7 +812,7 @@ function showApp() {
   startDataLoading();
 }
 
-// 等 sync.js 載入（最多等 800ms），再決定用 Sync 還是舊版
+// 等 sync.js 載入（最多等 1500ms），再決定用 Sync 還是舊版
 function startDataLoading() {
   if (typeof Sync !== 'undefined' && Sync.boot) {
     console.log('🚀 SyncEngine 已就緒，資料由 SyncEngine 載入');
@@ -829,7 +829,8 @@ function startDataLoading() {
       console.log('🚀 SyncEngine 載入完成，交由 SyncEngine');
       return;
     }
-    if (Date.now() - start > 800) {
+    // 🩹 FIX_SYNC 補丁 2：800 → 1500（sync.js 404 時不要誤判）
+    if (Date.now() - start > 1500) {
       console.log('📦 SyncEngine 不可用，降級使用舊版 loadData()');
       loadData();
       return;
@@ -1188,24 +1189,31 @@ async function loadData(forceRefresh) {
   }
 
   $('stats').textContent = '載入中...';
+  // 🩹 FIX_SYNC 補丁 1：登入時優先打 API 即時資料，CDN 只做 fallback
+  //   原因：CDN 是 auto-export 定時快照，寫入 Sheet 後 app 看到舊資料像「沒同步」
   try {
-    var products = await fetchFromCDN();
+    var products;
+    if (TOKEN) {
+      try {
+        var data = await apiGet('list');
+        if (data && data.error) throw new Error(data.error);
+        products = Array.isArray(data) ? data : (data && data.data);
+        if (!Array.isArray(products)) throw new Error('API 回傳格式錯誤');
+      } catch (apiErr) {
+        console.warn('API 失敗，fallback CDN：', apiErr);
+        products = await fetchFromCDN();
+      }
+    } else {
+      // 未登入 → 只能讀 CDN
+      products = await fetchFromCDN();
+    }
     applyProducts(products);
     saveLocalCache(products);
     render();
     checkPhashStatus();
   } catch (e) {
-    console.error('CDN 失敗，改用 API：', e);
-    try {
-      var data = await apiGet('list');
-      if (data.error) throw new Error(data.error);
-      applyProducts(data);
-      saveLocalCache(data);
-      render();
-      checkPhashStatus();
-    } catch (e2) {
-      $('stats').textContent = '載入失敗：' + e2.message;
-    }
+    console.error('載入失敗：', e);
+    $('stats').textContent = '載入失敗：' + e.message;
   }
 }
 
@@ -1809,9 +1817,9 @@ async function saveProduct() {
     clearLocalCache();
     render();
 
-    // 若走舊 API，5 秒後重拉 CDN；走 Sync 則由 Sync 自行更新記憶體
+    // 🩹 FIX_SYNC 補丁 1：走 API 後不需等 CDN，1 秒即可刷新
     if (!usedSync) {
-      setTimeout(function() { loadData(true); }, 5000);
+      setTimeout(function() { loadData(true); }, 1000);
     }
   } catch (e) {
     toast('❌ ' + e.message, 3000);
