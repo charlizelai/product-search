@@ -158,6 +158,42 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   padding: 3px 10px; border-radius: 6px; font-size: 13px;
   font-weight: 700; color: #fff;
 }
+
+/* ★ Barcode 紅色加粗標示 */
+.barcode-line {
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: #fef2f2;
+  border-left: 3px solid #d93025;
+  border-radius: 6px;
+  font-family: ui-monospace, monospace;
+  font-size: 15px;
+  font-weight: 700;
+  color: #d93025;
+  letter-spacing: 0.5px;
+  word-break: break-all;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.barcode-line .bc-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.barcode-line .bc-value {
+  flex: 1;
+  min-width: 0;
+}
+.barcode-line .bc-copy {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+  color: #d93025;
+  flex-shrink: 0;
+}
+
 .loc-section {
   margin-top: 12px; padding-top: 12px;
   border-top: 1px dashed #e5e5e7;
@@ -497,7 +533,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     </h1>
     <div class="search-box">
       <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
-      <input id="q" type="search" placeholder="搜尋 / 條碼 / 位置..." autocomplete="off">
+      <input id="q" type="search" placeholder="搜尋 / 條碼尾4碼 / 位置..." autocomplete="off">
       <div class="search-actions">
         <button class="icon-btn" id="btnScanSearch" title="掃碼搜尋">🔍</button>
         <button class="icon-btn" id="btnSearchByImage" title="以圖搜圖">📷</button>
@@ -982,10 +1018,9 @@ function bumpUsage(id) {
 
 
 // ============================================================
-// 複製 ID
+// 複製文字
 // ============================================================
-async function copyId(id) {
-  var text = String(id);
+async function copyText(text, label) {
   try {
     if (navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(text);
@@ -999,11 +1034,15 @@ async function copyId(id) {
       document.execCommand('copy');
       document.body.removeChild(ta);
     }
-    toast('📋 已複製 ID：' + text);
-    bumpUsage(id);
+    toast('📋 已複製 ' + (label || '') + '：' + text);
   } catch (e) {
     toast('❌ 複製失敗：' + e.message, 3000);
   }
+}
+
+async function copyId(id) {
+  await copyText(String(id), 'ID');
+  bumpUsage(id);
 }
 
 
@@ -1069,13 +1108,35 @@ function updateSortButton() {
 
 
 // ============================================================
-// ★ 產品比對（含數字尾碼搜尋）
+// ★ Barcode 比對：只做「完整匹配」或「最後 4 位匹配」
+// ============================================================
+function barcodeMatches(barcodeStr, term) {
+  if (!barcodeStr || !term) return false;
+  var parts = String(barcodeStr).split(/[;,，、\s]+/);
+  var isFourDigits = /^\d{4}$/.test(term);
+
+  for (var i = 0; i < parts.length; i++) {
+    var p = parts[i];
+    if (!p) continue;
+    // 完整匹配（貼上完整 barcode 時）
+    if (p === term) return true;
+    // 最後 4 位匹配（只限輸入 4 位數字時）
+    if (isFourDigits && p.length > 4 && p.slice(-4) === term) return true;
+  }
+  return false;
+}
+
+
+// ============================================================
+// ★ 產品比對（Barcode 專用邏輯 + 其他欄位一般搜尋）
 // ============================================================
 function productMatchesTerm(d, term) {
-  // 建立可搜尋字串（多 barcode 用空白分隔）
-  var barcodeStr = String(d.barcode || '').replace(/[;,，、]/g, ' ');
+  // ★ 1. Barcode：只做完整匹配或最後 4 位
+  if (barcodeMatches(d.barcode, term)) return true;
+
+  // ★ 2. 其他欄位：一般子字串搜尋（不含 barcode）
   var searchable = [
-    d.id, barcodeStr, d.name, d.name_zh,
+    d.id, d.name, d.name_zh,
     d.category_en, d.category_zh, d.description,
     d.temp_location, d.combine, d.warehouse, d.island,
     d.aisle, d.crosslane, d.shelfnumber, d.floor
@@ -1083,15 +1144,13 @@ function productMatchesTerm(d, term) {
    .join(' ')
    .toLowerCase();
 
-  // 一般子字串匹配
   if (searchable.indexOf(term) >= 0) return true;
 
-  // ★ 純數字：額外檢查數字欄位「結尾」
+  // ★ 3. 純數字（3 位以上）：對 id / shelfnumber 也做尾碼匹配
   if (/^\d+$/.test(term) && term.length >= 3) {
-    var digitFields = [d.id, d.barcode, d.shelfnumber];
+    var digitFields = [d.id, d.shelfnumber];
     for (var i = 0; i < digitFields.length; i++) {
       var raw = String(digitFields[i] || '');
-      // 多 barcode 拆開，逐段比對尾碼
       var parts = raw.split(/[;,，、\s]+/);
       for (var j = 0; j < parts.length; j++) {
         var p = parts[j];
@@ -1571,6 +1630,18 @@ function renderCard(d) {
   var cardClass = d._similarity !== undefined ? 'card search-result' : 'card';
   var safeId = escAttr(d.id);
 
+  // ★ Barcode 紅色加粗顯示
+  var barcodeHtml = '';
+  if (d.barcode) {
+    var safeBc = escAttr(d.barcode);
+    barcodeHtml =
+      '<div class="barcode-line">' +
+        '<span class="bc-icon">🏷️</span>' +
+        '<span class="bc-value">' + esc(d.barcode) + '</span>' +
+        '<button class="bc-copy" onclick="copyText(\'' + safeBc + '\', \'條碼\')" title="複製條碼">📋</button>' +
+      '</div>';
+  }
+
   return '<div class="' + cardClass + '">' +
     '<div class="card-main">' +
       '<img class="thumb" src="' + (esc(d._preview || d.image) || noImg) + '" loading="lazy" referrerpolicy="no-referrer" ' +
@@ -1580,11 +1651,12 @@ function renderCard(d) {
         '<div class="name">' + esc(d.name) + '</div>' +
         '<div class="meta">' +
           '<span class="price">$' + esc(d.price) + '</span>' +
-          '<span class="id">' + esc(d.id) + '</span>' +
+          '<span class="id">ID: ' + esc(d.id) + '</span>' +
           simBadge +
         '</div>' +
       '</div>' +
     '</div>' +
+    barcodeHtml +
     '<div class="loc-section">' +
       '<div class="loc-title">📍 倉庫位置</div>' +
       '<div class="loc-grid">' + locGridHtml + '</div>' +
@@ -2103,11 +2175,9 @@ function onScanSuccess(decodedText) {
     closeScan();
     searchMode = 'text';
     render();
-    var term = decodedText.toLowerCase();
     var found = allData.filter(function(d) {
-      var bc = String(d.barcode || '').replace(/[;,，、]/g, ' ').toLowerCase();
-      return bc.split(/\s+/).indexOf(term) >= 0 ||
-             String(d.id).toLowerCase() === term;
+      return barcodeMatches(d.barcode, decodedText) ||
+             String(d.id) === decodedText;
     });
     if (found.length > 0) {
       toast('✅ 找到：' + (found[0].name_zh || found[0].name), 2500);
