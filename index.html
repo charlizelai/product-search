@@ -36,10 +36,19 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   background: #fff; outline: none; -webkit-appearance: none;
 }
 .search-box input:focus { border-color: #0071e3; box-shadow: 0 0 0 4px rgba(0,113,227,.15); }
+.search-box.barcode-mode input {
+  border-color: #d93025;
+  background: #fef2f2;
+}
+.search-box.barcode-mode input:focus {
+  border-color: #d93025;
+  box-shadow: 0 0 0 4px rgba(217,48,37,.15);
+}
 .search-icon {
   position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
   width: 22px; height: 22px; fill: #86868b;
 }
+.search-box.barcode-mode .search-icon { fill: #d93025; }
 .search-actions {
   position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
   display: flex; gap: 4px;
@@ -95,6 +104,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .toolbar {
   display: flex; justify-content: center; gap: 8px;
   margin-top: 10px;
+  flex-wrap: wrap;
 }
 .tool-btn {
   padding: 8px 14px;
@@ -110,6 +120,11 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   background: #e8f0fe;
   border-color: #0071e3;
   color: #1a73e8;
+}
+.tool-btn.barcode-active {
+  background: #fef2f2;
+  border-color: #d93025;
+  color: #d93025;
 }
 .tool-btn:active { transform: scale(0.97); }
 
@@ -159,17 +174,17 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   font-weight: 700; color: #fff;
 }
 
-/* ★ Barcode 紅色加粗標示 */
+/* ★ Barcode 行：尾 4 碼紅色，其餘黑色 */
 .barcode-line {
   margin-top: 8px;
   padding: 6px 10px;
-  background: #fef2f2;
-  border-left: 3px solid #d93025;
+  background: #f5f5f7;
+  border-left: 3px solid #86868b;
   border-radius: 6px;
   font-family: ui-monospace, monospace;
   font-size: 15px;
-  font-weight: 700;
-  color: #d93025;
+  font-weight: 600;
+  color: #1d1d1f;
   letter-spacing: 0.5px;
   word-break: break-all;
   display: flex;
@@ -184,13 +199,25 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   flex: 1;
   min-width: 0;
 }
+.barcode-line .bc-tail {
+  color: #d93025;
+  font-weight: 800;
+  background: #fef2f2;
+  padding: 1px 3px;
+  border-radius: 3px;
+  margin-left: 1px;
+}
+.barcode-line .bc-sep {
+  color: #86868b;
+  margin: 0 2px;
+}
 .barcode-line .bc-copy {
   background: none;
   border: none;
   font-size: 16px;
   cursor: pointer;
   padding: 2px 6px;
-  color: #d93025;
+  color: #1d1d1f;
   flex-shrink: 0;
 }
 
@@ -531,9 +558,9 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       <button id="btnLogout" onclick="logout()" title="登出"
         style="background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">🚪</button>
     </h1>
-    <div class="search-box">
+    <div class="search-box" id="searchBox">
       <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
-      <input id="q" type="search" placeholder="搜尋 / 條碼尾4碼 / 位置..." autocomplete="off">
+      <input id="q" type="search" placeholder="搜尋 / 條碼 / 位置..." autocomplete="off">
       <div class="search-actions">
         <button class="icon-btn" id="btnScanSearch" title="掃碼搜尋">🔍</button>
         <button class="icon-btn" id="btnSearchByImage" title="以圖搜圖">📷</button>
@@ -543,6 +570,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     </div>
     <div class="stats" id="stats">載入中...</div>
     <div class="toolbar">
+      <button id="btnBarcodeOnly" class="tool-btn" onclick="toggleBarcodeOnly()">🏷️ 只搜條碼</button>
       <button id="btnSortToggle" class="tool-btn" onclick="toggleSort()">📍 位置排序</button>
     </div>
   </header>
@@ -734,6 +762,7 @@ const SEARCH_HISTORY_KEY = 'search_history_v1';
 const SEARCH_HISTORY_MAX = 20;
 
 const USAGE_KEY = 'product_usage_v1';
+const BARCODE_MODE_KEY = 'barcode_mode_v1';
 
 // ============================================================
 // 狀態
@@ -767,6 +796,11 @@ let scanMode = 'none';
 let _bgRefreshing = false;
 let _lastVersion = 0;
 let sortMode = 'default';
+let barcodeOnly = false;
+
+try {
+  barcodeOnly = localStorage.getItem(BARCODE_MODE_KEY) === '1';
+} catch (e) {}
 
 let OPTIONS = {
   warehouse: [], aisle: [], crosslane: [], floor: [],
@@ -903,6 +937,9 @@ function showApp() {
     console.error('❌ 選項載入錯誤：', e);
     if (!optionsLoaded) useDefaultOptions();
   });
+
+  updateBarcodeButton();
+  updateSortButton();
 
   loadData();
 }
@@ -1075,6 +1112,49 @@ async function reportOOS(id) {
 
 
 // ============================================================
+// ★ Barcode-only 模式切換
+// ============================================================
+function toggleBarcodeOnly() {
+  barcodeOnly = !barcodeOnly;
+  try { localStorage.setItem(BARCODE_MODE_KEY, barcodeOnly ? '1' : '0'); } catch (e) {}
+  updateBarcodeButton();
+  var sb = $('searchBox');
+  var q = $('q');
+  if (barcodeOnly) {
+    sb.classList.add('barcode-mode');
+    q.placeholder = '只搜條碼（完整或尾 4 碼）...';
+  } else {
+    sb.classList.remove('barcode-mode');
+    q.placeholder = '搜尋 / 條碼 / 位置...';
+  }
+  // 立即重新渲染
+  if (allData.length > 0) render();
+  // 提示
+  toast(barcodeOnly ? '🏷️ 只搜條碼模式' : '🔍 一般搜尋模式');
+}
+
+function updateBarcodeButton() {
+  var btn = $('btnBarcodeOnly');
+  var sb = $('searchBox');
+  var q = $('q');
+  if (!btn) return;
+  if (barcodeOnly) {
+    btn.textContent = '🏷️ 只搜條碼中';
+    btn.classList.remove('active');
+    btn.classList.add('barcode-active');
+    if (sb) sb.classList.add('barcode-mode');
+    if (q) q.placeholder = '只搜條碼（完整或尾 4 碼）...';
+  } else {
+    btn.textContent = '🏷️ 只搜條碼';
+    btn.classList.remove('barcode-active');
+    btn.classList.remove('active');
+    if (sb) sb.classList.remove('barcode-mode');
+    if (q) q.placeholder = '搜尋 / 條碼 / 位置...';
+  }
+}
+
+
+// ============================================================
 // 位置排序
 // ============================================================
 function locationSortKey(d) {
@@ -1118,7 +1198,7 @@ function barcodeMatches(barcodeStr, term) {
   for (var i = 0; i < parts.length; i++) {
     var p = parts[i];
     if (!p) continue;
-    // 完整匹配（貼上完整 barcode 時）
+    // 完整匹配
     if (p === term) return true;
     // 最後 4 位匹配（只限輸入 4 位數字時）
     if (isFourDigits && p.length > 4 && p.slice(-4) === term) return true;
@@ -1128,11 +1208,16 @@ function barcodeMatches(barcodeStr, term) {
 
 
 // ============================================================
-// ★ 產品比對（Barcode 專用邏輯 + 其他欄位一般搜尋）
+// ★ 產品比對
+// - 一般模式：Barcode 用專用邏輯 + 其他欄位子字串搜尋
+// - Barcode-only 模式：只比對 Barcode
 // ============================================================
 function productMatchesTerm(d, term) {
   // ★ 1. Barcode：只做完整匹配或最後 4 位
   if (barcodeMatches(d.barcode, term)) return true;
+
+  // ★ Barcode-only 模式：其他欄位不比對
+  if (barcodeOnly) return false;
 
   // ★ 2. 其他欄位：一般子字串搜尋（不含 barcode）
   var searchable = [
@@ -1160,6 +1245,43 @@ function productMatchesTerm(d, term) {
   }
 
   return false;
+}
+
+
+// ============================================================
+// ★ Barcode HTML 渲染：尾 4 碼紅色，其餘黑色
+// ============================================================
+function renderBarcodeHtml(barcodeStr) {
+  var s = String(barcodeStr || '');
+  if (!s) return '';
+
+  // 按分隔符（; , ， 、 空白）拆分，保留分隔符
+  var tokens = s.split(/([;,，、\s]+)/);
+  var out = '';
+
+  for (var i = 0; i < tokens.length; i++) {
+    var tk = tokens[i];
+    if (!tk) continue;
+
+    // 分隔符：原樣顯示，用灰色
+    if (/^[;,，、\s]+$/.test(tk)) {
+      out += '<span class="bc-sep">' + esc(tk) + '</span>';
+      continue;
+    }
+
+    // 一般 barcode token
+    if (tk.length <= 4) {
+      // 4 位以下全紅
+      out += '<span class="bc-tail">' + esc(tk) + '</span>';
+    } else {
+      // 前段黑，尾 4 紅
+      var head = tk.slice(0, -4);
+      var tail = tk.slice(-4);
+      out += esc(head) + '<span class="bc-tail">' + esc(tail) + '</span>';
+    }
+  }
+
+  return out;
 }
 
 
@@ -1577,9 +1699,13 @@ function render() {
     });
   }
 
-  var statsText = terms.length
-    ? '找到 ' + filtered.length + ' / ' + allData.length + ' 項'
-    : '共 ' + allData.length + ' 項';
+  var statsText;
+  if (terms.length) {
+    statsText = (barcodeOnly ? '🏷️ 只搜條碼：找到 ' : '找到 ')
+              + filtered.length + ' / ' + allData.length + ' 項';
+  } else {
+    statsText = '共 ' + allData.length + ' 項';
+  }
   if (sortMode === 'location') statsText += ' · 按位置';
   $('stats').textContent = statsText;
 
@@ -1630,14 +1756,14 @@ function renderCard(d) {
   var cardClass = d._similarity !== undefined ? 'card search-result' : 'card';
   var safeId = escAttr(d.id);
 
-  // ★ Barcode 紅色加粗顯示
+  // ★ Barcode 顯示：尾 4 碼紅色
   var barcodeHtml = '';
   if (d.barcode) {
     var safeBc = escAttr(d.barcode);
     barcodeHtml =
       '<div class="barcode-line">' +
         '<span class="bc-icon">🏷️</span>' +
-        '<span class="bc-value">' + esc(d.barcode) + '</span>' +
+        '<span class="bc-value">' + renderBarcodeHtml(d.barcode) + '</span>' +
         '<button class="bc-copy" onclick="copyText(\'' + safeBc + '\', \'條碼\')" title="複製條碼">📋</button>' +
       '</div>';
   }
@@ -2306,6 +2432,7 @@ function showDebug() {
     'f_warehouse 選項數': fw && fw.options ? fw.options.length : 0,
     'allData': allData.length,
     'sortMode': sortMode,
+    'barcodeOnly': barcodeOnly,
     '搜尋歷史數': history.length,
     '常用產品數': Object.keys(usage).length
   };
@@ -2322,6 +2449,7 @@ $('pwdInput').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') login();
 });
 
+updateBarcodeButton();
 updateSortButton();
 
 if (TOKEN) showApp();
