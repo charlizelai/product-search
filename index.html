@@ -1069,6 +1069,42 @@ function updateSortButton() {
 
 
 // ============================================================
+// ★ 產品比對（含數字尾碼搜尋）
+// ============================================================
+function productMatchesTerm(d, term) {
+  // 建立可搜尋字串（多 barcode 用空白分隔）
+  var barcodeStr = String(d.barcode || '').replace(/[;,，、]/g, ' ');
+  var searchable = [
+    d.id, barcodeStr, d.name, d.name_zh,
+    d.category_en, d.category_zh, d.description,
+    d.temp_location, d.combine, d.warehouse, d.island,
+    d.aisle, d.crosslane, d.shelfnumber, d.floor
+  ].map(function(v) { return v == null ? '' : String(v); })
+   .join(' ')
+   .toLowerCase();
+
+  // 一般子字串匹配
+  if (searchable.indexOf(term) >= 0) return true;
+
+  // ★ 純數字：額外檢查數字欄位「結尾」
+  if (/^\d+$/.test(term) && term.length >= 3) {
+    var digitFields = [d.id, d.barcode, d.shelfnumber];
+    for (var i = 0; i < digitFields.length; i++) {
+      var raw = String(digitFields[i] || '');
+      // 多 barcode 拆開，逐段比對尾碼
+      var parts = raw.split(/[;,，、\s]+/);
+      for (var j = 0; j < parts.length; j++) {
+        var p = parts[j];
+        if (p && p.length >= term.length && p.slice(-term.length) === term) return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+
+// ============================================================
 // 選項管理
 // ============================================================
 async function loadOptions() {
@@ -1471,17 +1507,7 @@ function render() {
   var filtered = terms.length === 0
     ? allData.slice()
     : allData.filter(function(d) {
-        var barcodeStr = String(d.barcode || '').replace(/[;,，、]/g, ' ');
-        var s = [
-          d.id, barcodeStr, d.name, d.name_zh,
-          d.category_en, d.category_zh, d.description,
-          d.temp_location, d.combine, d.warehouse, d.island,
-          d.aisle, d.crosslane, d.shelfnumber, d.floor
-        ].map(function(v) { return v == null ? '' : String(v); })
-         .join(' ')
-         .toLowerCase();
-
-        return terms.every(function(t) { return s.indexOf(t) >= 0; });
+        return terms.every(function(t) { return productMatchesTerm(d, t); });
       });
 
   if (sortMode === 'location') {
