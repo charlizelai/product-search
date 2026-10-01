@@ -126,6 +126,11 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   border-color: #d93025;
   color: #d93025;
 }
+.tool-btn.oos-filter-active {
+  background: #fdecea;
+  border-color: #c62828;
+  color: #c62828;
+}
 .tool-btn:active { transform: scale(0.97); }
 
 .phash-banner {
@@ -156,6 +161,10 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   box-shadow: 0 2px 6px rgba(0,0,0,.08);
 }
 .card.search-result { border-left: 4px solid #1a73e8; }
+.card.oos-card {
+  border: 2px solid #c62828;
+  background: #fff8f8;
+}
 .card-main { display: flex; gap: 14px; align-items: flex-start; }
 .card img.thumb {
   width: 100px; height: 100px; object-fit: contain;
@@ -174,7 +183,42 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   font-weight: 700; color: #fff;
 }
 
-/* ★ Barcode 行：尾 4 碼紅色，其餘黑色 */
+/* ★ OOS 缺貨徽章 */
+.oos-banner {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #fdecea;
+  border-left: 4px solid #c62828;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.oos-row1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #c62828;
+}
+.oos-icon {
+  font-size: 18px;
+}
+.oos-reason {
+  font-size: 15px;
+  color: #7f1d1d;
+  font-weight: 600;
+  padding-left: 4px;
+}
+.oos-meta {
+  font-size: 12px;
+  color: #b91c1c;
+  opacity: 0.75;
+  padding-left: 4px;
+}
+
+/* ★ Barcode 行：尾 4 碼紅色 */
 .barcode-line {
   margin-top: 8px;
   padding: 6px 10px;
@@ -191,14 +235,8 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   align-items: center;
   gap: 6px;
 }
-.barcode-line .bc-icon {
-  font-size: 14px;
-  flex-shrink: 0;
-}
-.barcode-line .bc-value {
-  flex: 1;
-  min-width: 0;
-}
+.barcode-line .bc-icon { font-size: 14px; flex-shrink: 0; }
+.barcode-line .bc-value { flex: 1; min-width: 0; }
 .barcode-line .bc-tail {
   color: #d93025;
   font-weight: 800;
@@ -207,18 +245,10 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   border-radius: 3px;
   margin-left: 1px;
 }
-.barcode-line .bc-sep {
-  color: #86868b;
-  margin: 0 2px;
-}
+.barcode-line .bc-sep { color: #86868b; margin: 0 2px; }
 .barcode-line .bc-copy {
-  background: none;
-  border: none;
-  font-size: 16px;
-  cursor: pointer;
-  padding: 2px 6px;
-  color: #1d1d1f;
-  flex-shrink: 0;
+  background: none; border: none; font-size: 16px;
+  cursor: pointer; padding: 2px 6px; color: #1d1d1f; flex-shrink: 0;
 }
 
 .loc-section {
@@ -283,7 +313,10 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   display: flex; align-items: center; justify-content: center;
 }
 .card-actions .btn-icon.btn-oos {
-  background: #fff3cd; color: #856404;
+  background: #fdecea; color: #c62828;
+}
+.card-actions .btn-icon.btn-restock {
+  background: #e8f5e9; color: #2e7d32;
 }
 .card-actions .btn-del {
   flex: 0 0 48px;
@@ -408,6 +441,8 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .btn-cancel { background: #e5e5e7; color: #1d1d1f; }
 .btn-save { background: #0071e3; color: #fff; }
 .btn-save:disabled { background: #b0c4de; cursor: not-allowed; }
+.btn-danger { background: #c62828; color: #fff; }
+.btn-danger:disabled { background: #e0a0a0; cursor: not-allowed; }
 .btn-unlock {
   display: none; width: 100%; margin-top: 10px; padding: 14px;
   border-radius: 12px; border: none;
@@ -469,6 +504,85 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   padding: 8px 12px; background: #f00; color: #fff;
   border: none; border-radius: 8px; font-size: 12px;
   opacity: 0.5;
+}
+
+/* ★ OOS Modal */
+#oosModal .modal-content {
+  border-radius: 24px;
+  margin: 16px;
+  max-height: 90vh;
+  align-self: center;
+}
+#oosProductInfo {
+  background: #f5f5f7;
+  padding: 12px 14px;
+  border-radius: 10px;
+  margin-bottom: 18px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+#oosProductInfo .oos-info-name {
+  font-weight: 700;
+  font-size: 17px;
+  margin-bottom: 4px;
+}
+#oosProductInfo .oos-info-meta {
+  color: #6e6e73;
+  font-size: 13px;
+  font-family: ui-monospace, monospace;
+}
+#oosReason {
+  width: 100%;
+  min-height: 100px;
+  padding: 12px;
+  font-size: 16px;
+  border: 2px solid #d2d2d7;
+  border-radius: 10px;
+  font-family: inherit;
+  -webkit-appearance: none;
+  resize: vertical;
+}
+#oosReason:focus {
+  border-color: #c62828;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(198,40,40,.15);
+}
+#oosReason.invalid {
+  border-color: #d93025;
+  background: #fff5f5;
+}
+.quick-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.quick-reason {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 2px solid #e5e5e7;
+  background: #f5f5f7;
+  color: #1d1d1f;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.quick-reason:active {
+  background: #e8f0fe;
+  border-color: #0071e3;
+  color: #1a73e8;
+}
+.oos-required {
+  color: #d93025;
+  font-weight: 700;
+}
+.oos-err-msg {
+  color: #d93025;
+  font-size: 14px;
+  margin-top: 6px;
+  min-height: 20px;
+  font-weight: 600;
 }
 
 .options-section {
@@ -571,6 +685,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     <div class="stats" id="stats">載入中...</div>
     <div class="toolbar">
       <button id="btnBarcodeOnly" class="tool-btn" onclick="toggleBarcodeOnly()">🏷️ 只搜條碼</button>
+      <button id="btnOOSFilter" class="tool-btn" onclick="toggleOOSFilter()">⚠️ 只看缺貨</button>
       <button id="btnSortToggle" class="tool-btn" onclick="toggleSort()">📍 位置排序</button>
     </div>
   </header>
@@ -727,6 +842,33 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   </div>
 </div>
 
+<!-- ★ OOS 缺貨回報 Modal -->
+<div class="modal" id="oosModal" style="align-items: center;">
+  <div class="modal-content">
+    <h2 style="margin:0 0 12px;color:#c62828;">⚠️ 回報缺貨</h2>
+    <div id="oosProductInfo"></div>
+
+    <label style="display:block; font-size:16px; font-weight:700; margin-bottom:8px;">
+      缺貨原因 <span class="oos-required">*必填</span>
+    </label>
+    <textarea id="oosReason" placeholder="請填寫缺貨原因（至少 2 個字）"></textarea>
+    <div class="quick-reasons">
+      <button type="button" class="quick-reason" onclick="setQuickReason('貨架空了')">貨架空了</button>
+      <button type="button" class="quick-reason" onclick="setQuickReason('客人買光')">客人買光</button>
+      <button type="button" class="quick-reason" onclick="setQuickReason('補貨中')">補貨中</button>
+      <button type="button" class="quick-reason" onclick="setQuickReason('找不到貨')">找不到貨</button>
+      <button type="button" class="quick-reason" onclick="setQuickReason('貨物損壞')">貨物損壞</button>
+      <button type="button" class="quick-reason" onclick="setQuickReason('過期')">過期</button>
+    </div>
+    <div id="oosErrMsg" class="oos-err-msg"></div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeOOSModal()">取消</button>
+      <button class="btn-danger" id="oosSubmitBtn" onclick="submitOOSReport()">確認缺貨</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="optionsModal" style="align-items: stretch;">
   <div class="modal-content" style="border-radius: 0; max-height: 100vh; height: 100vh; padding: 20px 14px calc(20px + env(safe-area-inset-bottom));">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;position:sticky;top:0;background:#fff;padding-bottom:12px;border-bottom:2px solid #e5e5e7;z-index:10;">
@@ -763,6 +905,7 @@ const SEARCH_HISTORY_MAX = 20;
 
 const USAGE_KEY = 'product_usage_v1';
 const BARCODE_MODE_KEY = 'barcode_mode_v1';
+const OOS_FILTER_KEY = 'oos_filter_v1';
 
 // ============================================================
 // 狀態
@@ -797,10 +940,15 @@ let _bgRefreshing = false;
 let _lastVersion = 0;
 let sortMode = 'default';
 let barcodeOnly = false;
+let oosFilterOnly = false;
 
 try {
   barcodeOnly = localStorage.getItem(BARCODE_MODE_KEY) === '1';
+  oosFilterOnly = localStorage.getItem(OOS_FILTER_KEY) === '1';
 } catch (e) {}
+
+let oosTargetId = null;  // 正在回報缺貨的產品 ID
+let oosSubmitting = false;
 
 let OPTIONS = {
   warehouse: [], aisle: [], crosslane: [], floor: [],
@@ -939,6 +1087,7 @@ function showApp() {
   });
 
   updateBarcodeButton();
+  updateOOSFilterButton();
   updateSortButton();
 
   loadData();
@@ -1035,7 +1184,7 @@ function removeSearchHistory(term) {
 
 
 // ============================================================
-// 常用產品（使用次數）
+// 常用產品
 // ============================================================
 function getUsage() {
   try {
@@ -1084,29 +1233,160 @@ async function copyId(id) {
 
 
 // ============================================================
-// 缺貨回報
+// ★ OOS：缺貨回報（彈窗）
 // ============================================================
-async function reportOOS(id) {
+function reportOOS(id) {
   var p = allData.find(function(d) { return String(d.id) === String(id); });
-  var name = p ? (p.name_zh || p.name) : '';
-  if (!confirm('回報缺貨？\n\nID: ' + id + '\n名稱: ' + name)) return;
+  if (!p) { toast('❌ 找不到此產品'); return; }
 
-  var note = '';
-  try { note = prompt('備註（可留空）', '') || ''; } catch (e) {}
+  oosTargetId = id;
+  oosSubmitting = false;
+
+  // 填入產品資訊
+  var info = $('oosProductInfo');
+  info.innerHTML =
+    '<div class="oos-info-name">' + esc(p.name_zh || p.name) + '</div>' +
+    '<div class="oos-info-meta">ID: ' + esc(p.id) + (p.barcode ? ' · 條碼: ' + esc(p.barcode) : '') + '</div>';
+
+  // 清空輸入
+  $('oosReason').value = '';
+  $('oosReason').classList.remove('invalid');
+  $('oosErrMsg').textContent = '';
+  $('oosSubmitBtn').disabled = false;
+  $('oosSubmitBtn').textContent = '確認缺貨';
+
+  $('oosModal').classList.add('show');
+  setTimeout(function() { $('oosReason').focus(); }, 200);
+}
+
+function closeOOSModal() {
+  if (oosSubmitting) return;
+  oosTargetId = null;
+  $('oosModal').classList.remove('show');
+}
+
+function setQuickReason(reason) {
+  var el = $('oosReason');
+  el.value = reason;
+  el.classList.remove('invalid');
+  $('oosErrMsg').textContent = '';
+  el.focus();
+}
+
+async function submitOOSReport() {
+  if (oosSubmitting) return;
+  if (!oosTargetId) { closeOOSModal(); return; }
+
+  var reason = $('oosReason').value.trim();
+  if (!reason) {
+    $('oosReason').classList.add('invalid');
+    $('oosErrMsg').textContent = '❌ 請填寫缺貨原因';
+    $('oosReason').focus();
+    return;
+  }
+  if (reason.length < 2) {
+    $('oosReason').classList.add('invalid');
+    $('oosErrMsg').textContent = '❌ 原因至少 2 個字';
+    $('oosReason').focus();
+    return;
+  }
+
+  var p = allData.find(function(d) { return String(d.id) === String(oosTargetId); });
+  var productName = p ? (p.name_zh || p.name) : '';
+
+  oosSubmitting = true;
+  $('oosSubmitBtn').disabled = true;
+  $('oosSubmitBtn').textContent = '提交中...';
 
   try {
     var result = await apiPost({
       action: 'reportOOS',
-      productId: id,
-      productName: name,
-      reporter: isAdmin ? 'admin' : 'user',
-      note: note
+      productId: oosTargetId,
+      productName: productName,
+      reason: reason,
+      reporter: isAdmin ? 'admin' : 'user'
+    });
+
+    if (result.error) {
+      $('oosErrMsg').textContent = '❌ ' + result.error;
+      $('oosSubmitBtn').disabled = false;
+      $('oosSubmitBtn').textContent = '確認缺貨';
+      oosSubmitting = false;
+      return;
+    }
+
+    // 本地樂觀更新
+    var target = allData.find(function(d) { return String(d.id) === String(oosTargetId); });
+    if (target) {
+      target._oos = true;
+      target._oos_reason = reason;
+      target._oos_at = new Date().toISOString();
+      target._oos_reporter = isAdmin ? 'admin' : 'user';
+    }
+
+    var savedId = oosTargetId;
+    oosSubmitting = false;
+    oosTargetId = null;
+    $('oosModal').classList.remove('show');
+
+    toast('✅ 已回報缺貨');
+
+    render();
+    clearLocalCache();
+
+    // 背景向 API 拉一次以確保一致（後端為權威來源）
+    setTimeout(function() { syncFromAPI(); }, 1200);
+  } catch (e) {
+    $('oosErrMsg').textContent = '❌ ' + e.message;
+    $('oosSubmitBtn').disabled = false;
+    $('oosSubmitBtn').textContent = '確認缺貨';
+    oosSubmitting = false;
+  }
+}
+
+// ★ 補貨（前端主動按）
+async function restockProduct(id) {
+  var p = allData.find(function(d) { return String(d.id) === String(id); });
+  var name = p ? (p.name_zh || p.name) : '';
+  if (!confirm('確認已補貨？\n\nID: ' + id + '\n名稱: ' + name + '\n\n（清除缺貨標記）')) return;
+
+  try {
+    var result = await apiPost({
+      action: 'restockOOS',
+      productId: id
     });
     if (result.error) { toast('❌ ' + result.error, 3000); return; }
-    toast('✅ 已回報缺貨');
-    bumpUsage(id);
+
+    // 本地樂觀更新
+    var target = allData.find(function(d) { return String(d.id) === String(id); });
+    if (target) {
+      delete target._oos;
+      delete target._oos_reason;
+      delete target._oos_at;
+      delete target._oos_reporter;
+    }
+
+    toast('✅ 已標記為已補貨');
+    render();
+    clearLocalCache();
+    setTimeout(function() { syncFromAPI(); }, 1200);
   } catch (e) {
     toast('❌ ' + e.message, 3000);
+  }
+}
+
+// 從 API 強制重新載入（用於 OOS 操作後同步）
+async function syncFromAPI() {
+  try {
+    var data = await apiGet('list');
+    if (data.error) return;
+    if (!Array.isArray(data)) return;
+    applyProducts(data);
+    saveLocalCache(data);
+    render();
+    console.log('🔄 已從 API 同步 OOS 狀態');
+  } catch (e) {
+    console.warn('API 同步失敗：', e);
   }
 }
 
@@ -1118,18 +1398,7 @@ function toggleBarcodeOnly() {
   barcodeOnly = !barcodeOnly;
   try { localStorage.setItem(BARCODE_MODE_KEY, barcodeOnly ? '1' : '0'); } catch (e) {}
   updateBarcodeButton();
-  var sb = $('searchBox');
-  var q = $('q');
-  if (barcodeOnly) {
-    sb.classList.add('barcode-mode');
-    q.placeholder = '只搜條碼（完整或尾 4 碼）...';
-  } else {
-    sb.classList.remove('barcode-mode');
-    q.placeholder = '搜尋 / 條碼 / 位置...';
-  }
-  // 立即重新渲染
   if (allData.length > 0) render();
-  // 提示
   toast(barcodeOnly ? '🏷️ 只搜條碼模式' : '🔍 一般搜尋模式');
 }
 
@@ -1150,6 +1419,27 @@ function updateBarcodeButton() {
     btn.classList.remove('active');
     if (sb) sb.classList.remove('barcode-mode');
     if (q) q.placeholder = '搜尋 / 條碼 / 位置...';
+  }
+}
+
+// ★ OOS 篩選
+function toggleOOSFilter() {
+  oosFilterOnly = !oosFilterOnly;
+  try { localStorage.setItem(OOS_FILTER_KEY, oosFilterOnly ? '1' : '0'); } catch (e) {}
+  updateOOSFilterButton();
+  if (allData.length > 0) render();
+  toast(oosFilterOnly ? '⚠️ 只顯示缺貨產品' : '顯示全部產品');
+}
+
+function updateOOSFilterButton() {
+  var btn = $('btnOOSFilter');
+  if (!btn) return;
+  if (oosFilterOnly) {
+    btn.textContent = '⚠️ 只看缺貨中';
+    btn.classList.add('oos-filter-active');
+  } else {
+    btn.textContent = '⚠️ 只看缺貨';
+    btn.classList.remove('oos-filter-active');
   }
 }
 
@@ -1188,7 +1478,7 @@ function updateSortButton() {
 
 
 // ============================================================
-// ★ Barcode 比對：只做「完整匹配」或「最後 4 位匹配」
+// Barcode 比對
 // ============================================================
 function barcodeMatches(barcodeStr, term) {
   if (!barcodeStr || !term) return false;
@@ -1198,9 +1488,7 @@ function barcodeMatches(barcodeStr, term) {
   for (var i = 0; i < parts.length; i++) {
     var p = parts[i];
     if (!p) continue;
-    // 完整匹配
     if (p === term) return true;
-    // 最後 4 位匹配（只限輸入 4 位數字時）
     if (isFourDigits && p.length > 4 && p.slice(-4) === term) return true;
   }
   return false;
@@ -1208,18 +1496,12 @@ function barcodeMatches(barcodeStr, term) {
 
 
 // ============================================================
-// ★ 產品比對
-// - 一般模式：Barcode 用專用邏輯 + 其他欄位子字串搜尋
-// - Barcode-only 模式：只比對 Barcode
+// 產品比對
 // ============================================================
 function productMatchesTerm(d, term) {
-  // ★ 1. Barcode：只做完整匹配或最後 4 位
   if (barcodeMatches(d.barcode, term)) return true;
-
-  // ★ Barcode-only 模式：其他欄位不比對
   if (barcodeOnly) return false;
 
-  // ★ 2. 其他欄位：一般子字串搜尋（不含 barcode）
   var searchable = [
     d.id, d.name, d.name_zh,
     d.category_en, d.category_zh, d.description,
@@ -1231,7 +1513,6 @@ function productMatchesTerm(d, term) {
 
   if (searchable.indexOf(term) >= 0) return true;
 
-  // ★ 3. 純數字（3 位以上）：對 id / shelfnumber 也做尾碼匹配
   if (/^\d+$/.test(term) && term.length >= 3) {
     var digitFields = [d.id, d.shelfnumber];
     for (var i = 0; i < digitFields.length; i++) {
@@ -1249,13 +1530,12 @@ function productMatchesTerm(d, term) {
 
 
 // ============================================================
-// ★ Barcode HTML 渲染：尾 4 碼紅色，其餘黑色
+// Barcode HTML 渲染
 // ============================================================
 function renderBarcodeHtml(barcodeStr) {
   var s = String(barcodeStr || '');
   if (!s) return '';
 
-  // 按分隔符（; , ， 、 空白）拆分，保留分隔符
   var tokens = s.split(/([;,，、\s]+)/);
   var out = '';
 
@@ -1263,18 +1543,14 @@ function renderBarcodeHtml(barcodeStr) {
     var tk = tokens[i];
     if (!tk) continue;
 
-    // 分隔符：原樣顯示，用灰色
     if (/^[;,，、\s]+$/.test(tk)) {
       out += '<span class="bc-sep">' + esc(tk) + '</span>';
       continue;
     }
 
-    // 一般 barcode token
     if (tk.length <= 4) {
-      // 4 位以下全紅
       out += '<span class="bc-tail">' + esc(tk) + '</span>';
     } else {
-      // 前段黑，尾 4 紅
       var head = tk.slice(0, -4);
       var tail = tk.slice(-4);
       out += esc(head) + '<span class="bc-tail">' + esc(tail) + '</span>';
@@ -1657,7 +1933,9 @@ function saveLocalCache(data) {
           temp_location: p.temp_location, combine: p.combine,
           warehouse: p.warehouse, island: p.island, aisle: p.aisle,
           crosslane: p.crosslane, shelfnumber: p.shelfnumber, floor: p.floor,
-          _last_modified: p._last_modified, _last_source: p._last_source
+          _last_modified: p._last_modified, _last_source: p._last_source,
+          _oos: p._oos, _oos_reason: p._oos_reason,
+          _oos_at: p._oos_at, _oos_reporter: p._oos_reporter
         };
       });
       safeSetLS(LOCAL_CACHE_KEY, JSON.stringify(lite));
@@ -1691,6 +1969,11 @@ function render() {
         return terms.every(function(t) { return productMatchesTerm(d, t); });
       });
 
+  // ★ OOS 篩選
+  if (oosFilterOnly) {
+    filtered = filtered.filter(function(d) { return d._oos === true || d._oos === 'true'; });
+  }
+
   if (sortMode === 'location') {
     filtered.sort(function(a, b) {
       var ka = locationSortKey(a);
@@ -1706,6 +1989,7 @@ function render() {
   } else {
     statsText = '共 ' + allData.length + ' 項';
   }
+  if (oosFilterOnly) statsText += ' · ⚠️ 只看缺貨';
   if (sortMode === 'location') statsText += ' · 按位置';
   $('stats').textContent = statsText;
 
@@ -1726,6 +2010,8 @@ function render() {
 
 function renderCard(d) {
   var noImg = 'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect width=%22100%22 height=%22100%22 fill=%22%23f5f5f7%22/><text x=%2250%22 y=%2256%22 text-anchor=%22middle%22 fill=%22%23c7c7cc%22 font-size=%2215%22>無圖</text></svg>';
+
+  var isOOS = d._oos === true || d._oos === 'true';
 
   var sourceTag = d._last_source === 'user'
     ? '<span class="lock-tag">🔒 已編輯</span>'
@@ -1753,10 +2039,30 @@ function renderCard(d) {
     simBadge = '<span class="sim-badge" style="background:' + color + ';">相似 ' + score + '%</span>';
   }
 
-  var cardClass = d._similarity !== undefined ? 'card search-result' : 'card';
+  // ★ OOS 徽章
+  var oosBanner = '';
+  if (isOOS) {
+    var reason = d._oos_reason || '（無原因）';
+    var oosAt = d._oos_at ? timeAgo(d._oos_at) : '';
+    var oosReporter = d._oos_reporter || '';
+    oosBanner =
+      '<div class="oos-banner">' +
+        '<div class="oos-row1">' +
+          '<span class="oos-icon">⚠️</span>' +
+          '<span>缺貨中</span>' +
+        '</div>' +
+        '<div class="oos-reason">原因：' + esc(reason) + '</div>' +
+        (oosAt ? '<div class="oos-meta">' + esc(oosAt) + (oosReporter ? ' · ' + esc(oosReporter) : '') + '</div>' : '') +
+      '</div>';
+  }
+
+  var cardClass = 'card';
+  if (d._similarity !== undefined) cardClass = 'card search-result';
+  if (isOOS) cardClass += ' oos-card';
+
   var safeId = escAttr(d.id);
 
-  // ★ Barcode 顯示：尾 4 碼紅色
+  // Barcode
   var barcodeHtml = '';
   if (d.barcode) {
     var safeBc = escAttr(d.barcode);
@@ -1767,6 +2073,11 @@ function renderCard(d) {
         '<button class="bc-copy" onclick="copyText(\'' + safeBc + '\', \'條碼\')" title="複製條碼">📋</button>' +
       '</div>';
   }
+
+  // ★ OOS / Restock 按鈕切換
+  var oosButton = isOOS
+    ? '<button class="btn-icon btn-restock" onclick="restockProduct(\'' + safeId + '\')" title="已補貨">✅</button>'
+    : '<button class="btn-icon btn-oos" onclick="reportOOS(\'' + safeId + '\')" title="回報缺貨">❌</button>';
 
   return '<div class="' + cardClass + '">' +
     '<div class="card-main">' +
@@ -1782,6 +2093,7 @@ function renderCard(d) {
         '</div>' +
       '</div>' +
     '</div>' +
+    oosBanner +
     barcodeHtml +
     '<div class="loc-section">' +
       '<div class="loc-title">📍 倉庫位置</div>' +
@@ -1794,7 +2106,7 @@ function renderCard(d) {
     '<div class="card-actions">' +
       '<button class="btn-edit" onclick="openEdit(\'' + safeId + '\')">✏️ 編輯</button>' +
       '<button class="btn-icon" onclick="copyId(\'' + safeId + '\')" title="複製 ID">📋</button>' +
-      '<button class="btn-icon btn-oos" onclick="reportOOS(\'' + safeId + '\')" title="回報缺貨">❌</button>' +
+      oosButton +
       '<button class="btn-del" onclick="confirmDelete(\'' + safeId + '\')" title="刪除">🗑️</button>' +
     '</div>' +
   '</div>';
@@ -1802,7 +2114,7 @@ function renderCard(d) {
 
 
 // ============================================================
-// pHash
+// pHash（略，跟之前一樣）
 // ============================================================
 function computePhashFromImage(img) {
   var canvas = document.createElement('canvas');
@@ -2401,40 +2713,21 @@ document.addEventListener('click', function(e) {
 // DEBUG
 // ============================================================
 function showDebug() {
-  var wh = OPTIONS.warehouse || [];
-  var ai = OPTIONS.aisle || [];
-  var cl = OPTIONS.crosslane || [];
-  var fl = OPTIONS.floor || [];
-  var cb = OPTIONS.combine || [];
-  var ce = OPTIONS.category_en || [];
-  var fw = $('f_warehouse');
   var usage = getUsage();
   var history = getSearchHistory();
+  var oosCount = allData.filter(function(d) { return d._oos === true || d._oos === 'true'; }).length;
   var info = {
     'TOKEN': TOKEN ? TOKEN.substring(0, 18) + '...' : 'null',
-    'API_URL': API_URL.substring(0, 60) + '...',
     'isAdmin': isAdmin,
-    'rememberLogin': rememberLogin,
-    'storage': (function() {
-      try {
-        if (localStorage.getItem('token')) return 'localStorage';
-        if (sessionStorage.getItem('token')) return 'sessionStorage';
-        return 'none';
-      } catch (e) { return 'error'; }
-    })(),
-    'optionsLoaded': optionsLoaded,
-    'warehouse': wh.length,
-    'aisle': ai.length,
-    'crosslane': cl.length,
-    'floor': fl.length,
-    'combine': cb.length,
-    'category_en': ce.length,
-    'f_warehouse 選項數': fw && fw.options ? fw.options.length : 0,
     'allData': allData.length,
+    '缺貨數': oosCount,
     'sortMode': sortMode,
     'barcodeOnly': barcodeOnly,
+    'oosFilterOnly': oosFilterOnly,
     '搜尋歷史數': history.length,
-    '常用產品數': Object.keys(usage).length
+    '常用產品數': Object.keys(usage).length,
+    'oosTargetId': oosTargetId || 'null',
+    'oosSubmitting': oosSubmitting
   };
   var msg = '';
   Object.keys(info).forEach(function(k) { msg += k + ': ' + info[k] + '\n'; });
@@ -2449,7 +2742,18 @@ $('pwdInput').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') login();
 });
 
+// ESC 關閉 OOS 彈窗
+$('oosModal').addEventListener('click', function(e) {
+  if (e.target === $('oosModal')) closeOOSModal();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && $('oosModal').classList.contains('show')) {
+    closeOOSModal();
+  }
+});
+
 updateBarcodeButton();
+updateOOSFilterButton();
 updateSortButton();
 
 if (TOKEN) showApp();
