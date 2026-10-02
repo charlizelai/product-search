@@ -326,7 +326,8 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     </h1>
     <div class="search-box" id="searchBox">
       <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
-      <input id="q" type="search" placeholder="搜尋 / 條碼 / 位置..." autocomplete="off">
+      <!-- ★ v4.7：placeholder 改為尾 6 位 -->
+      <input id="q" type="search" placeholder="搜尋 / 條碼（尾 6 位以上）/ 位置..." autocomplete="off">
       <div class="search-actions">
         <button class="icon-btn" id="btnScanSearch" title="掃碼搜尋">🔍</button>
         <button class="icon-btn" id="btnSearchByImage" title="以圖搜圖">📷</button>
@@ -505,6 +506,9 @@ const SEARCH_HISTORY_MAX = 20;
 const USAGE_KEY = 'product_usage_v1';
 const BARCODE_MODE_KEY = 'barcode_mode_v1';
 const OOS_FILTER_KEY = 'oos_filter_v1';
+
+// ★ v4.7：後綴匹配最小長度
+const MIN_SUFFIX_LEN = 6;
 
 // ============================================================
 // 狀態
@@ -1031,13 +1035,15 @@ function updateBarcodeButton() {
     btn.classList.remove('active');
     btn.classList.add('barcode-active');
     if (sb) sb.classList.add('barcode-mode');
-    if (q) q.placeholder = '只搜條碼（完整或尾 4 碼）...';
+    // ★ v4.7：提示文字改成 6 位
+    if (q) q.placeholder = '只搜條碼（完整或尾 6 位以上）...';
   } else {
     btn.textContent = '🏷️ 只搜條碼';
     btn.classList.remove('barcode-active');
     btn.classList.remove('active');
     if (sb) sb.classList.remove('barcode-mode');
-    if (q) q.placeholder = '搜尋 / 條碼 / 位置...';
+    // ★ v4.7：提示文字改成 6 位
+    if (q) q.placeholder = '搜尋 / 條碼（尾 6 位以上）/ 位置...';
   }
 }
 
@@ -1086,17 +1092,19 @@ function updateSortButton() {
 
 
 // ============================================================
-// 比對
+// 比對（★ v4.7：後綴由 4 位改為 6 位）
 // ============================================================
 function barcodeMatches(barcodeStr, term) {
   if (!barcodeStr || !term) return false;
   var parts = String(barcodeStr).split(/[;,，、\s]+/);
-  var isFourDigits = /^\d{4}$/.test(term);
+  var len = term.length;
   for (var i = 0; i < parts.length; i++) {
     var p = parts[i];
     if (!p) continue;
+    // 完整精確匹配（永遠允許，支援短碼 2677 / 1021）
     if (p === term) return true;
-    if (isFourDigits && p.length > 4 && p.slice(-4) === term) return true;
+    // 後綴匹配：輸入需至少 6 位
+    if (len >= MIN_SUFFIX_LEN && p.length > len && p.slice(-len) === term) return true;
   }
   return false;
 }
@@ -1126,6 +1134,7 @@ function productMatchesTerm(d, term) {
   return false;
 }
 
+// ★ v4.7：最後 6 位高亮（原本 4 位）
 function renderBarcodeHtml(barcodeStr) {
   var s = String(barcodeStr || '');
   if (!s) return '';
@@ -1138,10 +1147,10 @@ function renderBarcodeHtml(barcodeStr) {
       out += '<span class="bc-sep">' + esc(tk) + '</span>';
       continue;
     }
-    if (tk.length <= 4) {
+    if (tk.length <= 6) {
       out += '<span class="bc-tail">' + esc(tk) + '</span>';
     } else {
-      out += esc(tk.slice(0, -4)) + '<span class="bc-tail">' + esc(tk.slice(-4)) + '</span>';
+      out += esc(tk.slice(0, -6)) + '<span class="bc-tail">' + esc(tk.slice(-6)) + '</span>';
     }
   }
   return out;
@@ -1510,7 +1519,7 @@ function clearLocalCache() {
 
 
 // ============================================================
-// 渲染
+// 渲染（★ v4.7：加入「不足 6 位」提示）
 // ============================================================
 function render() {
   var raw = $('q').value.trim().toLowerCase()
@@ -1552,6 +1561,13 @@ function render() {
   $('btnClear').style.display = raw ? 'flex' : 'none';
 
   if (filtered.length === 0) {
+    // ★ v4.7：輸入 4~5 位數字時給明確提示
+    if (/^\d{4,5}$/.test(raw)) {
+      $('list').innerHTML =
+        '<div class="loading">⚠️ 條碼搜尋需至少 ' + MIN_SUFFIX_LEN + ' 位<br>' +
+        '你只輸入了 ' + raw.length + ' 位，請補足 ' + MIN_SUFFIX_LEN + ' 位或輸入完整條碼</div>';
+      return;
+    }
     $('list').innerHTML = '<div class="loading">沒有資料</div>';
     return;
   }
@@ -2234,13 +2250,32 @@ function toggleTorch() {
 
 
 // ============================================================
-// 搜尋 debounce
+// 搜尋 debounce（★ v4.7：加即時位數提示）
 // ============================================================
 var searchTimer;
 $('q').addEventListener('input', function() {
   if (searchMode === 'image') { searchMode = 'text'; loadData(true); return; }
   clearTimeout(searchTimer);
   searchTimer = setTimeout(render, 150);
+
+  // ★ v4.7：即時提示條碼位數
+  var v = $('q').value.trim();
+  var sb = $('searchBox');
+  var q = $('q');
+  if (/^\d{4,5}$/.test(v)) {
+    sb.classList.add('barcode-mode');
+    q.placeholder = '⚠️ 條碼需至少 ' + MIN_SUFFIX_LEN + ' 位，目前 ' + v.length + ' 位';
+  } else if (/^\d{6,}$/.test(v)) {
+    sb.classList.add('barcode-mode');
+    q.placeholder = '✅ 條碼 ' + v.length + ' 位，精確匹配';
+  } else {
+    if (!barcodeOnly) {
+      sb.classList.remove('barcode-mode');
+      q.placeholder = '搜尋 / 條碼（尾 6 位以上）/ 位置...';
+    } else {
+      q.placeholder = '只搜條碼（完整或尾 6 位以上）...';
+    }
+  }
 });
 $('q').addEventListener('focus', showSearchHistory);
 $('q').addEventListener('keydown', function(e) {
@@ -2264,7 +2299,8 @@ function showDebug() {
     '缺貨數': oosCount,
     'sortMode': sortMode,
     'barcodeOnly': barcodeOnly,
-    'oosFilterOnly': oosFilterOnly
+    'oosFilterOnly': oosFilterOnly,
+    'MIN_SUFFIX_LEN': MIN_SUFFIX_LEN
   };
   var msg = '';
   Object.keys(info).forEach(function(k) { msg += k + ': ' + info[k] + '\n'; });
