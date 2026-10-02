@@ -8,8 +8,8 @@
 <meta name="apple-mobile-web-app-title" content="產品管理">
 <title>產品管理</title>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<!-- ★ v5.0：OCR 引擎 -->
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
+<!-- ★ v4.10：Tesseract OCR，defer 不阻塞頁面；載入失敗只影響 OCR -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.4/dist/tesseract.min.js" defer></script>
 <style>
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; padding: 0; }
@@ -194,7 +194,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .field input:disabled { background: #f5f5f7; color: #86868b; }
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
-/* ★ v5.0：名稱 + OCR 按鈕 */
+/* ★ v4.10：名稱欄位 + OCR 按鈕 */
 .field-with-btn { display: flex; gap: 10px; align-items: stretch; }
 .field-with-btn input { flex: 1; min-width: 0; }
 .field-with-btn .ocr-btn {
@@ -204,7 +204,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   background: #fff3cd; color: #856404;
   border: 2px solid #ffe08a; cursor: pointer;
   font-size: 16px; font-weight: 700;
-  white-space: nowrap;
+  white-space: nowrap; font-family: inherit;
 }
 .field-with-btn .ocr-btn:active { background: #ffe08a; }
 .field-with-btn .ocr-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -399,7 +399,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .scan-status.ok { background: #e8f5e9; color: #2e7d32; font-weight: 600; }
 .scan-status.warn { background: #fff3cd; color: #856404; font-weight: 600; }
 
-/* ★ v5.0：OCR 彈窗 */
+/* ★ v4.10：OCR 彈窗 */
 #ocrModal .modal-content { border-radius: 24px; margin: 16px; max-height: 92vh; align-self: center; }
 .ocr-preview-wrap {
   width: 100%; max-height: 220px; overflow: hidden;
@@ -489,7 +489,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
         <button type="button" class="upload-btn" onclick="startEditScan()">📷 掃描</button>
       </div>
     </div>
-    <!-- ★ v5.0：英文名稱 + OCR -->
+    <!-- ★ v4.10：英文名稱 + OCR -->
     <div class="field">
       <label>英文名稱</label>
       <div class="field-with-btn">
@@ -497,7 +497,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
         <button type="button" class="ocr-btn" onclick="openOcr('name')" title="拍照識別英文名稱">📷 OCR</button>
       </div>
     </div>
-    <!-- ★ v5.0：中文名稱 + OCR -->
+    <!-- ★ v4.10：中文名稱 + OCR -->
     <div class="field">
       <label>中文名稱</label>
       <div class="field-with-btn">
@@ -620,7 +620,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   </div>
 </div>
 
-<!-- ★ v5.0：OCR 彈窗 -->
+<!-- ★ v4.10：OCR 彈窗 -->
 <div class="modal" id="ocrModal" style="align-items: center;">
   <div class="modal-content">
     <h2 style="margin:0 0 14px;color:#f57c00;">📷 OCR 識別結果</h2>
@@ -650,7 +650,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 </div>
 
 <input type="file" id="imageSearchInput" accept="image/*" style="display:none">
-<!-- ★ v5.0：OCR 拍照 input -->
+<!-- ★ v4.10：OCR 拍照 input -->
 <input type="file" id="ocrImageInput" accept="image/*" capture="environment" style="display:none">
 <button id="debugBtn" onclick="showDebug()">DEBUG</button>
 <div class="toast" id="toast"></div>
@@ -736,10 +736,9 @@ let OPTIONS = {
 let optionsLoaded = false;
 let editingOptions = null;
 
-// ★ v5.0：OCR 狀態
+// ★ v4.10：OCR 狀態
 let ocrTargetField = null;   // 'name' 或 'name_zh'
 let ocrProcessing = false;
-let ocrCurrentFile = null;   // 保留原圖以便重拍
 
 const $ = function(id) { return document.getElementById(id); };
 const FIELDS = ['id','barcode','name','name_zh','price','original_price','image','category_en','category_zh','description',
@@ -2336,16 +2335,24 @@ async function unlockCurrentProduct() {
 
 
 // ============================================================
-// ★ v5.0：OCR 拍照填名
+// ★ v4.10：OCR 拍照填名（Tesseract 載入失敗不影響其他功能）
 // ============================================================
+function isOcrAvailable() {
+  return (typeof Tesseract !== 'undefined');
+}
+
 function openOcr(fieldKey) {
-  if (ocrProcessing) { toast('⏳ OCR 處理中，請稍候...', 2000); return; }
-  if (typeof Tesseract === 'undefined') {
-    toast('❌ OCR 引擎未載入，請檢查網路後重新整理', 4000);
+  // Tesseract 未載入 → 給提示，不報錯
+  if (!isOcrAvailable()) {
+    toast('❌ OCR 引擎未載入，請檢查網路後重新整理頁面', 4000);
+    console.warn('Tesseract 未載入。可能原因：CDN 被擋、網路問題、或 ad blocker 阻擋。');
+    return;
+  }
+  if (ocrProcessing) {
+    toast('⏳ OCR 處理中，請稍候...', 2000);
     return;
   }
   ocrTargetField = fieldKey;   // 'name' 或 'name_zh'
-  ocrCurrentFile = null;
   // 觸發相機 / 相簿
   $('ocrImageInput').click();
 }
@@ -2354,7 +2361,6 @@ $('ocrImageInput').addEventListener('change', async function(e) {
   var file = e.target.files[0];
   if (!file) return;
   e.target.value = '';
-  ocrCurrentFile = file;
   await runOcrOnFile(file);
 });
 
@@ -2366,6 +2372,11 @@ function retakeOcr() {
 
 async function runOcrOnFile(file) {
   if (ocrProcessing) return;
+  if (!isOcrAvailable()) {
+    toast('❌ OCR 引擎未載入', 3000);
+    return;
+  }
+
   ocrProcessing = true;
 
   var modal   = $('ocrModal');
@@ -2375,26 +2386,28 @@ async function runOcrOnFile(file) {
   var applyBtn = $('ocrApplyBtn');
   var progressWrap = $('ocrProgress');
   var progressBar  = $('ocrProgressBar');
+  var worker = null;
 
-  // 顯示 modal + 預覽
   try {
+    // 顯示 modal + 預覽
     var compressed = await compressImage(file, 1600, 0.85);
     var dataUrl = await blobToDataURL(compressed);
     preview.src = dataUrl;
     result.value = '';
     result.disabled = true;
-    status.textContent = '上傳中...';
+    status.textContent = '準備中...';
     applyBtn.disabled = true;
     progressWrap.classList.add('show');
     progressBar.style.width = '0%';
     modal.classList.add('show');
 
-    // 選擇語言：中文名稱用 chi_sim + eng；英文名稱用 eng
+    // 語言：中文名稱用 chi_sim + eng；英文名稱用 eng
     var lang = (ocrTargetField === 'name_zh') ? 'chi_sim+eng' : 'eng';
 
-    // 建立 worker（每次新建，識別完銷毀）
-    var worker = await Tesseract.createWorker(lang, 1, {
+    // Tesseract.js v4 API
+    worker = await Tesseract.createWorker({
       logger: function(m) {
+        if (!m) return;
         if (m.status === 'loading tesseract core') {
           status.textContent = '載入引擎...';
         } else if (m.status === 'loading language traineddata') {
@@ -2408,11 +2421,16 @@ async function runOcrOnFile(file) {
       }
     });
 
-    var ret = await worker.recognize(compressed);
-    await worker.terminate();
+    // v4 API：先 loadLanguage 再 initialize
+    if (typeof worker.loadLanguage === 'function') {
+      await worker.loadLanguage(lang);
+      await worker.initialize(lang);
+    }
 
+    var ret = await worker.recognize(compressed);
     var text = (ret && ret.data && ret.data.text) ? ret.data.text : '';
-    // 清理：去多餘空行、前後空白
+
+    // 清理：去多餘空行、壓縮空白
     text = text
       .replace(/\r\n/g, '\n')
       .replace(/[ \t]+/g, ' ')
@@ -2423,14 +2441,12 @@ async function runOcrOnFile(file) {
 
     result.value = text || '（未識別到文字，請重拍）';
     result.disabled = false;
-    status.textContent = '✅ 完成，請確認或修改';
+    status.textContent = text ? '✅ 完成，請確認或修改' : '⚠️ 未識別到文字';
     applyBtn.disabled = false;
     progressBar.style.width = '100%';
     setTimeout(function() { progressWrap.classList.remove('show'); }, 800);
 
-    if (!text) {
-      toast('⚠️ 未識別到文字，可嘗試重拍', 3000);
-    }
+    if (!text) toast('⚠️ 未識別到文字，可嘗試重拍', 3000);
 
   } catch (err) {
     console.error('OCR 失敗：', err);
@@ -2442,6 +2458,10 @@ async function runOcrOnFile(file) {
     progressWrap.classList.remove('show');
     toast('❌ OCR 失敗', 3000);
   } finally {
+    // 釋放 worker（失敗也不影響其他功能）
+    if (worker) {
+      try { await worker.terminate(); } catch (e) {}
+    }
     ocrProcessing = false;
   }
 }
@@ -2479,7 +2499,6 @@ function applyOcrResult() {
   el.value = text;
   toast('✅ 已填入' + (ocrTargetField === 'name_zh' ? '中文' : '英文') + '名稱');
 
-  // 若使用者在 modal 內看不到欄位，關閉後滾動到欄位
   closeOcrModal();
   setTimeout(function() {
     try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
@@ -2488,7 +2507,7 @@ function applyOcrResult() {
 
 
 // ============================================================
-// 條碼掃描（★ v4.9：iPhone 修復版）
+// 條碼掃描（v4.9：iPhone 修復版）
 // ============================================================
 var SCAN_FORMATS = [
   Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
@@ -2546,7 +2565,7 @@ async function openScanner(title, mode) {
         { facingMode: "environment" },
         config,
         onScanSuccess,
-        function(errorMessage) { /* 每幀失敗，忽略 */ }
+        function(errorMessage) {}
       );
 
       setScanStatus('✅ 相機已就緒，請對準條碼', 'ok');
@@ -2554,10 +2573,7 @@ async function openScanner(title, mode) {
       setTimeout(async function() {
         try {
           var caps = html5QrCode.getRunningTrackCapabilities();
-          var constraints = {
-            width: { ideal: 1280 },
-            advanced: []
-          };
+          var constraints = { width: { ideal: 1280 }, advanced: [] };
           if (caps && caps.zoom) {
             var maxZoom = (caps.zoom.max != null) ? caps.zoom.max : 1;
             var targetZoom = Math.min(1.5, maxZoom);
@@ -2703,7 +2719,7 @@ document.addEventListener('click', function(e) {
 
 
 // ============================================================
-// ★ v4.8：Lightbox 大圖
+// Lightbox 大圖
 // ============================================================
 function openLightbox(id) {
   var p = allData.find(function(d) { return String(d.id) === String(id); });
@@ -2768,7 +2784,7 @@ function showDebug() {
     'oosFilterOnly': oosFilterOnly,
     'MIN_SUFFIX_LEN': MIN_SUFFIX_LEN,
     'isIOS': isIOS(),
-    'Tesseract 已載入': (typeof Tesseract !== 'undefined') ? '是' : '否',
+    'Tesseract 已載入': isOcrAvailable() ? '是' : '否',
     'UA': navigator.userAgent.substring(0, 60)
   };
   var msg = '';
