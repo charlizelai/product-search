@@ -8,7 +8,6 @@
 <meta name="apple-mobile-web-app-title" content="產品管理">
 <title>產品管理</title>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<!-- ★ v4.10：Tesseract OCR，defer 不阻塞頁面；載入失敗只影響 OCR -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.4/dist/tesseract.min.js" defer></script>
 <style>
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -194,7 +193,6 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .field input:disabled { background: #f5f5f7; color: #86868b; }
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
-/* ★ v4.10：名稱欄位 + OCR 按鈕 */
 .field-with-btn { display: flex; gap: 10px; align-items: stretch; }
 .field-with-btn input { flex: 1; min-width: 0; }
 .field-with-btn .ocr-btn {
@@ -321,7 +319,6 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .options-add-btn { width: 100%; padding: 12px; margin-top: 8px; border-radius: 10px; border: 2px dashed #0071e3; background: #fff; color: #0071e3; font-size: 15px; font-weight: 600; cursor: pointer; }
 .options-add-btn:active { background: #e8f0fe; }
 
-/* ★ v4.8：Lightbox 大圖 */
 .lightbox {
   display: none;
   position: fixed; inset: 0;
@@ -386,7 +383,6 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .lightbox-caption .lb-name { font-weight: 700; font-size: 17px; }
 .lightbox-caption .lb-meta { font-size: 13px; opacity: 0.75; margin-top: 5px; font-family: ui-monospace, monospace; word-break: break-all; }
 
-/* ★ v4.9：掃描器提示條 */
 .scan-status {
   text-align: center;
   font-size: 14px;
@@ -399,7 +395,6 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .scan-status.ok { background: #e8f5e9; color: #2e7d32; font-weight: 600; }
 .scan-status.warn { background: #fff3cd; color: #856404; font-weight: 600; }
 
-/* ★ v4.10：OCR 彈窗 */
 #ocrModal .modal-content { border-radius: 24px; margin: 16px; max-height: 92vh; align-self: center; }
 .ocr-preview-wrap {
   width: 100%; max-height: 220px; overflow: hidden;
@@ -489,7 +484,6 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
         <button type="button" class="upload-btn" onclick="startEditScan()">📷 掃描</button>
       </div>
     </div>
-    <!-- ★ v4.10：英文名稱 + OCR -->
     <div class="field">
       <label>英文名稱</label>
       <div class="field-with-btn">
@@ -497,7 +491,6 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
         <button type="button" class="ocr-btn" onclick="openOcr('name')" title="拍照識別英文名稱">📷 OCR</button>
       </div>
     </div>
-    <!-- ★ v4.10：中文名稱 + OCR -->
     <div class="field">
       <label>中文名稱</label>
       <div class="field-with-btn">
@@ -591,14 +584,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       缺貨原因 <span class="oos-required">*必填</span>
     </label>
     <textarea id="oosReason" placeholder="請填寫缺貨原因（至少 2 個字）"></textarea>
-    <div class="quick-reasons">
-      <button type="button" class="quick-reason" onclick="setQuickReason('貨架空了')">貨架空了</button>
-      <button type="button" class="quick-reason" onclick="setQuickReason('客人買光')">客人買光</button>
-      <button type="button" class="quick-reason" onclick="setQuickReason('補貨中')">補貨中</button>
-      <button type="button" class="quick-reason" onclick="setQuickReason('找不到貨')">找不到貨</button>
-      <button type="button" class="quick-reason" onclick="setQuickReason('貨物損壞')">貨物損壞</button>
-      <button type="button" class="quick-reason" onclick="setQuickReason('過期')">過期</button>
-    </div>
+    <div class="quick-reasons" id="quickReasonsContainer"></div>
     <div id="oosErrMsg" class="oos-err-msg"></div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeOOSModal()">取消</button>
@@ -620,7 +606,6 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   </div>
 </div>
 
-<!-- ★ v4.10：OCR 彈窗 -->
 <div class="modal" id="ocrModal" style="align-items: center;">
   <div class="modal-content">
     <h2 style="margin:0 0 14px;color:#f57c00;">📷 OCR 識別結果</h2>
@@ -650,12 +635,10 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 </div>
 
 <input type="file" id="imageSearchInput" accept="image/*" style="display:none">
-<!-- ★ v4.10：OCR 拍照 input -->
 <input type="file" id="ocrImageInput" accept="image/*" capture="environment" style="display:none">
 <button id="debugBtn" onclick="showDebug()">DEBUG</button>
 <div class="toast" id="toast"></div>
 
-<!-- ★ v4.8：Lightbox 大圖 -->
 <div id="lightbox" class="lightbox" onclick="closeLightbox()">
   <button class="lightbox-close" onclick="closeLightbox()" aria-label="關閉">✕</button>
   <div class="lightbox-inner" onclick="event.stopPropagation()">
@@ -683,7 +666,6 @@ const USAGE_KEY = 'product_usage_v1';
 const BARCODE_MODE_KEY = 'barcode_mode_v1';
 const OOS_FILTER_KEY = 'oos_filter_v1';
 
-// ★ v4.7：後綴匹配最小長度
 const MIN_SUFFIX_LEN = 6;
 
 // ============================================================
@@ -731,13 +713,13 @@ let oosSubmitting = false;
 
 let OPTIONS = {
   warehouse: [], aisle: [], crosslane: [], floor: [],
-  combine: [], category_en: []
+  combine: [], category_en: [],
+  oos_reason: []
 };
 let optionsLoaded = false;
 let editingOptions = null;
 
-// ★ v4.10：OCR 狀態
-let ocrTargetField = null;   // 'name' 或 'name_zh'
+let ocrTargetField = null;
 let ocrProcessing = false;
 
 const $ = function(id) { return document.getElementById(id); };
@@ -822,7 +804,7 @@ function logout() {
   } catch (e) {}
   allData = [];
   optionsLoaded = false;
-  OPTIONS = { warehouse: [], aisle: [], crosslane: [], floor: [], combine: [], category_en: [] };
+  OPTIONS = { warehouse: [], aisle: [], crosslane: [], floor: [], combine: [], category_en: [], oos_reason: [] };
   $('appScreen').style.display = 'none';
   $('loginScreen').style.display = 'block';
   $('pwdInput').value = '';
@@ -1026,6 +1008,7 @@ function reportOOS(id) {
   if (!p) { toast('❌ 找不到此產品'); return; }
   oosTargetId = id;
   oosSubmitting = false;
+  renderQuickReasons();
   var info = $('oosProductInfo');
   info.innerHTML =
     '<div class="oos-info-name">' + esc(p.name_zh || p.name) + '</div>' +
@@ -1051,6 +1034,28 @@ function setQuickReason(reason) {
   el.classList.remove('invalid');
   $('oosErrMsg').textContent = '';
   el.focus();
+}
+
+// ★ 動態渲染缺貨原因按鈕（管理員可增刪）
+function renderQuickReasons() {
+  var container = $('quickReasonsContainer');
+  if (!container) return;
+
+  var list = (OPTIONS.oos_reason && OPTIONS.oos_reason.length)
+    ? OPTIONS.oos_reason
+    : [];
+
+  if (list.length === 0) {
+    container.innerHTML = '<div style="color:#86868b;font-size:13px;padding:4px;">（未設定缺貨原因，請管理員到 ⚙️ 選項管理新增）</div>';
+    return;
+  }
+
+  container.innerHTML = list.map(function(opt) {
+    var val = String(opt.value || '').trim();
+    var lbl = String(opt.label || val).trim();
+    if (!val) return '';
+    return '<button type="button" class="quick-reason" onclick="setQuickReason(\'' + escAttr(val) + '\')">' + esc(lbl) + '</button>';
+  }).join('');
 }
 
 async function submitOOSReport() {
@@ -1270,7 +1275,7 @@ function updateSortButton() {
 
 
 // ============================================================
-// 比對（★ v4.7：後綴由 4 位改為 6 位）
+// 比對
 // ============================================================
 function barcodeMatches(barcodeStr, term) {
   if (!barcodeStr || !term) return false;
@@ -1341,11 +1346,12 @@ async function loadOptions() {
     var result = await apiGet('options');
     if (result.error) { useDefaultOptions(); return; }
     var hasData = false;
-    ['warehouse','aisle','crosslane','floor','combine','category_en'].forEach(function(k) {
+    ['warehouse','aisle','crosslane','floor','combine','category_en','oos_reason'].forEach(function(k) {
       if (Array.isArray(result[k]) && result[k].length > 0) hasData = true;
     });
     if (!hasData) { useDefaultOptions(); return; }
     OPTIONS = result;
+    if (!Array.isArray(OPTIONS.oos_reason)) OPTIONS.oos_reason = [];
     optionsLoaded = true;
     populateSelects();
     renderCombineCheckboxes();
@@ -1383,6 +1389,14 @@ function useDefaultOptions() {
       {value:'Snacks & Confectionery', label:'零食及糖果'},
       {value:'Feminine Care', label:'女性護理'},
       {value:'Festive items', label:'節日食品'}
+    ],
+    oos_reason: [
+      {value:'貨架空了', label:'貨架空了'},
+      {value:'客人買光', label:'客人買光'},
+      {value:'補貨中', label:'補貨中'},
+      {value:'找不到貨', label:'找不到貨'},
+      {value:'貨物損壞', label:'貨物損壞'},
+      {value:'過期', label:'過期'}
     ]
   };
   optionsLoaded = true;
@@ -1457,6 +1471,7 @@ function setCombineValue(value) {
 function openOptionsModal() {
   if (!isAdmin) { toast('只有管理員可編輯選項'); return; }
   editingOptions = JSON.parse(JSON.stringify(OPTIONS));
+  if (!Array.isArray(editingOptions.oos_reason)) editingOptions.oos_reason = [];
   renderOptionsEditor();
   $('optionsModal').classList.add('show');
 }
@@ -1468,7 +1483,8 @@ function renderOptionsEditor() {
     {key: 'crosslane',  label: '橫巷 (crosslane)'},
     {key: 'floor',      label: '層 (floor)'},
     {key: 'combine',    label: '併板 (combine) — 可多選'},
-    {key: 'category_en',label: '分類（英）(category_en)'}
+    {key: 'category_en',label: '分類（英）(category_en)'},
+    {key: 'oos_reason', label: '⚠️ 缺貨原因 (oos_reason)'}
   ];
   container.innerHTML = TYPES.map(function(t) {
     var list = editingOptions[t.key] || [];
@@ -1539,6 +1555,7 @@ async function saveOptionsToServer() {
     var result = await apiPost({ action: 'saveOptions', options: editingOptions });
     if (result.error) { toast('❌ ' + result.error, 3000); return; }
     OPTIONS = JSON.parse(JSON.stringify(editingOptions));
+    if (!Array.isArray(OPTIONS.oos_reason)) OPTIONS.oos_reason = [];
     optionsLoaded = true;
     populateSelects();
     renderCombineCheckboxes();
@@ -1997,7 +2014,7 @@ $('btnClear').onclick = function() {
 
 
 // ============================================================
-// 新增 / 編輯（樂觀更新）
+// 新增 / 編輯
 // ============================================================
 function openAdd() {
   editingId = null;
@@ -2243,7 +2260,6 @@ async function saveProduct() {
           _last_source: 'user'
         });
         allData.push(newP);
-        console.log('✅ 樂觀加入：' + data.id);
       }
     } else {
       var idx = allData.findIndex(function(d) { return String(d.id) === String(editingId); });
@@ -2289,11 +2305,7 @@ async function saveProduct() {
     }
 
     setTimeout(function() {
-      syncFromAPI().then(function() {
-        console.log('🔄 已用 API 同步');
-      }).catch(function(e) {
-        console.warn('API 同步失敗：', e);
-      });
+      syncFromAPI().catch(function(e) { console.warn('API 同步失敗：', e); });
     }, 1500);
 
     setTimeout(function() {
@@ -2335,14 +2347,13 @@ async function unlockCurrentProduct() {
 
 
 // ============================================================
-// ★ v4.10：OCR 拍照填名（Tesseract 載入失敗不影響其他功能）
+// OCR 拍照填名（Tesseract 載入失敗不影響其他功能）
 // ============================================================
 function isOcrAvailable() {
   return (typeof Tesseract !== 'undefined');
 }
 
 function openOcr(fieldKey) {
-  // Tesseract 未載入 → 給提示，不報錯
   if (!isOcrAvailable()) {
     toast('❌ OCR 引擎未載入，請檢查網路後重新整理頁面', 4000);
     console.warn('Tesseract 未載入。可能原因：CDN 被擋、網路問題、或 ad blocker 阻擋。');
@@ -2352,8 +2363,7 @@ function openOcr(fieldKey) {
     toast('⏳ OCR 處理中，請稍候...', 2000);
     return;
   }
-  ocrTargetField = fieldKey;   // 'name' 或 'name_zh'
-  // 觸發相機 / 相簿
+  ocrTargetField = fieldKey;
   $('ocrImageInput').click();
 }
 
@@ -2389,7 +2399,6 @@ async function runOcrOnFile(file) {
   var worker = null;
 
   try {
-    // 顯示 modal + 預覽
     var compressed = await compressImage(file, 1600, 0.85);
     var dataUrl = await blobToDataURL(compressed);
     preview.src = dataUrl;
@@ -2401,10 +2410,8 @@ async function runOcrOnFile(file) {
     progressBar.style.width = '0%';
     modal.classList.add('show');
 
-    // 語言：中文名稱用 chi_sim + eng；英文名稱用 eng
     var lang = (ocrTargetField === 'name_zh') ? 'chi_sim+eng' : 'eng';
 
-    // Tesseract.js v4 API
     worker = await Tesseract.createWorker({
       logger: function(m) {
         if (!m) return;
@@ -2421,7 +2428,6 @@ async function runOcrOnFile(file) {
       }
     });
 
-    // v4 API：先 loadLanguage 再 initialize
     if (typeof worker.loadLanguage === 'function') {
       await worker.loadLanguage(lang);
       await worker.initialize(lang);
@@ -2430,7 +2436,6 @@ async function runOcrOnFile(file) {
     var ret = await worker.recognize(compressed);
     var text = (ret && ret.data && ret.data.text) ? ret.data.text : '';
 
-    // 清理：去多餘空行、壓縮空白
     text = text
       .replace(/\r\n/g, '\n')
       .replace(/[ \t]+/g, ' ')
@@ -2458,7 +2463,6 @@ async function runOcrOnFile(file) {
     progressWrap.classList.remove('show');
     toast('❌ OCR 失敗', 3000);
   } finally {
-    // 釋放 worker（失敗也不影響其他功能）
     if (worker) {
       try { await worker.terminate(); } catch (e) {}
     }
@@ -2486,7 +2490,6 @@ function applyOcrResult() {
   var raw = $('ocrResult').value.trim();
   if (!raw) { toast('❌ 識別結果為空'); return; }
 
-  // 名稱通常一行 → 把換行轉成空白，壓縮多餘空白
   var text = raw.replace(/\s+/g, ' ').trim();
 
   var fieldId = 'f_' + ocrTargetField;
@@ -2507,7 +2510,7 @@ function applyOcrResult() {
 
 
 // ============================================================
-// 條碼掃描（v4.9：iPhone 修復版）
+// 條碼掃描（iPhone 修復版）
 // ============================================================
 var SCAN_FORMATS = [
   Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
@@ -2586,7 +2589,6 @@ async function openScanner(title, mode) {
           }
           if (constraints.advanced.length > 0 || constraints.width) {
             await html5QrCode.applyVideoConstraints(constraints);
-            console.log('✅ 相機參數已重設');
           }
         } catch (e) {
           console.warn('重設相機參數失敗（不影響掃描）:', e);
@@ -2785,6 +2787,7 @@ function showDebug() {
     'MIN_SUFFIX_LEN': MIN_SUFFIX_LEN,
     'isIOS': isIOS(),
     'Tesseract 已載入': isOcrAvailable() ? '是' : '否',
+    'oos_reason 選項數': (OPTIONS.oos_reason || []).length,
     'UA': navigator.userAgent.substring(0, 60)
   };
   var msg = '';
