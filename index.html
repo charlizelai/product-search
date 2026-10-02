@@ -105,7 +105,6 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .card.oos-card { border: 2px solid #c62828; background: #fff8f8; }
 .card-main { display: flex; gap: 14px; align-items: flex-start; }
 .card img.thumb { width: 100px; height: 100px; object-fit: contain; border-radius: 12px; background: #f5f5f7; flex-shrink: 0; }
-/* ★ v4.8：可點縮圖提示 */
 .card img.thumb.clickable { cursor: zoom-in; transition: transform .15s, opacity .15s; }
 .card img.thumb.clickable:active { opacity: 0.85; transform: scale(0.96); }
 .info { flex: 1; min-width: 0; }
@@ -369,6 +368,19 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 }
 .lightbox-caption .lb-name { font-weight: 700; font-size: 17px; }
 .lightbox-caption .lb-meta { font-size: 13px; opacity: 0.75; margin-top: 5px; font-family: ui-monospace, monospace; word-break: break-all; }
+
+/* ★ v4.9：掃描器提示條 */
+.scan-status {
+  text-align: center;
+  font-size: 14px;
+  padding: 8px 12px;
+  margin-top: 10px;
+  border-radius: 10px;
+  background: #f5f5f7;
+  color: #6e6e73;
+}
+.scan-status.ok { background: #e8f5e9; color: #2e7d32; font-weight: 600; }
+.scan-status.warn { background: #fff3cd; color: #856404; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -509,6 +521,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     </div>
     <div id="reader"></div>
     <p class="scan-hint">將條碼放入框內，會自動辨識</p>
+    <div class="scan-status" id="scanStatus">準備中...</div>
     <button class="scan-torch" id="torchBtn" onclick="toggleTorch()">🔦 開啟手電筒</button>
     <button class="btn-cancel" style="width:100%; margin-top:14px; padding:16px; border-radius:14px; border:none; font-size:17px; font-weight:700; cursor:pointer;" onclick="onScanCloseClick()">關閉</button>
   </div>
@@ -1635,7 +1648,6 @@ function render() {
   $('btnClear').style.display = raw ? 'flex' : 'none';
 
   if (filtered.length === 0) {
-    // ★ v4.7：輸入 4~5 位數字時給明確提示
     if (/^\d{4,5}$/.test(raw)) {
       $('list').innerHTML =
         '<div class="loading">⚠️ 條碼搜尋需至少 ' + MIN_SUFFIX_LEN + ' 位<br>' +
@@ -2240,7 +2252,7 @@ async function unlockCurrentProduct() {
 
 
 // ============================================================
-// 條碼掃描
+// 條碼掃描（★ v4.9：iPhone 11 修復版）
 // ============================================================
 var SCAN_FORMATS = [
   Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
@@ -2249,6 +2261,19 @@ var SCAN_FORMATS = [
   Html5QrcodeSupportedFormats.ITF, Html5QrcodeSupportedFormats.CODABAR,
   Html5QrcodeSupportedFormats.QR_CODE
 ];
+
+function isIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function setScanStatus(text, level) {
+  var el = $('scanStatus');
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'scan-status' + (level ? ' ' + level : '');
+}
+
 async function openScanner(title, mode) {
   if (isScanning) return;
   isScanning = true;
@@ -2257,30 +2282,111 @@ async function openScanner(title, mode) {
   $('scanTitle').textContent = title;
   $('scanModal').classList.add('show');
   $('torchBtn').style.display = 'none';
+  setScanStatus('正在啟動相機...', '');
+
+  // 等 DOM 準備好
   setTimeout(async function() {
     try {
       html5QrCode = new Html5Qrcode("reader");
+
+      // ★ v4.9：iPhone 修復關鍵
+      //  - useBarCodeDetectorIfSupported: false → 強制用 ZXing，繞過 iOS 原生 BarcodeDetector
+      //  - qrbox 扁長形（2:1）→ 更適合條碼
+      //  - aspectRatio 16:9 → 避免 iOS 影片流變形
+      var config = {
+        fps: 15,
+        qrbox: { width: 300, height: 150 },
+        aspectRatio: 1.777,
+        formatsToSupport: SCAN_FORMATS,
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: false
+        }
+      };
+
+      // iOS 額外參數：啟用「嘗試水平翻轉」、「嘗試大範圍」
+      if (isIOS()) {
+        config.videoConstraints = {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        };
+      }
+
       await html5QrCode.start(
         { facingMode: "environment" },
-        { fps: 10, qrbox: {width:300,height:200}, aspectRatio: 1.0, formatsToSupport: SCAN_FORMATS },
-        onScanSuccess, function() {}
+        config,
+        onScanSuccess,
+        function(errorMessage) { /* 每幀失敗，忽略 */ }
       );
+
+      setScanStatus('✅ 相機已就緒，請對準條碼', 'ok');
+
+      // ★ v4.9：啟動後 1 秒重設相機參數（提高解析度、對焦、變焦）
+      setTimeout(async function() {
+        try {
+          var caps = html5QrCode.getRunningTrackCapabilities();
+          var constraints = {
+            width: { ideal: 1280 },
+            advanced: []
+          };
+
+          // 支援變焦 → 輕微放大 1.5x 有助於對焦小條碼
+          if (caps && caps.zoom) {
+            var maxZoom = (caps.zoom.max != null) ? caps.zoom.max : 1;
+            var targetZoom = Math.min(1.5, maxZoom);
+            if (targetZoom > (caps.zoom.min || 1)) {
+              constraints.advanced.push({ zoom: targetZoom });
+            }
+          }
+
+          // 支援對焦距離 → 設定 0.5 公尺
+          if (caps && caps.focusDistance && constraints.advanced.length >= 0) {
+            try { constraints.advanced.push({ focusDistance: 0.5 }); } catch (e) {}
+          }
+
+          if (constraints.advanced.length > 0 || constraints.width) {
+            await html5QrCode.applyVideoConstraints(constraints);
+            console.log('✅ 相機參數已重設');
+          }
+        } catch (e) {
+          console.warn('重設相機參數失敗（不影響掃描）:', e);
+        }
+      }, 1000);
+
+      // 手電筒
       try {
-        var caps = html5QrCode.getRunningTrackCameraCapabilities();
-        if (caps && caps.torchFeature && caps.torchFeature().isSupported()) $('torchBtn').style.display = 'block';
+        var caps2 = html5QrCode.getRunningTrackCameraCapabilities();
+        if (caps2 && caps2.torchFeature && caps2.torchFeature().isSupported()) {
+          $('torchBtn').style.display = 'block';
+        }
       } catch (e) {}
+
     } catch (e) {
-      toast('❌ 無法開啟相機：' + e.message, 3000);
-      closeScan();
+      console.error('掃描器啟動失敗：', e);
+      var msg = e.message || String(e);
+      if (/permission|denied|notallowed/i.test(msg)) {
+        msg = '未授權使用相機。請到「設定 → Safari → 相機」允許，或重新整理頁面再試。';
+      } else if (/NotFound|no camera/i.test(msg)) {
+        msg = '找不到相機，請確認裝置有鏡頭。';
+      } else if (/NotReadable|in use/i.test(msg)) {
+        msg = '相機被其他程式佔用，請關閉其他 App 再試。';
+      }
+      setScanStatus('❌ ' + msg, 'warn');
+      toast('❌ 無法開啟相機', 3000);
+      setTimeout(closeScan, 2500);
     }
   }, 300);
 }
+
 $('btnScanSearch').onclick = function() { openScanner('🔍 掃碼搜尋', 'search'); };
 function startEditScan() { openScanner('📷 掃描條碼', 'edit'); }
 function onScanCloseClick() { closeScan(); }
+
 function onScanSuccess(decodedText) {
   if (!isScanning) return;
   if (navigator.vibrate) navigator.vibrate(80);
+  setScanStatus('✅ 已辨識：' + decodedText, 'ok');
+
   if (scanMode === 'search') {
     $('q').value = decodedText;
     addSearchHistory(decodedText);
@@ -2310,13 +2416,19 @@ function onScanSuccess(decodedText) {
     } else closeScan();
   }
 }
+
 async function closeScan() {
   isScanning = false;
   scanMode = 'none';
   $('scanModal').classList.remove('show');
   $('scanTitle').textContent = '📷 掃描條碼';
-  if (html5QrCode) { try { await html5QrCode.stop(); html5QrCode.clear(); } catch (e) {} html5QrCode = null; }
+  setScanStatus('準備中...', '');
+  if (html5QrCode) {
+    try { await html5QrCode.stop(); html5QrCode.clear(); } catch (e) {}
+    html5QrCode = null;
+  }
 }
+
 function toggleTorch() {
   if (!html5QrCode) return;
   try {
@@ -2339,7 +2451,6 @@ $('q').addEventListener('input', function() {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(render, 150);
 
-  // ★ v4.7：即時提示條碼位數
   var v = $('q').value.trim();
   var sb = $('searchBox');
   var q = $('q');
@@ -2388,7 +2499,6 @@ function openLightbox(id) {
   var img = $('lightboxImg');
   var cap = $('lightboxCaption');
 
-  // 先用目前縮圖當 placeholder，再換大圖
   img.src = url;
   var bigImg = new Image();
   bigImg.onload = function() { if (lb.classList.contains('show')) img.src = bigUrl; };
@@ -2434,7 +2544,9 @@ function showDebug() {
     'sortMode': sortMode,
     'barcodeOnly': barcodeOnly,
     'oosFilterOnly': oosFilterOnly,
-    'MIN_SUFFIX_LEN': MIN_SUFFIX_LEN
+    'MIN_SUFFIX_LEN': MIN_SUFFIX_LEN,
+    'isIOS': isIOS(),
+    'UA': navigator.userAgent.substring(0, 60)
   };
   var msg = '';
   Object.keys(info).forEach(function(k) { msg += k + ': ' + info[k] + '\n'; });
@@ -2450,6 +2562,7 @@ $('oosModal').addEventListener('click', function(e) { if (e.target === $('oosMod
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
     if ($('lightbox').classList.contains('show')) { closeLightbox(); return; }
+    if ($('scanModal').classList.contains('show')) { closeScan(); return; }
     if ($('oosModal').classList.contains('show')) closeOOSModal();
   }
 });
