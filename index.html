@@ -960,7 +960,7 @@ async function restockProduct(id) {
 
 
 // ============================================================
-// ★ 從 API 同步（合併保留本地未同步產品）
+// 從 API 同步（合併保留本地未同步產品）
 // ============================================================
 async function syncFromAPI() {
   try {
@@ -970,7 +970,6 @@ async function syncFromAPI() {
       return;
     }
 
-    // 用 API 資料合併（不覆蓋本地剛新增的）
     var apiMap = {};
     data.forEach(function(p) {
       var id = String(p.id || '').trim();
@@ -1381,7 +1380,6 @@ async function fetchFromCDN() {
   return data.items;
 }
 
-// ★ 合併本地 + CDN/API（本地未同步的保留）
 function mergeKeepingLocal(sourceList) {
   var srcMap = {};
   sourceList.forEach(function(p) {
@@ -1409,7 +1407,6 @@ async function loadData(forceRefresh) {
       if (cachedStr && (Date.now() - cachedTime < LOCAL_CACHE_TTL)) {
         var cached = JSON.parse(cachedStr);
         if (Array.isArray(cached) && cached.length > 0) {
-          // ★ 合併：本地快取 + 記憶體中剛新增的
           var mergedCache = mergeKeepingLocal(cached);
           applyProducts(mergedCache);
           var oosMap0 = await loadOOSStates();
@@ -1427,7 +1424,6 @@ async function loadData(forceRefresh) {
   $('stats').textContent = '載入中...';
   try {
     var products = await fetchFromCDN();
-    // ★ 合併保留本地新增
     var mergedCDN = mergeKeepingLocal(products);
     applyProducts(mergedCDN);
     saveLocalCache(mergedCDN);
@@ -1805,7 +1801,7 @@ $('btnClear').onclick = function() {
 
 
 // ============================================================
-// ★ 新增 / 編輯（樂觀更新）
+// 新增 / 編輯（樂觀更新）
 // ============================================================
 function openAdd() {
   editingId = null;
@@ -1856,7 +1852,7 @@ function closeModal() { $('modal').classList.remove('show'); }
 
 
 // ============================================================
-// 圖片處理
+// 圖片處理（含 EXIF 方向修正）
 // ============================================================
 $('f_imageFile').addEventListener('change', async function(e) {
   var file = e.target.files[0];
@@ -1872,25 +1868,122 @@ $('f_imageFile').addEventListener('change', async function(e) {
   e.target.value = '';
 });
 
-function compressImage(file, maxWidth, quality) {
-  maxWidth = maxWidth || 800; quality = quality || 0.8;
-  return new Promise(function(resolve, reject) {
-    var img = new Image();
+// ★ 讀取 JPEG EXIF Orientation
+function getExifOrientation(file) {
+  return new Promise(function(resolve) {
     var reader = new FileReader();
     reader.onload = function(e) {
-      img.onload = function() {
-        var canvas = document.createElement('canvas');
-        var w = img.width, h = img.height;
-        if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
-        canvas.width = w; canvas.height = h;
-        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        canvas.toBlob(function(b) { resolve(b); }, 'image/jpeg', quality);
-      };
-      img.onerror = reject;
-      img.src = e.target.result;
+      try {
+        var view = new DataView(e.target.result);
+        if (view.getUint16(0, false) !== 0xFFD8) { resolve(1); return; }
+        var length = view.byteLength;
+        var offset = 2;
+
+        while (offset < length) {
+          if (offset + 4 >= length) break;
+          var marker = view.getUint16(offset, false);
+          if ((marker & 0xFF00) !== 0xFF00) break;
+          var size = view.getUint16(offset + 2, false);
+          if (size < 2) break;
+
+          if (marker === 0xFFE1) {
+            var exifOffset = offset + 4;
+            if (view.getUint32(exifOffset, false) === 0x45786966) {
+              var tiffOffset = exifOffset + 6;
+              var littleEndian = view.getUint16(tiffOffset, false) === 0x4949;
+              var ifdOffset = view.getUint32(tiffOffset + 4, littleEndian);
+              var dirStart = tiffOffset + ifdOffset;
+              var entries = view.getUint16(dirStart, littleEndian);
+              for (var i = 0; i < entries; i++) {
+                var entryOffset = dirStart + 2 + i * 12;
+                var tag = view.getUint16(entryOffset, littleEndian);
+                if (tag === 0x0112) {
+                  resolve(view.getUint16(entryOffset + 8, littleEndian));
+                  return;
+                }
+              }
+            }
+          }
+          offset += 2 + size;
+        }
+        resolve(1);
+      } catch (err) {
+        console.warn('EXIF 讀取失敗：', err);
+        resolve(1);
+      }
     };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+    reader.onerror = function() { resolve(1); };
+    reader.readAsArrayBuffer(file.slice(0, 65536));
+  });
+}
+
+// ★ 依 EXIF Orientation 套用 canvas 變換
+function applyOrientation(ctx, orientation, width, height) {
+  switch (orientation) {
+    case 2: ctx.transform(-1, 0, 0, 1, width, 0); break;
+    case 3: ctx.transform(-1, 0, 0, -1, width, height); break;
+    case 4: ctx.transform(1, 0, 0, -1, 0, height); break;
+    case 5: ctx.transform(0, 1, 1, 0, 0, 0); break;
+    case 6: ctx.transform(0, 1, -1, 0, height, 0); break;
+    case 7: ctx.transform(0, -1, -1, 0, height, width); break;
+    case 8: ctx.transform(0, -1, 1, 0, 0, width); break;
+    default: break;
+  }
+}
+
+// ★ compressImage（含 EXIF 方向修正）
+function compressImage(file, maxWidth, quality) {
+  maxWidth = maxWidth || 800;
+  quality = quality || 0.8;
+
+  return new Promise(function(resolve, reject) {
+    getExifOrientation(file).then(function(orientation) {
+      var img = new Image();
+      var reader = new FileReader();
+
+      reader.onload = function(e) {
+        img.onload = function() {
+          try {
+            var W = img.width;
+            var H = img.height;
+
+            var swap = (orientation >= 5 && orientation <= 8);
+            var cw = swap ? H : W;
+            var ch = swap ? W : H;
+
+            var canvas = document.createElement('canvas');
+            canvas.width = cw;
+            canvas.height = ch;
+            var ctx = canvas.getContext('2d');
+            applyOrientation(ctx, orientation, W, H);
+            ctx.drawImage(img, 0, 0, W, H);
+
+            if (maxWidth && Math.max(cw, ch) > maxWidth) {
+              var scale = maxWidth / Math.max(cw, ch);
+              var sw = Math.round(cw * scale);
+              var sh = Math.round(ch * scale);
+              var scaled = document.createElement('canvas');
+              scaled.width = sw;
+              scaled.height = sh;
+              scaled.getContext('2d').drawImage(canvas, 0, 0, sw, sh);
+              canvas = scaled;
+            }
+
+            canvas.toBlob(function(b) {
+              if (!b) { reject(new Error('canvas.toBlob 返回 null')); return; }
+              resolve(b);
+            }, 'image/jpeg', quality);
+
+          } catch (err) {
+            reject(err);
+          }
+        };
+        img.onerror = function() { reject(new Error('圖片載入失敗')); };
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    }).catch(reject);
   });
 }
 
@@ -1950,7 +2043,6 @@ async function saveProduct() {
       : await apiPost({ action: 'create', data: data });
     if (result.error) { toast('❌ ' + result.error, 3000); return; }
 
-    // ★ 樂觀更新：立即加入 allData
     if (!editingId) {
       var exists = allData.find(function(d) { return String(d.id) === String(data.id); });
       if (!exists) {
@@ -1971,13 +2063,11 @@ async function saveProduct() {
       }
     }
 
-    // ★ 立即關閉 + 重繪（此時搜尋已可找到）
     closeModal();
     clearLocalCache();
     render();
     toast(editingId ? '✅ 已更新' : '✅ 已新增');
 
-    // 處理圖片
     if (!editingId && pendingImage) {
       toast('📤 上傳圖片中...');
       var compressed = await compressImage(pendingImage);
@@ -2006,7 +2096,6 @@ async function saveProduct() {
       pendingImage = null;
     }
 
-    // ★ 1.5 秒後用 API 同步（確保後端一致）
     setTimeout(function() {
       syncFromAPI().then(function() {
         console.log('🔄 已用 API 同步');
@@ -2015,7 +2104,6 @@ async function saveProduct() {
       });
     }, 1500);
 
-    // ★ 15 秒後試 CDN（給 GitHub raw 時間）
     setTimeout(function() {
       loadData(true);
     }, 15000);
@@ -2033,7 +2121,6 @@ async function confirmDelete(id) {
     var result = await apiPost({ action: 'delete', id: id });
     if (result.error) { toast('❌ ' + result.error, 3000); return; }
     toast('✅ 已刪除');
-    // 本地樂觀移除
     allData = allData.filter(function(d) { return String(d.id) !== String(id); });
     render();
     clearLocalCache();
