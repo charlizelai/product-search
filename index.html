@@ -8,6 +8,8 @@
 <meta name="apple-mobile-web-app-title" content="產品管理">
 <title>產品管理</title>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<!-- ★ v5.0：OCR 引擎 -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
 <style>
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; padding: 0; }
@@ -191,6 +193,21 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .field textarea { min-height: 90px; resize: vertical; }
 .field input:disabled { background: #f5f5f7; color: #86868b; }
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* ★ v5.0：名稱 + OCR 按鈕 */
+.field-with-btn { display: flex; gap: 10px; align-items: stretch; }
+.field-with-btn input { flex: 1; min-width: 0; }
+.field-with-btn .ocr-btn {
+  flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 0 16px; border-radius: 12px;
+  background: #fff3cd; color: #856404;
+  border: 2px solid #ffe08a; cursor: pointer;
+  font-size: 16px; font-weight: 700;
+  white-space: nowrap;
+}
+.field-with-btn .ocr-btn:active { background: #ffe08a; }
+.field-with-btn .ocr-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .field-select {
   width: 100%; padding: 14px 40px 14px 14px; font-size: 19px;
@@ -381,6 +398,31 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 }
 .scan-status.ok { background: #e8f5e9; color: #2e7d32; font-weight: 600; }
 .scan-status.warn { background: #fff3cd; color: #856404; font-weight: 600; }
+
+/* ★ v5.0：OCR 彈窗 */
+#ocrModal .modal-content { border-radius: 24px; margin: 16px; max-height: 92vh; align-self: center; }
+.ocr-preview-wrap {
+  width: 100%; max-height: 220px; overflow: hidden;
+  border-radius: 12px; background: #f5f5f7;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 16px;
+}
+.ocr-preview-wrap img { max-width: 100%; max-height: 220px; object-fit: contain; }
+#ocrResult {
+  width: 100%; min-height: 100px; padding: 14px; font-size: 18px;
+  border: 2px solid #d2d2d7; border-radius: 12px;
+  font-family: inherit; -webkit-appearance: none; resize: vertical;
+}
+#ocrResult:focus { border-color: #f57c00; outline: none; box-shadow: 0 0 0 3px rgba(245,124,0,.15); }
+.ocr-hint { font-size: 13px; color: #86868b; margin-top: 8px; line-height: 1.5; }
+.ocr-progress {
+  display: none;
+  margin-top: 10px;
+  height: 6px; border-radius: 3px;
+  background: #ffe9a8; overflow: hidden;
+}
+.ocr-progress.show { display: block; }
+.ocr-progress-bar { height: 100%; background: #f57c00; width: 0%; transition: width 0.3s; }
 </style>
 </head>
 <body>
@@ -447,8 +489,22 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
         <button type="button" class="upload-btn" onclick="startEditScan()">📷 掃描</button>
       </div>
     </div>
-    <div class="field"><label>英文名稱</label><input id="f_name" autocomplete="off"></div>
-    <div class="field"><label>中文名稱</label><input id="f_name_zh" autocomplete="off"></div>
+    <!-- ★ v5.0：英文名稱 + OCR -->
+    <div class="field">
+      <label>英文名稱</label>
+      <div class="field-with-btn">
+        <input id="f_name" autocomplete="off">
+        <button type="button" class="ocr-btn" onclick="openOcr('name')" title="拍照識別英文名稱">📷 OCR</button>
+      </div>
+    </div>
+    <!-- ★ v5.0：中文名稱 + OCR -->
+    <div class="field">
+      <label>中文名稱</label>
+      <div class="field-with-btn">
+        <input id="f_name_zh" autocomplete="off">
+        <button type="button" class="ocr-btn" onclick="openOcr('name_zh')" title="拍照識別中文名稱">📷 OCR</button>
+      </div>
+    </div>
     <div class="row-2">
       <div class="field"><label>價格</label><input id="f_price" autocomplete="off" inputmode="decimal"></div>
       <div class="field"><label>原價</label><input id="f_original_price" autocomplete="off" inputmode="decimal"></div>
@@ -564,7 +620,38 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   </div>
 </div>
 
+<!-- ★ v5.0：OCR 彈窗 -->
+<div class="modal" id="ocrModal" style="align-items: center;">
+  <div class="modal-content">
+    <h2 style="margin:0 0 14px;color:#f57c00;">📷 OCR 識別結果</h2>
+    <div class="ocr-preview-wrap">
+      <img id="ocrPreview" src="" alt="">
+    </div>
+    <div class="field" style="margin-bottom:10px;">
+      <label style="display:flex;justify-content:space-between;align-items:center;">
+        <span>識別結果（可直接編輯）</span>
+        <span id="ocrStatusLabel" style="font-size:13px;color:#86868b;font-weight:500;"></span>
+      </label>
+      <textarea id="ocrResult" placeholder="識別中..."></textarea>
+    </div>
+    <div class="ocr-progress" id="ocrProgress">
+      <div class="ocr-progress-bar" id="ocrProgressBar"></div>
+    </div>
+    <div class="ocr-hint">
+      💡 若識別結果不準，可直接修改文字，或按「重拍」再試<br>
+      ⏳ 首次使用需下載語言包（中英文約 15 MB），約需 5～15 秒
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeOcrModal()">取消</button>
+      <button class="btn-cancel" id="ocrRetakeBtn" onclick="retakeOcr()" style="background:#fff3cd;color:#856404;">🔄 重拍</button>
+      <button class="btn-save" id="ocrApplyBtn" onclick="applyOcrResult()">✅ 確認填入</button>
+    </div>
+  </div>
+</div>
+
 <input type="file" id="imageSearchInput" accept="image/*" style="display:none">
+<!-- ★ v5.0：OCR 拍照 input -->
+<input type="file" id="ocrImageInput" accept="image/*" capture="environment" style="display:none">
 <button id="debugBtn" onclick="showDebug()">DEBUG</button>
 <div class="toast" id="toast"></div>
 
@@ -648,6 +735,11 @@ let OPTIONS = {
 };
 let optionsLoaded = false;
 let editingOptions = null;
+
+// ★ v5.0：OCR 狀態
+let ocrTargetField = null;   // 'name' 或 'name_zh'
+let ocrProcessing = false;
+let ocrCurrentFile = null;   // 保留原圖以便重拍
 
 const $ = function(id) { return document.getElementById(id); };
 const FIELDS = ['id','barcode','name','name_zh','price','original_price','image','category_en','category_zh','description',
@@ -1188,9 +1280,7 @@ function barcodeMatches(barcodeStr, term) {
   for (var i = 0; i < parts.length; i++) {
     var p = parts[i];
     if (!p) continue;
-    // 完整精確匹配（永遠允許，支援短碼 2677 / 1021）
     if (p === term) return true;
-    // 後綴匹配：輸入需至少 6 位
     if (len >= MIN_SUFFIX_LEN && p.length > len && p.slice(-len) === term) return true;
   }
   return false;
@@ -1221,7 +1311,6 @@ function productMatchesTerm(d, term) {
   return false;
 }
 
-// ★ v4.7：最後 6 位高亮（原本 4 位）
 function renderBarcodeHtml(barcodeStr) {
   var s = String(barcodeStr || '');
   if (!s) return '';
@@ -1606,7 +1695,7 @@ function clearLocalCache() {
 
 
 // ============================================================
-// 渲染（★ v4.7：加入「不足 6 位」提示）
+// 渲染
 // ============================================================
 function render() {
   var raw = $('q').value.trim().toLowerCase()
@@ -1728,7 +1817,6 @@ function renderCard(d) {
     ? '<button class="btn-icon btn-restock" onclick="restockProduct(\'' + safeId + '\')" title="已補貨">✅</button>'
     : '<button class="btn-icon btn-oos" onclick="reportOOS(\'' + safeId + '\')" title="回報缺貨">❌</button>';
 
-  // ★ v4.8：縮圖可點擊放大
   var hasImg = !!(d._preview || d.image);
   var imgSrc = esc(d._preview || d.image) || noImg;
   var imgClass = 'thumb' + (hasImg ? ' clickable' : '');
@@ -1977,7 +2065,6 @@ $('f_imageFile').addEventListener('change', async function(e) {
   e.target.value = '';
 });
 
-// ★ 讀取 JPEG EXIF Orientation
 function getExifOrientation(file) {
   return new Promise(function(resolve) {
     var reader = new FileReader();
@@ -1987,14 +2074,12 @@ function getExifOrientation(file) {
         if (view.getUint16(0, false) !== 0xFFD8) { resolve(1); return; }
         var length = view.byteLength;
         var offset = 2;
-
         while (offset < length) {
           if (offset + 4 >= length) break;
           var marker = view.getUint16(offset, false);
           if ((marker & 0xFF00) !== 0xFF00) break;
           var size = view.getUint16(offset + 2, false);
           if (size < 2) break;
-
           if (marker === 0xFFE1) {
             var exifOffset = offset + 4;
             if (view.getUint32(exifOffset, false) === 0x45786966) {
@@ -2026,7 +2111,6 @@ function getExifOrientation(file) {
   });
 }
 
-// ★ 依 EXIF Orientation 套用 canvas 變換
 function applyOrientation(ctx, orientation, width, height) {
   switch (orientation) {
     case 2: ctx.transform(-1, 0, 0, 1, width, 0); break;
@@ -2040,33 +2124,27 @@ function applyOrientation(ctx, orientation, width, height) {
   }
 }
 
-// ★ compressImage（含 EXIF 方向修正）
 function compressImage(file, maxWidth, quality) {
   maxWidth = maxWidth || 800;
   quality = quality || 0.8;
-
   return new Promise(function(resolve, reject) {
     getExifOrientation(file).then(function(orientation) {
       var img = new Image();
       var reader = new FileReader();
-
       reader.onload = function(e) {
         img.onload = function() {
           try {
             var W = img.width;
             var H = img.height;
-
             var swap = (orientation >= 5 && orientation <= 8);
             var cw = swap ? H : W;
             var ch = swap ? W : H;
-
             var canvas = document.createElement('canvas');
             canvas.width = cw;
             canvas.height = ch;
             var ctx = canvas.getContext('2d');
             applyOrientation(ctx, orientation, W, H);
             ctx.drawImage(img, 0, 0, W, H);
-
             if (maxWidth && Math.max(cw, ch) > maxWidth) {
               var scale = maxWidth / Math.max(cw, ch);
               var sw = Math.round(cw * scale);
@@ -2077,12 +2155,10 @@ function compressImage(file, maxWidth, quality) {
               scaled.getContext('2d').drawImage(canvas, 0, 0, sw, sh);
               canvas = scaled;
             }
-
             canvas.toBlob(function(b) {
               if (!b) { reject(new Error('canvas.toBlob 返回 null')); return; }
               resolve(b);
             }, 'image/jpeg', quality);
-
           } catch (err) {
             reject(err);
           }
@@ -2102,6 +2178,15 @@ function fileToBase64(file) {
     reader.onload = function() { resolve(reader.result.split(',')[1]); };
     reader.onerror = reject;
     reader.readAsDataURL(file);
+  });
+}
+
+function blobToDataURL(blob) {
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function() { resolve(reader.result); };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
   });
 }
 
@@ -2139,7 +2224,6 @@ async function uploadImageImmediate(file) {
   finally { $('btnSave').disabled = false; }
 }
 
-// ★★★ 樂觀更新版 saveProduct ★★★
 async function saveProduct() {
   var data = {};
   FIELDS.forEach(function(k) { data[k] = $('f_' + k).value.trim(); });
@@ -2174,405 +2258,4 @@ async function saveProduct() {
 
     closeModal();
     clearLocalCache();
-    render();
-    toast(editingId ? '✅ 已更新' : '✅ 已新增');
-
-    if (!editingId && pendingImage) {
-      toast('📤 上傳圖片中...');
-      var compressed = await compressImage(pendingImage);
-      var base64 = await fileToBase64(compressed);
-      var localPreview = 'data:image/jpeg;base64,' + base64;
-      var imgResult = await apiPost({
-        action: 'uploadImage',
-        productId: data.id,
-        fileName: 'photo_' + Date.now() + '.jpg',
-        mimeType: 'image/jpeg',
-        base64: base64
-      });
-      if (imgResult.error) {
-        toast('⚠️ 產品已存，圖片上傳失敗：' + imgResult.error, 4000);
-      } else {
-        var newP2 = allData.find(function(d) { return String(d.id) === String(data.id); });
-        if (newP2) { newP2.image = imgResult.imageUrl; newP2._preview = localPreview; }
-        render();
-        setTimeout(async function() {
-          try {
-            var phash = await computePhashFromBlob(compressed);
-            await apiPost({ action: 'savePhashBatch', items: [{ id: data.id, phash: phash }] });
-          } catch (e) {}
-        }, 500);
-      }
-      pendingImage = null;
-    }
-
-    setTimeout(function() {
-      syncFromAPI().then(function() {
-        console.log('🔄 已用 API 同步');
-      }).catch(function(e) {
-        console.warn('API 同步失敗：', e);
-      });
-    }, 1500);
-
-    setTimeout(function() {
-      loadData(true);
-    }, 15000);
-
-  } catch (e) {
-    toast('❌ ' + e.message, 3000);
-  } finally {
-    $('btnSave').disabled = false;
-  }
-}
-
-async function confirmDelete(id) {
-  if (!confirm('確定刪除 ID ' + id + '？')) return;
-  try {
-    var result = await apiPost({ action: 'delete', id: id });
-    if (result.error) { toast('❌ ' + result.error, 3000); return; }
-    toast('✅ 已刪除');
-    allData = allData.filter(function(d) { return String(d.id) !== String(id); });
-    render();
-    clearLocalCache();
-    setTimeout(function() { syncFromAPI(); }, 1500);
-  } catch (e) { toast('❌ ' + e.message, 3000); }
-}
-
-async function unlockCurrentProduct() {
-  if (!editingId) return;
-  if (!confirm('確定解鎖？下次惠康抓取時會被自動更新覆寫。')) return;
-  try {
-    var result = await apiPost({ action: 'unlock', id: editingId });
-    if (result.error) { toast('❌ ' + result.error); return; }
-    toast('🔓 已解鎖');
-    clearLocalCache();
-    closeModal();
-    await loadData(true);
-  } catch (e) { toast('❌ ' + e.message, 3000); }
-}
-
-
-// ============================================================
-// 條碼掃描（★ v4.9：iPhone 11 修復版）
-// ============================================================
-var SCAN_FORMATS = [
-  Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
-  Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E,
-  Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
-  Html5QrcodeSupportedFormats.ITF, Html5QrcodeSupportedFormats.CODABAR,
-  Html5QrcodeSupportedFormats.QR_CODE
-];
-
-function isIOS() {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-}
-
-function setScanStatus(text, level) {
-  var el = $('scanStatus');
-  if (!el) return;
-  el.textContent = text;
-  el.className = 'scan-status' + (level ? ' ' + level : '');
-}
-
-async function openScanner(title, mode) {
-  if (isScanning) return;
-  isScanning = true;
-  scanMode = mode;
-  torchOn = false;
-  $('scanTitle').textContent = title;
-  $('scanModal').classList.add('show');
-  $('torchBtn').style.display = 'none';
-  setScanStatus('正在啟動相機...', '');
-
-  // 等 DOM 準備好
-  setTimeout(async function() {
-    try {
-      html5QrCode = new Html5Qrcode("reader");
-
-      // ★ v4.9：iPhone 修復關鍵
-      //  - useBarCodeDetectorIfSupported: false → 強制用 ZXing，繞過 iOS 原生 BarcodeDetector
-      //  - qrbox 扁長形（2:1）→ 更適合條碼
-      //  - aspectRatio 16:9 → 避免 iOS 影片流變形
-      var config = {
-        fps: 15,
-        qrbox: { width: 300, height: 150 },
-        aspectRatio: 1.777,
-        formatsToSupport: SCAN_FORMATS,
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: false
-        }
-      };
-
-      // iOS 額外參數：啟用「嘗試水平翻轉」、「嘗試大範圍」
-      if (isIOS()) {
-        config.videoConstraints = {
-          facingMode: "environment",
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        };
-      }
-
-      await html5QrCode.start(
-        { facingMode: "environment" },
-        config,
-        onScanSuccess,
-        function(errorMessage) { /* 每幀失敗，忽略 */ }
-      );
-
-      setScanStatus('✅ 相機已就緒，請對準條碼', 'ok');
-
-      // ★ v4.9：啟動後 1 秒重設相機參數（提高解析度、對焦、變焦）
-      setTimeout(async function() {
-        try {
-          var caps = html5QrCode.getRunningTrackCapabilities();
-          var constraints = {
-            width: { ideal: 1280 },
-            advanced: []
-          };
-
-          // 支援變焦 → 輕微放大 1.5x 有助於對焦小條碼
-          if (caps && caps.zoom) {
-            var maxZoom = (caps.zoom.max != null) ? caps.zoom.max : 1;
-            var targetZoom = Math.min(1.5, maxZoom);
-            if (targetZoom > (caps.zoom.min || 1)) {
-              constraints.advanced.push({ zoom: targetZoom });
-            }
-          }
-
-          // 支援對焦距離 → 設定 0.5 公尺
-          if (caps && caps.focusDistance && constraints.advanced.length >= 0) {
-            try { constraints.advanced.push({ focusDistance: 0.5 }); } catch (e) {}
-          }
-
-          if (constraints.advanced.length > 0 || constraints.width) {
-            await html5QrCode.applyVideoConstraints(constraints);
-            console.log('✅ 相機參數已重設');
-          }
-        } catch (e) {
-          console.warn('重設相機參數失敗（不影響掃描）:', e);
-        }
-      }, 1000);
-
-      // 手電筒
-      try {
-        var caps2 = html5QrCode.getRunningTrackCameraCapabilities();
-        if (caps2 && caps2.torchFeature && caps2.torchFeature().isSupported()) {
-          $('torchBtn').style.display = 'block';
-        }
-      } catch (e) {}
-
-    } catch (e) {
-      console.error('掃描器啟動失敗：', e);
-      var msg = e.message || String(e);
-      if (/permission|denied|notallowed/i.test(msg)) {
-        msg = '未授權使用相機。請到「設定 → Safari → 相機」允許，或重新整理頁面再試。';
-      } else if (/NotFound|no camera/i.test(msg)) {
-        msg = '找不到相機，請確認裝置有鏡頭。';
-      } else if (/NotReadable|in use/i.test(msg)) {
-        msg = '相機被其他程式佔用，請關閉其他 App 再試。';
-      }
-      setScanStatus('❌ ' + msg, 'warn');
-      toast('❌ 無法開啟相機', 3000);
-      setTimeout(closeScan, 2500);
-    }
-  }, 300);
-}
-
-$('btnScanSearch').onclick = function() { openScanner('🔍 掃碼搜尋', 'search'); };
-function startEditScan() { openScanner('📷 掃描條碼', 'edit'); }
-function onScanCloseClick() { closeScan(); }
-
-function onScanSuccess(decodedText) {
-  if (!isScanning) return;
-  if (navigator.vibrate) navigator.vibrate(80);
-  setScanStatus('✅ 已辨識：' + decodedText, 'ok');
-
-  if (scanMode === 'search') {
-    $('q').value = decodedText;
-    addSearchHistory(decodedText);
-    closeScan();
-    searchMode = 'text';
-    render();
-    var found = allData.filter(function(d) {
-      return barcodeMatches(d.barcode, decodedText) || String(d.id) === decodedText;
-    });
-    toast(found.length > 0 ? '✅ 找到：' + (found[0].name_zh || found[0].name) : '⚠️ 條碼 ' + decodedText + ' 未找到', 2500);
-  } else if (scanMode === 'edit') {
-    var cur = $('f_barcode').value.trim();
-    if (cur) { if (cur.indexOf(decodedText) < 0) $('f_barcode').value = cur + ';' + decodedText; }
-    else $('f_barcode').value = decodedText;
-    toast('✅ 已辨識：' + decodedText, 2000);
-    var existing = allData.find(function(d) {
-      var bc = String(d.barcode || '');
-      return bc.split(/[;,，、]/).map(function(s) { return s.trim(); }).indexOf(decodedText) >= 0;
-    });
-    if (existing) {
-      setTimeout(function() {
-        if (confirm('此條碼已存在：\n\nID: ' + existing.id + '\n名稱: ' + (existing.name_zh || existing.name) + '\n\n要載入此產品進行編輯嗎？')) {
-          closeScan();
-          setTimeout(function() { openEdit(existing.id); }, 300);
-        }
-      }, 200);
-    } else closeScan();
-  }
-}
-
-async function closeScan() {
-  isScanning = false;
-  scanMode = 'none';
-  $('scanModal').classList.remove('show');
-  $('scanTitle').textContent = '📷 掃描條碼';
-  setScanStatus('準備中...', '');
-  if (html5QrCode) {
-    try { await html5QrCode.stop(); html5QrCode.clear(); } catch (e) {}
-    html5QrCode = null;
-  }
-}
-
-function toggleTorch() {
-  if (!html5QrCode) return;
-  try {
-    var caps = html5QrCode.getRunningTrackCameraCapabilities();
-    if (caps && caps.torchFeature && caps.torchFeature().isSupported()) {
-      torchOn = !torchOn;
-      caps.torchFeature().apply(torchOn);
-      $('torchBtn').textContent = torchOn ? '🔦 關閉手電筒' : '🔦 開啟手電筒';
-    }
-  } catch (e) { toast('此裝置不支援手電筒'); }
-}
-
-
-// ============================================================
-// 搜尋 debounce（★ v4.7：加即時位數提示）
-// ============================================================
-var searchTimer;
-$('q').addEventListener('input', function() {
-  if (searchMode === 'image') { searchMode = 'text'; loadData(true); return; }
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(render, 150);
-
-  var v = $('q').value.trim();
-  var sb = $('searchBox');
-  var q = $('q');
-  if (/^\d{4,5}$/.test(v)) {
-    sb.classList.add('barcode-mode');
-    q.placeholder = '⚠️ 條碼需至少 ' + MIN_SUFFIX_LEN + ' 位，目前 ' + v.length + ' 位';
-  } else if (/^\d{6,}$/.test(v)) {
-    sb.classList.add('barcode-mode');
-    q.placeholder = '✅ 條碼 ' + v.length + ' 位，精確匹配';
-  } else {
-    if (!barcodeOnly) {
-      sb.classList.remove('barcode-mode');
-      q.placeholder = '搜尋 / 條碼（尾 6 位以上）/ 位置...';
-    } else {
-      q.placeholder = '只搜條碼（完整或尾 6 位以上）...';
-    }
-  }
-});
-$('q').addEventListener('focus', showSearchHistory);
-$('q').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') { var t = $('q').value.trim(); if (t) addSearchHistory(t); hideSearchHistory(); }
-  else if (e.key === 'Escape') hideSearchHistory();
-});
-document.addEventListener('click', function(e) {
-  if (!e.target.closest('.search-box')) hideSearchHistory();
-});
-
-
-// ============================================================
-// ★ v4.8：Lightbox 大圖
-// ============================================================
-function openLightbox(id) {
-  var p = allData.find(function(d) { return String(d.id) === String(id); });
-  if (!p) return;
-
-  var url = p._preview || p.image || '';
-  if (!url) return;
-
-  // Google Drive lh3 URL：嘗試抓更大的版本
-  var bigUrl = url
-    .replace(/=w\d+$/i, '=w1600')
-    .replace(/=s\d+$/i, '=s1600')
-    .replace(/=h\d+$/i, '');
-
-  var lb  = $('lightbox');
-  var img = $('lightboxImg');
-  var cap = $('lightboxCaption');
-
-  img.src = url;
-  var bigImg = new Image();
-  bigImg.onload = function() { if (lb.classList.contains('show')) img.src = bigUrl; };
-  bigImg.onerror = function() { /* 大圖失敗，保留原圖 */ };
-  bigImg.src = bigUrl;
-
-  img.alt = p.name_zh || p.name || '';
-
-  var name = p.name_zh || p.name || '';
-  var meta = [];
-  if (p.barcode) meta.push('條碼：' + p.barcode);
-  if (p.id)      meta.push('ID：' + p.id);
-  cap.innerHTML =
-    '<div class="lb-name">' + esc(name) + '</div>' +
-    (meta.length ? '<div class="lb-meta">' + esc(meta.join('　·　')) + '</div>' : '');
-
-  lb.classList.add('show');
-  document.body.style.overflow = 'hidden';
-  document.body.style.touchAction = 'none';
-}
-
-function closeLightbox() {
-  var lb = $('lightbox');
-  if (!lb || !lb.classList.contains('show')) return;
-  lb.classList.remove('show');
-  $('lightboxImg').src = '';
-  $('lightboxCaption').innerHTML = '';
-  document.body.style.overflow = '';
-  document.body.style.touchAction = '';
-}
-
-
-// ============================================================
-// DEBUG
-// ============================================================
-function showDebug() {
-  var oosCount = allData.filter(function(d) { return d._oos === true || d._oos === 'true'; }).length;
-  var info = {
-    'TOKEN': TOKEN ? TOKEN.substring(0, 18) + '...' : 'null',
-    'isAdmin': isAdmin,
-    'allData': allData.length,
-    '缺貨數': oosCount,
-    'sortMode': sortMode,
-    'barcodeOnly': barcodeOnly,
-    'oosFilterOnly': oosFilterOnly,
-    'MIN_SUFFIX_LEN': MIN_SUFFIX_LEN,
-    'isIOS': isIOS(),
-    'UA': navigator.userAgent.substring(0, 60)
-  };
-  var msg = '';
-  Object.keys(info).forEach(function(k) { msg += k + ': ' + info[k] + '\n'; });
-  alert(msg);
-}
-
-
-// ============================================================
-// 啟動
-// ============================================================
-$('pwdInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') login(); });
-$('oosModal').addEventListener('click', function(e) { if (e.target === $('oosModal')) closeOOSModal(); });
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') {
-    if ($('lightbox').classList.contains('show')) { closeLightbox(); return; }
-    if ($('scanModal').classList.contains('show')) { closeScan(); return; }
-    if ($('oosModal').classList.contains('show')) closeOOSModal();
-  }
-});
-
-updateBarcodeButton();
-updateOOSFilterButton();
-updateSortButton();
-
-if (TOKEN) showApp();
-else $('loginScreen').style.display = 'block';
-</script>
-</body>
-</html>
+    render
