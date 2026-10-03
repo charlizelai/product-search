@@ -290,7 +290,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 }
 
 #oosModal .modal-content { border-radius: 24px; margin: 16px; max-height: 90vh; align-self: center; }
-#oosProductInfo { background: #f5f5f7; padding: 12px 14px; border-radius: 10px; margin-bottom: 18px; font-size: 15px; line-height: 1.5; }
+#oosProductInfo { background: #f5f5f7; padding: 12px 14px; border-radius: 10px; margin-bottom: 14px; font-size: 15px; line-height: 1.5; }
 #oosProductInfo .oos-info-name { font-weight: 700; font-size: 17px; margin-bottom: 4px; }
 #oosProductInfo .oos-info-meta { color: #6e6e73; font-size: 13px; font-family: ui-monospace, monospace; }
 #oosReason { width: 100%; min-height: 100px; padding: 12px; font-size: 16px; border: 2px solid #d2d2d7; border-radius: 10px; font-family: inherit; -webkit-appearance: none; resize: vertical; }
@@ -580,6 +580,10 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   <div class="modal-content">
     <h2 style="margin:0 0 12px;color:#c62828;">⚠️ 回報缺貨</h2>
     <div id="oosProductInfo"></div>
+    <div id="oosHistoryBox" style="display:none; margin-bottom:14px; padding:12px 14px; background:#fff8e1; border-left:4px solid #f57c00; border-radius:10px; font-size:14px; line-height:1.55;">
+      <div style="font-weight:700; color:#e65100; margin-bottom:6px;">🕐 上次缺貨記錄</div>
+      <div id="oosHistoryContent" style="color:#5d4037;"></div>
+    </div>
     <label style="display:block; font-size:16px; font-weight:700; margin-bottom:8px;">
       缺貨原因 <span class="oos-required">*必填</span>
     </label>
@@ -602,6 +606,11 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
         <button class="btn-cancel" style="padding:12px 16px;font-size:16px;border-radius:12px;border:none;font-weight:700;cursor:pointer;" onclick="closeOptionsModal()">✕</button>
       </div>
     </div>
+    <div style="background:#fff3cd; padding:10px 14px; border-radius:10px; font-size:14px; color:#856404; margin-bottom:14px; line-height:1.5;">
+      ⚠️ <strong>缺貨原因</strong> 已移至 Google Spreadsheet 的 <code>_OOSReasons</code> 工作表管理。<br>
+      請直接在該表新增、刪除、改順序（A 欄 = 儲存值，B 欄 = 顯示名稱，C 欄 = 排序）。
+    </div>
+    <button onclick="reloadOptionsFromServer()" style="width:100%; padding:12px; border-radius:10px; border:none; background:#fff3cd; color:#856404; font-weight:700; font-size:15px; cursor:pointer; margin-bottom:16px;">🔄 重新載入選項（含缺貨原因）</button>
     <div id="optionsEditor"></div>
   </div>
 </div>
@@ -1009,6 +1018,7 @@ function reportOOS(id) {
   oosTargetId = id;
   oosSubmitting = false;
   renderQuickReasons();
+  loadOOSHistory(id);
   var info = $('oosProductInfo');
   info.innerHTML =
     '<div class="oos-info-name">' + esc(p.name_zh || p.name) + '</div>' +
@@ -1026,6 +1036,8 @@ function closeOOSModal() {
   if (oosSubmitting) return;
   oosTargetId = null;
   $('oosModal').classList.remove('show');
+  var box = $('oosHistoryBox');
+  if (box) box.style.display = 'none';
 }
 
 function setQuickReason(reason) {
@@ -1036,7 +1048,7 @@ function setQuickReason(reason) {
   el.focus();
 }
 
-// ★ 動態渲染缺貨原因按鈕（管理員可增刪）
+// ★ v4.8：動態渲染缺貨原因按鈕
 function renderQuickReasons() {
   var container = $('quickReasonsContainer');
   if (!container) return;
@@ -1046,7 +1058,7 @@ function renderQuickReasons() {
     : [];
 
   if (list.length === 0) {
-    container.innerHTML = '<div style="color:#86868b;font-size:13px;padding:4px;">（未設定缺貨原因，請管理員到 ⚙️ 選項管理新增）</div>';
+    container.innerHTML = '<div style="color:#86868b;font-size:13px;padding:4px;">（未設定缺貨原因，請在 Google Sheet 的 _OOSReasons 工作表新增）</div>';
     return;
   }
 
@@ -1056,6 +1068,71 @@ function renderQuickReasons() {
     if (!val) return '';
     return '<button type="button" class="quick-reason" onclick="setQuickReason(\'' + escAttr(val) + '\')">' + esc(lbl) + '</button>';
   }).join('');
+}
+
+// ★ v4.8：拉並顯示「上次缺貨記錄」
+async function loadOOSHistory(productId) {
+  var box = $('oosHistoryBox');
+  var content = $('oosHistoryContent');
+  if (!box || !content) return;
+
+  box.style.display = 'block';
+  content.innerHTML = '<span style="color:#86868b;">載入中...</span>';
+
+  try {
+    var res = await apiGet('oosHistory', { id: productId });
+    if (!res || res.error || !Array.isArray(res.history) || res.history.length === 0) {
+      box.style.display = 'none';
+      return;
+    }
+
+    var latest = res.history[0];
+    var html = formatOOSHistory(latest, true);
+
+    if (res.history.length > 1) {
+      html += '<div style="margin-top:8px; padding-top:8px; border-top:1px dashed #ffcc80; font-size:13px; color:#6e6e73;">' +
+        '歷史共 ' + res.history.length + ' 筆';
+      for (var i = 1; i < res.history.length; i++) {
+        html += '<div style="margin-top:6px; color:#8d6e63;">' + formatOOSHistory(res.history[i], false) + '</div>';
+      }
+      html += '</div>';
+    }
+
+    content.innerHTML = html;
+    box.style.display = 'block';
+  } catch (e) {
+    console.warn('loadOOSHistory 失敗：', e);
+    box.style.display = 'none';
+  }
+}
+
+function formatOOSHistory(h, isLatest) {
+  var at = h.at ? timeAgo(h.at) : '未知時間';
+  var exact = '';
+  if (h.at) {
+    try {
+      var dt = new Date(h.at);
+      if (!isNaN(dt)) {
+        exact = dt.toLocaleString('zh-HK', {
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', hour12: false
+        });
+      }
+    } catch (e) {}
+  }
+  var reason = h.reason || '（無原因）';
+  var reporter = h.reporter || '';
+  var statusTag = (h.status === 'active')
+    ? '<span style="background:#c62828; color:#fff; font-size:11px; padding:1px 6px; border-radius:4px; margin-left:4px;">現正缺貨</span>'
+    : '<span style="background:#e8f5e9; color:#2e7d32; font-size:11px; padding:1px 6px; border-radius:4px; margin-left:4px;">已補貨</span>';
+
+  var line = '<div style="font-weight:700;">' + esc(reason) + statusTag + '</div>';
+  line += '<div style="font-size:12px; color:#8d6e63; margin-top:2px;">' +
+          esc(exact || at) +
+          (exact ? '（' + esc(at) + '）' : '') +
+          (reporter ? ' · ' + esc(reporter) : '') +
+          '</div>';
+  return line;
 }
 
 async function submitOOSReport() {
@@ -1149,7 +1226,7 @@ async function restockProduct(id) {
 
 
 // ============================================================
-// 從 API 同步（合併保留本地未同步產品）
+// 從 API 同步
 // ============================================================
 async function syncFromAPI() {
   try {
@@ -1170,7 +1247,6 @@ async function syncFromAPI() {
       var id = String(local.id || '').trim();
       if (id && !apiMap[id]) {
         merged.push(local);
-        console.log('🆕 保留本地未同步產品：' + id);
       }
     });
 
@@ -1180,7 +1256,6 @@ async function syncFromAPI() {
     var oosMap = await loadOOSStates();
     mergeOOSStates(oosMap);
     render();
-    console.log('🔄 已從 API 同步（' + merged.length + ' 項）');
     return merged.length;
   } catch (e) {
     console.warn('API 同步失敗：', e);
@@ -1346,7 +1421,7 @@ async function loadOptions() {
     var result = await apiGet('options');
     if (result.error) { useDefaultOptions(); return; }
     var hasData = false;
-    ['warehouse','aisle','crosslane','floor','combine','category_en','oos_reason'].forEach(function(k) {
+    ['warehouse','aisle','crosslane','floor','combine','category_en'].forEach(function(k) {
       if (Array.isArray(result[k]) && result[k].length > 0) hasData = true;
     });
     if (!hasData) { useDefaultOptions(); return; }
@@ -1356,6 +1431,18 @@ async function loadOptions() {
     populateSelects();
     renderCombineCheckboxes();
   } catch (e) { useDefaultOptions(); }
+}
+
+async function reloadOptionsFromServer() {
+  try {
+    toast('🔄 重新載入選項...');
+    optionsLoaded = false;
+    OPTIONS = { warehouse: [], aisle: [], crosslane: [], floor: [], combine: [], category_en: [], oos_reason: [] };
+    await loadOptions();
+    toast('✅ 選項已更新（缺貨原因 ' + (OPTIONS.oos_reason || []).length + ' 個）', 2500);
+  } catch (e) {
+    toast('❌ ' + e.message, 3000);
+  }
 }
 
 function useDefaultOptions() {
@@ -1391,12 +1478,12 @@ function useDefaultOptions() {
       {value:'Festive items', label:'節日食品'}
     ],
     oos_reason: [
-      {value:'貨架空了', label:'貨架空了'},
-      {value:'客人買光', label:'客人買光'},
-      {value:'補貨中', label:'補貨中'},
-      {value:'找不到貨', label:'找不到貨'},
-      {value:'貨物損壞', label:'貨物損壞'},
-      {value:'過期', label:'過期'}
+      {value:'貨架空了', label:'🛒 貨架空了'},
+      {value:'客人買光', label:'🔥 客人買光'},
+      {value:'補貨中',   label:'⏳ 補貨中'},
+      {value:'找不到貨', label:'🔍 找不到貨'},
+      {value:'貨物損壞', label:'💔 貨物損壞'},
+      {value:'過期',     label:'📅 過期'}
     ]
   };
   optionsLoaded = true;
@@ -1466,12 +1553,11 @@ function setCombineValue(value) {
 
 
 // ============================================================
-// 選項管理 UI
+// 選項管理 UI（★ v4.8：移除 oos_reason，由 Sheet 管理）
 // ============================================================
 function openOptionsModal() {
   if (!isAdmin) { toast('只有管理員可編輯選項'); return; }
   editingOptions = JSON.parse(JSON.stringify(OPTIONS));
-  if (!Array.isArray(editingOptions.oos_reason)) editingOptions.oos_reason = [];
   renderOptionsEditor();
   $('optionsModal').classList.add('show');
 }
@@ -1483,8 +1569,7 @@ function renderOptionsEditor() {
     {key: 'crosslane',  label: '橫巷 (crosslane)'},
     {key: 'floor',      label: '層 (floor)'},
     {key: 'combine',    label: '併板 (combine) — 可多選'},
-    {key: 'category_en',label: '分類（英）(category_en)'},
-    {key: 'oos_reason', label: '⚠️ 缺貨原因 (oos_reason)'}
+    {key: 'category_en',label: '分類（英）(category_en)'}
   ];
   container.innerHTML = TYPES.map(function(t) {
     var list = editingOptions[t.key] || [];
@@ -1549,7 +1634,7 @@ async function saveOptionsToServer() {
       if (!list[j].label) list[j].label = list[j].value;
     }
   }
-  if (!confirm('確定儲存？這會覆寫 _Config 工作表。')) return;
+  if (!confirm('確定儲存？這會覆寫 _Config 工作表（缺貨原因不受影響）。')) return;
   try {
     toast('📤 儲存中...');
     var result = await apiPost({ action: 'saveOptions', options: editingOptions });
@@ -1577,7 +1662,6 @@ async function fetchFromCDN() {
   var data = await res.json();
   if (!data.items || !Array.isArray(data.items)) throw new Error('資料格式錯誤');
   _lastVersion = data.version || 0;
-  console.log('📦 CDN：' + data.count + ' 項，更新於 ' + data.updated);
   return data.items;
 }
 
@@ -1588,15 +1672,12 @@ function mergeKeepingLocal(sourceList) {
     if (id) srcMap[id] = true;
   });
   var merged = sourceList.slice();
-  var keptCount = 0;
   allData.forEach(function(local) {
     var id = String(local.id || '').trim();
     if (id && !srcMap[id]) {
       merged.push(local);
-      keptCount++;
     }
   });
-  if (keptCount > 0) console.log('🆕 保留本地未同步產品：' + keptCount + ' 個');
   return merged;
 }
 
@@ -2065,7 +2146,7 @@ function closeModal() { $('modal').classList.remove('show'); }
 
 
 // ============================================================
-// 圖片處理（含 EXIF 方向修正）
+// 圖片處理
 // ============================================================
 $('f_imageFile').addEventListener('change', async function(e) {
   var file = e.target.files[0];
@@ -2117,10 +2198,7 @@ function getExifOrientation(file) {
           offset += 2 + size;
         }
         resolve(1);
-      } catch (err) {
-        console.warn('EXIF 讀取失敗：', err);
-        resolve(1);
-      }
+      } catch (err) { resolve(1); }
     };
     reader.onerror = function() { resolve(1); };
     reader.readAsArrayBuffer(file.slice(0, 65536));
@@ -2175,9 +2253,7 @@ function compressImage(file, maxWidth, quality) {
               if (!b) { reject(new Error('canvas.toBlob 返回 null')); return; }
               resolve(b);
             }, 'image/jpeg', quality);
-          } catch (err) {
-            reject(err);
-          }
+          } catch (err) { reject(err); }
         };
         img.onerror = function() { reject(new Error('圖片載入失敗')); };
         img.src = e.target.result;
@@ -2347,7 +2423,7 @@ async function unlockCurrentProduct() {
 
 
 // ============================================================
-// OCR 拍照填名（Tesseract 載入失敗不影響其他功能）
+// OCR
 // ============================================================
 function isOcrAvailable() {
   return (typeof Tesseract !== 'undefined');
@@ -2356,7 +2432,6 @@ function isOcrAvailable() {
 function openOcr(fieldKey) {
   if (!isOcrAvailable()) {
     toast('❌ OCR 引擎未載入，請檢查網路後重新整理頁面', 4000);
-    console.warn('Tesseract 未載入。可能原因：CDN 被擋、網路問題、或 ad blocker 阻擋。');
     return;
   }
   if (ocrProcessing) {
@@ -2382,10 +2457,7 @@ function retakeOcr() {
 
 async function runOcrOnFile(file) {
   if (ocrProcessing) return;
-  if (!isOcrAvailable()) {
-    toast('❌ OCR 引擎未載入', 3000);
-    return;
-  }
+  if (!isOcrAvailable()) { toast('❌ OCR 引擎未載入', 3000); return; }
 
   ocrProcessing = true;
 
@@ -2463,9 +2535,7 @@ async function runOcrOnFile(file) {
     progressWrap.classList.remove('show');
     toast('❌ OCR 失敗', 3000);
   } finally {
-    if (worker) {
-      try { await worker.terminate(); } catch (e) {}
-    }
+    if (worker) { try { await worker.terminate(); } catch (e) {} }
     ocrProcessing = false;
   }
 }
@@ -2510,7 +2580,7 @@ function applyOcrResult() {
 
 
 // ============================================================
-// 條碼掃描（iPhone 修復版）
+// 條碼掃描
 // ============================================================
 var SCAN_FORMATS = [
   Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
@@ -2721,7 +2791,7 @@ document.addEventListener('click', function(e) {
 
 
 // ============================================================
-// Lightbox 大圖
+// Lightbox
 // ============================================================
 function openLightbox(id) {
   var p = allData.find(function(d) { return String(d.id) === String(id); });
