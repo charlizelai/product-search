@@ -86,6 +86,55 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .tool-btn.oos-filter-active { background: #fdecea; border-color: #c62828; color: #c62828; }
 .tool-btn:active { transform: scale(0.97); }
 
+.category-filter-row {
+  display: flex; justify-content: center;
+  margin-top: 8px; padding: 0 4px;
+}
+.category-select {
+  width: 100%;
+  max-width: 420px;
+  padding: 12px 40px 12px 16px;
+  font-size: 16px;
+  font-weight: 600;
+  border: 2px solid #d2d2d7;
+  border-radius: 12px;
+  background-color: #fff;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3e%3cpath fill='%2386868b' d='M6 9L1 4h10z'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 12px;
+  -webkit-appearance: none;
+  appearance: none;
+  color: #1d1d1f;
+  cursor: pointer;
+  font-family: inherit;
+}
+.category-select:focus {
+  border-color: #0071e3;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0,113,227,.15);
+}
+.category-select.active {
+  border-color: #0071e3;
+  background-color: #e8f0fe;
+  color: #1a73e8;
+}
+.cat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #f0f4ff;
+  color: #1a73e8;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #d0e0ff;
+  cursor: pointer;
+  font-family: inherit;
+}
+.cat-chip:active { background: #d0e0ff; }
+
 .phash-banner {
   margin: 10px 12px 0; padding: 12px 14px;
   background: #fff3cd; border-radius: 12px;
@@ -469,6 +518,11 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       <button id="btnSortToggle" class="tool-btn" onclick="toggleSort()">📍 位置排序</button>
       <button id="btnRefreshAPI" class="tool-btn" onclick="refreshFromAPIManual()">🔄 用 API 刷新</button>
     </div>
+    <div class="category-filter-row">
+      <select id="categoryFilter" class="category-select" onchange="onCategoryChange()">
+        <option value="">📂 全部分類</option>
+      </select>
+    </div>
   </header>
 
   <div id="phashBanner" class="phash-banner" style="display:none;">
@@ -696,6 +750,7 @@ const SEARCH_HISTORY_MAX = 20;
 const USAGE_KEY = 'product_usage_v1';
 const BARCODE_MODE_KEY = 'barcode_mode_v1';
 const OOS_FILTER_KEY = 'oos_filter_v1';
+const CATEGORY_FILTER_KEY = 'category_filter_v1';
 
 const MIN_SUFFIX_LEN = 6;
 
@@ -733,10 +788,12 @@ let _lastVersion = 0;
 let sortMode = 'default';
 let barcodeOnly = false;
 let oosFilterOnly = false;
+let categoryFilter = '';
 
 try {
   barcodeOnly = localStorage.getItem(BARCODE_MODE_KEY) === '1';
   oosFilterOnly = localStorage.getItem(OOS_FILTER_KEY) === '1';
+  categoryFilter = localStorage.getItem(CATEGORY_FILTER_KEY) || '';
 } catch (e) {}
 
 let oosTargetId = null;
@@ -882,7 +939,14 @@ function showApp() {
   $('loginScreen').style.display = 'none';
   $('appScreen').style.display = 'block';
   $('btnOptionsMgr').style.display = isAdmin ? 'inline-block' : 'none';
-  loadOptions().then(function() {}).catch(function(e) { if (!optionsLoaded) useDefaultOptions(); });
+  loadOptions().then(function() {
+    // 分類載入後，恢復上次選擇
+    if (categoryFilter) {
+      var sel = $('categoryFilter');
+      if (sel) sel.value = categoryFilter;
+      updateCategoryButtonState();
+    }
+  }).catch(function(e) { if (!optionsLoaded) useDefaultOptions(); });
   updateBarcodeButton();
   updateOOSFilterButton();
   updateSortButton();
@@ -1439,6 +1503,58 @@ function updateOOSFilterButton() {
   }
 }
 
+// ★ v4.16：分類篩選
+function populateCategoryFilter() {
+  var sel = $('categoryFilter');
+  if (!sel) return;
+  var cur = sel.value;
+  var cats = (OPTIONS.category_en || []);
+  sel.innerHTML = '<option value="">📂 全部分類</option>' +
+    cats.map(function(c) {
+      var v = String(c.value || '').trim();
+      var l = String(c.label || v).trim();
+      if (!v) return '';
+      return '<option value="' + escAttr(v) + '">' + esc(l) + '</option>';
+    }).join('');
+  if (cur) sel.value = cur;
+  updateCategoryButtonState();
+}
+
+function updateCategoryButtonState() {
+  var sel = $('categoryFilter');
+  if (!sel) return;
+  if (categoryFilter) sel.classList.add('active');
+  else sel.classList.remove('active');
+}
+
+function onCategoryChange() {
+  var sel = $('categoryFilter');
+  if (!sel) return;
+  categoryFilter = sel.value;
+  try { localStorage.setItem(CATEGORY_FILTER_KEY, categoryFilter); } catch (e) {}
+  updateCategoryButtonState();
+  render();
+  if (categoryFilter) {
+    var found = (OPTIONS.category_en || []).find(function(c) { return c.value === categoryFilter; });
+    toast('📂 已篩選：' + (found ? found.label : categoryFilter));
+  } else {
+    toast('📂 顯示全部分類');
+  }
+}
+
+function filterByCategory(cat) {
+  if (!cat) return;
+  categoryFilter = cat;
+  try { localStorage.setItem(CATEGORY_FILTER_KEY, categoryFilter); } catch (e) {}
+  var sel = $('categoryFilter');
+  if (sel) sel.value = cat;
+  updateCategoryButtonState();
+  try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
+  render();
+  var found = (OPTIONS.category_en || []).find(function(c) { return c.value === cat; });
+  toast('📂 已篩選：' + (found ? found.label : cat));
+}
+
 function locationSortKey(d) {
   return [
     d.warehouse || '~', d.aisle || '~', d.crosslane || '~',
@@ -1544,6 +1660,7 @@ async function loadOptions() {
     optionsLoaded = true;
     populateSelects();
     renderCombineCheckboxes();
+    populateCategoryFilter();
   } catch (e) { useDefaultOptions(); }
 }
 
@@ -1603,6 +1720,7 @@ function useDefaultOptions() {
   optionsLoaded = true;
   populateSelects();
   renderCombineCheckboxes();
+  populateCategoryFilter();
 }
 
 function populateSelects() {
@@ -1758,6 +1876,7 @@ async function saveOptionsToServer() {
     optionsLoaded = true;
     populateSelects();
     renderCombineCheckboxes();
+    populateCategoryFilter();
     editingOptions = null;
     $('optionsModal').classList.remove('show');
     toast('✅ 選項已儲存，共 ' + result.count + ' 個', 2500);
@@ -1923,6 +2042,13 @@ function render() {
     filtered = filtered.filter(function(d) { return d._oos === true || d._oos === 'true'; });
   }
 
+  // ★ v4.16：分類篩選
+  if (categoryFilter) {
+    filtered = filtered.filter(function(d) {
+      return String(d.category_en || '').trim() === categoryFilter;
+    });
+  }
+
   if (sortMode === 'location') {
     filtered.sort(function(a, b) {
       var ka = locationSortKey(a);
@@ -1940,6 +2066,12 @@ function render() {
   }
   if (oosFilterOnly) statsText += ' · ⚠️ 只看缺貨';
   if (sortMode === 'location') statsText += ' · 按位置';
+  if (categoryFilter) {
+    var catLabel = categoryFilter;
+    var found = (OPTIONS.category_en || []).find(function(c) { return c.value === categoryFilter; });
+    if (found && found.label) catLabel = found.label;
+    statsText += ' · 📂 ' + catLabel;
+  }
   $('stats').textContent = statsText;
 
   $('btnClear').style.display = raw ? 'flex' : 'none';
@@ -1991,6 +2123,18 @@ function renderCard(d) {
     var score = d._similarity;
     var color = score >= 80 ? '#2e7d32' : score >= 50 ? '#f57c00' : '#c62828';
     simBadge = '<span class="sim-badge" style="background:' + color + ';">相似 ' + score + '%</span>';
+  }
+
+  // ★ v4.16：分類標籤 chip
+  var catChipHtml = '';
+  if (d.category_en || d.category_zh) {
+    var displayCat = d.category_zh || d.category_en || '';
+    var catValue = d.category_en || '';
+    catChipHtml = '<div style="margin-top:8px;">' +
+      '<button type="button" class="cat-chip" onclick="event.stopPropagation();filterByCategory(\'' + escAttr(catValue) + '\')">' +
+        '📂 ' + esc(displayCat) +
+      '</button>' +
+    '</div>';
   }
 
   var oosBanner = '';
@@ -2056,6 +2200,7 @@ function renderCard(d) {
     '</div>' +
     oosBanner +
     tempIdBanner +
+    catChipHtml +
     barcodeHtml +
     '<div class="loc-section">' +
       '<div class="loc-title">📍 倉庫位置</div>' +
@@ -3014,11 +3159,13 @@ function showDebug() {
     'sortMode': sortMode,
     'barcodeOnly': barcodeOnly,
     'oosFilterOnly': oosFilterOnly,
+    'categoryFilter': categoryFilter || '（無）',
     'inputmode': $('q') ? $('q').getAttribute('inputmode') : 'n/a',
     'MIN_SUFFIX_LEN': MIN_SUFFIX_LEN,
     'isIOS': isIOS(),
     'Tesseract 已載入': isOcrAvailable() ? '是' : '否',
     'oos_reason 選項數': (OPTIONS.oos_reason || []).length,
+    'category_en 選項數': (OPTIONS.category_en || []).length,
     'UA': navigator.userAgent.substring(0, 60)
   };
   var msg = '';
