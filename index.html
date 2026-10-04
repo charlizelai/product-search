@@ -104,6 +104,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 }
 .card.search-result { border-left: 4px solid #1a73e8; }
 .card.oos-card { border: 2px solid #c62828; background: #fff8f8; }
+.card.temp-id-card { border-left: 4px solid #ff9800; background: #fffbf5; }
 .card-main { display: flex; gap: 14px; align-items: flex-start; }
 .card img.thumb { width: 100px; height: 100px; object-fit: contain; border-radius: 12px; background: #f5f5f7; flex-shrink: 0; }
 .card img.thumb.clickable { cursor: zoom-in; transition: transform .15s, opacity .15s; }
@@ -114,6 +115,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .price { font-size: 20px; font-weight: 700; color: #ff3b30; }
 .id { font-family: ui-monospace, monospace; font-size: 13px; color: #86868b; }
+.id-temp { font-family: ui-monospace, monospace; font-size: 12px; color: #e65100; background: #fff3e0; padding: 2px 6px; border-radius: 4px; font-weight: 700; }
 .sim-badge { padding: 3px 10px; border-radius: 6px; font-size: 13px; font-weight: 700; color: #fff; }
 
 .oos-banner {
@@ -125,6 +127,13 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .oos-icon { font-size: 18px; }
 .oos-reason { font-size: 15px; color: #7f1d1d; font-weight: 600; padding-left: 4px; }
 .oos-meta { font-size: 12px; color: #b91c1c; opacity: 0.75; padding-left: 4px; }
+
+.temp-id-banner {
+  margin-top: 10px; padding: 10px 12px;
+  background: #fff3e0; border-left: 4px solid #ff9800; border-radius: 8px;
+  font-size: 14px; color: #e65100; font-weight: 600;
+  display: flex; align-items: center; gap: 6px;
+}
 
 .barcode-line {
   margin-top: 8px; padding: 6px 10px;
@@ -155,6 +164,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 }
 .lock-tag { background: #fff3cd; color: #856404; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; }
 .src-tag { background: #e3f2fd; color: #1565c0; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+.temp-tag { background: #ff9800; color: #fff; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; }
 
 .card-actions { display: flex; gap: 6px; margin-top: 12px; }
 .card-actions button { padding: 10px; border-radius: 10px; border: none; cursor: pointer; font-size: 15px; font-weight: 600; transition: opacity .15s; }
@@ -191,6 +201,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .field input:focus, .field textarea:focus { border-color: #0071e3; outline: none; box-shadow: 0 0 0 3px rgba(0,113,227,.15); }
 .field textarea { min-height: 90px; resize: vertical; }
 .field input:disabled { background: #f5f5f7; color: #86868b; }
+.field-note { font-size: 13px; color: #e65100; margin-top: 6px; font-weight: 600; }
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
 .field-with-btn { display: flex; gap: 10px; align-items: stretch; }
@@ -468,6 +479,11 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     </div>
   </div>
 
+  <div id="tempIdBanner" class="phash-banner" style="display:none; background:#ffe0b2; color:#e65100;">
+    <span id="tempIdBannerText"></span>
+    <button onclick="showTempIdList()" style="background:#f57c00;">查看清單</button>
+  </div>
+
   <div class="list" id="list"></div>
   <button class="add-btn" onclick="openAdd()">+</button>
 </div>
@@ -476,7 +492,13 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   <div class="modal-content">
     <h2 id="modalTitle">新增產品</h2>
     <div class="section-title">📋 產品資料</div>
-    <div class="field"><label>ID *</label><input id="f_id" autocomplete="off" inputmode="numeric"></div>
+    <div class="field">
+      <label>ID *</label>
+      <input id="f_id" autocomplete="off" inputmode="numeric">
+      <div id="f_id_note" class="field-note" style="display:none;">
+        ⚠️ 此為臨時 ID（掃碼自動生成）。儲存後請管理員更新為正式 ID。
+      </div>
+    </div>
     <div class="field">
       <label>條碼 (Barcode) — 可多個，用 ; 分隔</label>
       <div style="display:flex; gap:10px;">
@@ -504,7 +526,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     </div>
     <div class="field">
       <label>產品圖片</label>
-      <input type="file" id="f_imageFile" accept="image/*" style="display:none">
+      <input type="file" id="f_imageFile" accept="image/*" capture="environment" style="display:none">
       <button type="button" class="upload-btn" onclick="document.getElementById('f_imageFile').click()">📷 拍照 / 選擇圖片</button>
       <img id="f_imagePreview" class="img-preview" style="display:none">
       <input id="f_image" type="hidden">
@@ -775,6 +797,36 @@ function timeAgo(dateStr) {
 
 
 // ============================================================
+// ★ v4.14：臨時 ID 工具（11 位 = yyyymmdd + 3位序號）
+// ============================================================
+function isTempId(id) {
+  return /^\d{11}$/.test(String(id || '').trim());
+}
+
+function generateTempId() {
+  var now = new Date();
+  var y = now.getFullYear();
+  var m = String(now.getMonth() + 1).padStart(2, '0');
+  var d = String(now.getDate()).padStart(2, '0');
+  var base = '' + y + m + d;  // 8 位
+
+  // 找出同一天已用過的序號
+  var used = {};
+  allData.forEach(function(p) {
+    var id = String(p.id || '');
+    if (id.length === 11 && id.indexOf(base) === 0) {
+      var n = parseInt(id.substring(8), 10);
+      if (!isNaN(n)) used[n] = true;
+    }
+  });
+  var seq = 1;
+  while (used[seq]) seq++;
+  if (seq > 999) seq = 999;
+  return base + String(seq).padStart(3, '0');
+}
+
+
+// ============================================================
 // 登入 / 登出
 // ============================================================
 function login() {
@@ -823,6 +875,7 @@ function logout() {
   $('stats').textContent = '載入中...';
   $('btnOptionsMgr').style.display = 'none';
   $('phashBanner').style.display = 'none';
+  $('tempIdBanner').style.display = 'none';
   toast('👋 已登出');
 }
 
@@ -835,6 +888,9 @@ function showApp() {
   updateOOSFilterButton();
   updateSortButton();
   loadData();
+  if (isAdmin) {
+    setTimeout(checkTempIds, 2500);
+  }
 }
 
 async function apiGet(action, params) {
@@ -860,18 +916,50 @@ async function apiPost(body) {
 
 
 // ============================================================
+// 臨時 ID 檢查 + 顯示
+// ============================================================
+async function checkTempIds() {
+  if (!isAdmin) { $('tempIdBanner').style.display = 'none'; return; }
+  try {
+    var res = await apiGet('tempIds');
+    if (!res || res.error) return;
+    var count = res.count || 0;
+    if (count === 0) { $('tempIdBanner').style.display = 'none'; return; }
+    $('tempIdBanner').style.display = 'flex';
+    $('tempIdBannerText').textContent = '⚠️ 有 ' + count + ' 件貨品使用臨時 ID，請更新為正式 ID';
+  } catch (e) {
+    console.warn('checkTempIds 失敗：', e);
+  }
+}
+
+function showTempIdList() {
+  apiGet('tempIds').then(function(res) {
+    if (!res || !res.items || !res.items.length) {
+      toast('✅ 沒有臨時 ID');
+      $('tempIdBanner').style.display = 'none';
+      return;
+    }
+    var lines = res.items.slice(0, 20).map(function(it, i) {
+      var name = it.name_zh || it.name || '（無名）';
+      return (i + 1) + '. ' + it.id + '\n   ' + name + '\n   條碼：' + (it.barcode || '（無）');
+    }).join('\n\n');
+    var extra = res.items.length > 20 ? '\n\n…還有 ' + (res.items.length - 20) + ' 件' : '';
+    alert('📋 臨時 ID 清單（共 ' + res.items.length + ' 件）\n\n' + lines + extra);
+  }).catch(function(e) {
+    toast('❌ ' + e.message, 3000);
+  });
+}
+
+
+// ============================================================
 // OOS 狀態拉取
 // ============================================================
 async function loadOOSStates() {
   try {
     var res = await apiGet('oosList');
-    if (!res || res.error) {
-      console.warn('⚠️ oosList API 失敗：', res && res.error);
-      return null;
-    }
+    if (!res || res.error) return null;
     return res;
   } catch (e) {
-    console.warn('⚠️ oosList API 錯誤：', e.message);
     return null;
   }
 }
@@ -895,7 +983,6 @@ function mergeOOSStates(oosMap) {
       delete d._oos_reporter;
     }
   });
-  console.log('🔄 OOS 合併完成：active 共 ' + count + ' 筆');
 }
 
 async function refreshOOSOnly() {
@@ -1048,7 +1135,6 @@ function setQuickReason(reason) {
   el.focus();
 }
 
-// ★ v4.8：動態渲染缺貨原因按鈕
 function renderQuickReasons() {
   var container = $('quickReasonsContainer');
   if (!container) return;
@@ -1070,7 +1156,6 @@ function renderQuickReasons() {
   }).join('');
 }
 
-// ★ v4.8：拉並顯示「上次缺貨記錄」
 async function loadOOSHistory(productId) {
   var box = $('oosHistoryBox');
   var content = $('oosHistoryContent');
@@ -1101,7 +1186,6 @@ async function loadOOSHistory(productId) {
     content.innerHTML = html;
     box.style.display = 'block';
   } catch (e) {
-    console.warn('loadOOSHistory 失敗：', e);
     box.style.display = 'none';
   }
 }
@@ -1231,10 +1315,7 @@ async function restockProduct(id) {
 async function syncFromAPI() {
   try {
     var data = await apiGet('list');
-    if (!data || data.error || !Array.isArray(data)) {
-      console.warn('⚠️ API list 失敗');
-      return;
-    }
+    if (!data || data.error || !Array.isArray(data)) return;
 
     var apiMap = {};
     data.forEach(function(p) {
@@ -1245,9 +1326,7 @@ async function syncFromAPI() {
     var merged = data.slice();
     allData.forEach(function(local) {
       var id = String(local.id || '').trim();
-      if (id && !apiMap[id]) {
-        merged.push(local);
-      }
+      if (id && !apiMap[id]) merged.push(local);
     });
 
     applyProducts(merged);
@@ -1258,7 +1337,6 @@ async function syncFromAPI() {
     render();
     return merged.length;
   } catch (e) {
-    console.warn('API 同步失敗：', e);
     throw e;
   }
 }
@@ -1268,6 +1346,7 @@ async function refreshFromAPIManual() {
   try {
     await syncFromAPI();
     toast('✅ 已更新', 2000);
+    if (isAdmin) checkTempIds();
   } catch (e) {
     toast('❌ ' + e.message, 3000);
   }
@@ -1553,7 +1632,7 @@ function setCombineValue(value) {
 
 
 // ============================================================
-// 選項管理 UI（★ v4.8：移除 oos_reason，由 Sheet 管理）
+// 選項管理 UI
 // ============================================================
 function openOptionsModal() {
   if (!isAdmin) { toast('只有管理員可編輯選項'); return; }
@@ -1674,9 +1753,7 @@ function mergeKeepingLocal(sourceList) {
   var merged = sourceList.slice();
   allData.forEach(function(local) {
     var id = String(local.id || '').trim();
-    if (id && !srcMap[id]) {
-      merged.push(local);
-    }
+    if (id && !srcMap[id]) merged.push(local);
   });
   return merged;
 }
@@ -1743,7 +1820,6 @@ async function backgroundRefresh() {
     mergeOOSStates(oosMap);
     render();
   } catch (e) {
-    console.warn('背景更新失敗：', e);
   } finally {
     _bgRefreshing = false;
   }
@@ -1855,9 +1931,11 @@ function render() {
 function renderCard(d) {
   var noImg = 'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect width=%22100%22 height=%22100%22 fill=%22%23f5f5f7%22/><text x=%2250%22 y=%2256%22 text-anchor=%22middle%22 fill=%22%23c7c7cc%22 font-size=%2215%22>無圖</text></svg>';
   var isOOS = d._oos === true || d._oos === 'true';
+  var tempFlag = isTempId(d.id);
   var sourceTag = d._last_source === 'user'
     ? '<span class="lock-tag">🔒 已編輯</span>'
     : (d._last_source === 'wellcome' ? '<span class="src-tag">🌐 惠康</span>' : '');
+  var tempTag = tempFlag ? '<span class="temp-tag">🆕 臨時ID</span>' : '';
   var timeStr = timeAgo(d._last_modified);
 
   var locFields = [
@@ -1896,8 +1974,11 @@ function renderCard(d) {
   var cardClass = 'card';
   if (d._similarity !== undefined) cardClass = 'card search-result';
   if (isOOS) cardClass += ' oos-card';
+  if (tempFlag) cardClass += ' temp-id-card';
 
   var safeId = escAttr(d.id);
+
+  var idDisplay = '<span class="' + (tempFlag ? 'id-temp' : 'id') + '">ID: ' + esc(d.id) + '</span>';
 
   var barcodeHtml = '';
   if (d.barcode) {
@@ -1919,6 +2000,10 @@ function renderCard(d) {
   var imgClass = 'thumb' + (hasImg ? ' clickable' : '');
   var imgClickAttr = hasImg ? ' onclick="openLightbox(\'' + safeId + '\')"' : '';
 
+  var tempIdBanner = tempFlag
+    ? '<div class="temp-id-banner">🆕 臨時 ID（掃碼自動建立），請管理員盡快更新為正式 ID</div>'
+    : '';
+
   return '<div class="' + cardClass + '">' +
     '<div class="card-main">' +
       '<img class="' + imgClass + '" src="' + imgSrc + '" loading="lazy" referrerpolicy="no-referrer"' +
@@ -1929,12 +2014,13 @@ function renderCard(d) {
         '<div class="name">' + esc(d.name) + '</div>' +
         '<div class="meta">' +
           '<span class="price">$' + esc(d.price) + '</span>' +
-          '<span class="id">ID: ' + esc(d.id) + '</span>' +
+          idDisplay +
           simBadge +
         '</div>' +
       '</div>' +
     '</div>' +
     oosBanner +
+    tempIdBanner +
     barcodeHtml +
     '<div class="loc-section">' +
       '<div class="loc-title">📍 倉庫位置</div>' +
@@ -1942,7 +2028,7 @@ function renderCard(d) {
     '</div>' +
     '<div class="meta-footer">' +
       '<span>' + esc(timeStr) + '</span>' +
-      '<span>' + sourceTag + '</span>' +
+      '<span>' + sourceTag + tempTag + '</span>' +
     '</div>' +
     '<div class="card-actions">' +
       '<button class="btn-edit" onclick="openEdit(\'' + safeId + '\')">✏️ 編輯</button>' +
@@ -2004,10 +2090,6 @@ function computePhashFromBlob(blob) {
   });
 }
 
-
-// ============================================================
-// pHash 庫
-// ============================================================
 async function checkPhashStatus() {
   if (!isAdmin) { $('phashBanner').style.display = 'none'; return; }
   try {
@@ -2109,10 +2191,30 @@ function openAdd() {
   $('f_last_modified').value = '';
   $('f_last_source').value = '';
   $('f_id').disabled = false;
+  $('f_id_note').style.display = 'none';
   $('f_imagePreview').style.display = 'none';
   $('f_imagePreview').src = '';
   $('btnUnlock').style.display = 'none';
   $('modal').classList.add('show');
+}
+
+function startQuickAdd(barcode) {
+  openAdd();
+  $('modalTitle').textContent = '🆕 快速新增（掃碼）';
+
+  var tempId = generateTempId();
+  $('f_id').value = tempId;
+  $('f_id').disabled = true;
+  $('f_id_note').style.display = 'block';
+
+  $('f_barcode').value = barcode || '';
+
+  setTimeout(function() {
+    toast('📸 請拍一張產品照片（臨時 ID：' + tempId + '）', 4500);
+    setTimeout(function() {
+      try { $('f_imageFile').click(); } catch (e) {}
+    }, 400);
+  }, 500);
 }
 
 function openEdit(id) {
@@ -2136,6 +2238,7 @@ function openEdit(id) {
   $('f_last_source').value = p._last_source === 'user' ? '🔒 使用者手動編輯'
                              : p._last_source === 'wellcome' ? '🌐 惠康自動抓取' : '（無）';
   $('f_id').disabled = true;
+  $('f_id_note').style.display = isTempId(p.id) ? 'block' : 'none';
   if (p.image) { $('f_imagePreview').src = p.image; $('f_imagePreview').style.display = 'block'; }
   else $('f_imagePreview').style.display = 'none';
   $('btnUnlock').style.display = p._last_source === 'user' ? 'block' : 'none';
@@ -2321,6 +2424,8 @@ async function saveProduct() {
   FIELDS.forEach(function(k) { data[k] = $('f_' + k).value.trim(); });
   if (!data.id) { toast('❌ ID 不能為空'); return; }
 
+  var wasTempId = isTempId(data.id);
+
   $('btnSave').disabled = true;
   try {
     var result = editingId
@@ -2333,7 +2438,7 @@ async function saveProduct() {
       if (!exists) {
         var newP = Object.assign({}, data, {
           _last_modified: new Date().toISOString(),
-          _last_source: 'user'
+          _last_source: wasTempId ? 'scan_auto' : 'user'
         });
         allData.push(newP);
       }
@@ -2381,7 +2486,9 @@ async function saveProduct() {
     }
 
     setTimeout(function() {
-      syncFromAPI().catch(function(e) { console.warn('API 同步失敗：', e); });
+      syncFromAPI().then(function() {
+        if (isAdmin) checkTempIds();
+      }).catch(function(e) { console.warn('API 同步失敗：', e); });
     }, 1500);
 
     setTimeout(function() {
@@ -2404,7 +2511,10 @@ async function confirmDelete(id) {
     allData = allData.filter(function(d) { return String(d.id) !== String(id); });
     render();
     clearLocalCache();
-    setTimeout(function() { syncFromAPI(); }, 1500);
+    setTimeout(function() {
+      syncFromAPI();
+      if (isAdmin) checkTempIds();
+    }, 1500);
   } catch (e) { toast('❌ ' + e.message, 3000); }
 }
 
@@ -2526,7 +2636,6 @@ async function runOcrOnFile(file) {
     if (!text) toast('⚠️ 未識別到文字，可嘗試重拍', 3000);
 
   } catch (err) {
-    console.error('OCR 失敗：', err);
     var msg = (err && err.message) ? err.message : String(err);
     result.value = '❌ 識別失敗：' + msg;
     result.disabled = false;
@@ -2660,9 +2769,7 @@ async function openScanner(title, mode) {
           if (constraints.advanced.length > 0 || constraints.width) {
             await html5QrCode.applyVideoConstraints(constraints);
           }
-        } catch (e) {
-          console.warn('重設相機參數失敗（不影響掃描）:', e);
-        }
+        } catch (e) {}
       }, 1000);
 
       try {
@@ -2673,7 +2780,6 @@ async function openScanner(title, mode) {
       } catch (e) {}
 
     } catch (e) {
-      console.error('掃描器啟動失敗：', e);
       var msg = e.message || String(e);
       if (/permission|denied|notallowed/i.test(msg)) {
         msg = '未授權使用相機。請到「設定 → Safari → 相機」允許，或重新整理頁面再試。';
@@ -2707,7 +2813,24 @@ function onScanSuccess(decodedText) {
     var found = allData.filter(function(d) {
       return barcodeMatches(d.barcode, decodedText) || String(d.id) === decodedText;
     });
-    toast(found.length > 0 ? '✅ 找到：' + (found[0].name_zh || found[0].name) : '⚠️ 條碼 ' + decodedText + ' 未找到', 2500);
+
+    if (found.length > 0) {
+      toast('✅ 找到：' + (found[0].name_zh || found[0].name), 2500);
+    } else {
+      setTimeout(function() {
+        var ok = confirm(
+          '❓ 找不到條碼「' + decodedText + '」\n\n' +
+          '是否立即新增此貨品？\n\n' +
+          '📸 系統會自動生成臨時 ID\n' +
+          '📷 下一步會請你拍一張產品照片'
+        );
+        if (ok) {
+          startQuickAdd(decodedText);
+        } else {
+          toast('⚠️ 條碼 ' + decodedText + ' 未找到', 2500);
+        }
+      }, 400);
+    }
   } else if (scanMode === 'edit') {
     var cur = $('f_barcode').value.trim();
     if (cur) { if (cur.indexOf(decodedText) < 0) $('f_barcode').value = cur + ';' + decodedText; }
@@ -2846,11 +2969,13 @@ function closeLightbox() {
 // ============================================================
 function showDebug() {
   var oosCount = allData.filter(function(d) { return d._oos === true || d._oos === 'true'; }).length;
+  var tempIdCount = allData.filter(function(d) { return isTempId(d.id); }).length;
   var info = {
     'TOKEN': TOKEN ? TOKEN.substring(0, 18) + '...' : 'null',
     'isAdmin': isAdmin,
     'allData': allData.length,
     '缺貨數': oosCount,
+    '臨時ID數': tempIdCount,
     'sortMode': sortMode,
     'barcodeOnly': barcodeOnly,
     'oosFilterOnly': oosFilterOnly,
