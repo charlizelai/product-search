@@ -454,7 +454,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     </h1>
     <div class="search-box" id="searchBox">
       <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
-      <input id="q" type="search" placeholder="搜尋 / 條碼（尾 6 位以上）/ 位置..." autocomplete="off">
+      <input id="q" type="search" inputmode="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="搜尋 / 條碼（尾 6 位以上）/ 位置...">
       <div class="search-actions">
         <button class="icon-btn" id="btnScanSearch" title="掃碼搜尋">🔍</button>
         <button class="icon-btn" id="btnSearchByImage" title="以圖搜圖">📷</button>
@@ -797,7 +797,7 @@ function timeAgo(dateStr) {
 
 
 // ============================================================
-// ★ v4.14：臨時 ID 工具（11 位 = yyyymmdd + 3位序號）
+// 臨時 ID 工具
 // ============================================================
 function isTempId(id) {
   return /^\d{11}$/.test(String(id || '').trim());
@@ -808,9 +808,8 @@ function generateTempId() {
   var y = now.getFullYear();
   var m = String(now.getMonth() + 1).padStart(2, '0');
   var d = String(now.getDate()).padStart(2, '0');
-  var base = '' + y + m + d;  // 8 位
+  var base = '' + y + m + d;
 
-  // 找出同一天已用過的序號
   var used = {};
   allData.forEach(function(p) {
     var id = String(p.id || '');
@@ -887,6 +886,7 @@ function showApp() {
   updateBarcodeButton();
   updateOOSFilterButton();
   updateSortButton();
+  applyInputMode();
   loadData();
   if (isAdmin) {
     setTimeout(checkTempIds, 2500);
@@ -1360,8 +1360,15 @@ function toggleBarcodeOnly() {
   barcodeOnly = !barcodeOnly;
   try { localStorage.setItem(BARCODE_MODE_KEY, barcodeOnly ? '1' : '0'); } catch (e) {}
   updateBarcodeButton();
+  applyInputMode();
+  if (barcodeOnly) {
+    setTimeout(function() {
+      var q = $('q');
+      if (q) q.focus();
+    }, 120);
+  }
   if (allData.length > 0) render();
-  toast(barcodeOnly ? '🏷️ 只搜條碼模式' : '🔍 一般搜尋模式');
+  toast(barcodeOnly ? '🏷️ 只搜條碼模式（數字鍵盤）' : '🔍 一般搜尋模式');
 }
 
 function updateBarcodeButton() {
@@ -1381,6 +1388,34 @@ function updateBarcodeButton() {
     btn.classList.remove('active');
     if (sb) sb.classList.remove('barcode-mode');
     if (q) q.placeholder = '搜尋 / 條碼（尾 6 位以上）/ 位置...';
+  }
+}
+
+// ★ v4.15：切換數字/一般鍵盤
+function applyInputMode() {
+  var q = $('q');
+  if (!q) return;
+
+  var mode = barcodeOnly ? 'numeric' : 'text';
+  var currentMode = q.getAttribute('inputmode') || 'text';
+  if (currentMode === mode) return;
+
+  var wasFocused = document.activeElement === q;
+
+  q.setAttribute('inputmode', mode);
+  if (mode === 'numeric') {
+    q.setAttribute('pattern', '[0-9]*');
+  } else {
+    q.removeAttribute('pattern');
+  }
+
+  if (wasFocused) {
+    q.blur();
+    setTimeout(function() {
+      q.focus();
+      var len = q.value.length;
+      try { q.setSelectionRange(len, len); } catch (e) {}
+    }, 60);
   }
 }
 
@@ -2979,6 +3014,7 @@ function showDebug() {
     'sortMode': sortMode,
     'barcodeOnly': barcodeOnly,
     'oosFilterOnly': oosFilterOnly,
+    'inputmode': $('q') ? $('q').getAttribute('inputmode') : 'n/a',
     'MIN_SUFFIX_LEN': MIN_SUFFIX_LEN,
     'isIOS': isIOS(),
     'Tesseract 已載入': isOcrAvailable() ? '是' : '否',
@@ -3009,6 +3045,7 @@ document.addEventListener('keydown', function(e) {
 updateBarcodeButton();
 updateOOSFilterButton();
 updateSortButton();
+applyInputMode();
 
 if (TOKEN) showApp();
 else $('loginScreen').style.display = 'block';
