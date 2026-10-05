@@ -553,8 +553,8 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 }
 .order-today-btn {
   flex-shrink: 0;
-  padding: 10px 12px;
-  font-size: 13px;
+  padding: 10px 14px;
+  font-size: 16px;
   font-weight: 700;
   border: 2px solid #0071e3;
   background: #e8f0fe;
@@ -563,6 +563,8 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   cursor: pointer;
   font-family: inherit;
   white-space: nowrap;
+  min-width: 48px;
+  text-align: center;
 }
 .order-today-btn:active { background: #d2e3fc; }
 
@@ -611,17 +613,30 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .hist-order-tag.slot-late  { background: #f3e5f5; color: #6a1b9a; }
 .hist-order-tag.type-tag   { background: #e8f5e9; color: #2e7d32; }
 
-/* ★ v5.1：隱藏 date picker */
-.date-picker-hidden {
-  position: absolute;
-  opacity: 0;
-  width: 1px;
-  height: 1px;
+/* ★ v5.2：透明覆蓋式 date picker */
+.date-picker-wrap {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-block;
+}
+.date-picker-wrap .order-today-btn {
   pointer-events: none;
-  z-index: -1;
+}
+.date-picker-overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
   border: none;
   padding: 0;
   margin: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  z-index: 10;
+  background: transparent;
 }
 </style>
 </head>
@@ -820,8 +835,10 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       <div class="order-field-row">
         <span class="order-field-label">單日期</span>
         <input id="oosOrderDate" class="order-input" type="text" inputmode="numeric" maxlength="8" placeholder="YYYYMMDD">
-        <button type="button" class="order-today-btn" onclick="openDatePicker()">📅</button>
-        <input type="date" id="oosOrderDatePicker" class="date-picker-hidden">
+        <div class="date-picker-wrap">
+          <button type="button" class="order-today-btn">📅</button>
+          <input type="date" id="oosOrderDatePicker" class="date-picker-overlay">
+        </div>
       </div>
 
       <div class="order-field-row">
@@ -1413,7 +1430,7 @@ function renderQuickReasons() {
 
 
 // ============================================================
-// ★ v5.1：訂單資訊互動（含日曆）
+// ★ v5.2：訂單資訊互動（透明覆蓋式 date picker）
 // ============================================================
 function getTodayYMD() {
   var now = new Date();
@@ -1423,27 +1440,31 @@ function getTodayYMD() {
   return '' + y + m + d;
 }
 
-function openDatePicker() {
+function ymdToDash(ymd) {
+  if (!/^\d{8}$/.test(ymd)) return '';
+  return ymd.substring(0,4) + '-' + ymd.substring(4,6) + '-' + ymd.substring(6,8);
+}
+
+function syncPickerToText() {
   var picker = $('oosOrderDatePicker');
   if (!picker) return;
+  var v = picker.value;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    var ymd = v.replace(/-/g, '');
+    var el = $('oosOrderDate');
+    if (el) el.value = ymd;
+  }
+}
 
+function syncTextToPicker() {
+  var picker = $('oosOrderDatePicker');
+  if (!picker) return;
   var curVal = ($('oosOrderDate').value || '').trim();
   if (/^\d{8}$/.test(curVal)) {
-    picker.value = curVal.substring(0,4) + '-' + curVal.substring(4,6) + '-' + curVal.substring(6,8);
+    picker.value = ymdToDash(curVal);
   } else {
-    var t = getTodayYMD();
-    picker.value = t.substring(0,4) + '-' + t.substring(4,6) + '-' + t.substring(6,8);
+    picker.value = ymdToDash(getTodayYMD());
   }
-
-  try {
-    if (typeof picker.showPicker === 'function') {
-      picker.showPicker();
-      return;
-    }
-  } catch (e) {}
-
-  picker.click();
-  picker.focus();
 }
 
 function selectSlot(btn) {
@@ -1475,7 +1496,7 @@ function getSelectedChipValue(groupId) {
 
 function resetOrderInfo() {
   var el;
-  // ★ v5.1：單日期 prefill 今天
+  // 單日期 prefill 今天
   el = $('oosOrderDate');
   if (el) el.value = getTodayYMD();
 
@@ -1485,6 +1506,9 @@ function resetOrderInfo() {
   if (g1) g1.querySelectorAll('.chip-btn').forEach(function(b) { b.classList.remove('selected'); });
   var g2 = $('oosOrderTypeGroup');
   if (g2) g2.querySelectorAll('.chip-btn').forEach(function(b) { b.classList.remove('selected'); });
+
+  // 同步 picker
+  try { syncTextToPicker(); } catch (e) {}
 }
 
 function validateOrderInfo() {
@@ -3552,19 +3576,22 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
-// ★ v5.1：綁定 date picker 的 change 事件
+// ★ v5.2：date picker 事件綁定
 (function() {
   var picker = $('oosOrderDatePicker');
-  if (picker) {
-    picker.addEventListener('change', function() {
-      var v = this.value;
-      if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-        var ymd = v.replace(/-/g, '');
-        var el = $('oosOrderDate');
-        if (el) el.value = ymd;
-      }
-    });
-  }
+  if (!picker) return;
+
+  // 用戶選日期 → 同步到文字框
+  picker.addEventListener('change', syncPickerToText);
+  picker.addEventListener('input', syncPickerToText);
+
+  // 用戶點按鈕前 → 把文字框的值帶入 picker
+  picker.addEventListener('click', function() {
+    syncTextToPicker();
+  });
+  picker.addEventListener('focus', function() {
+    syncTextToPicker();
+  });
 })();
 
 updateBarcodeButton();
