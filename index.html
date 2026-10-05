@@ -610,6 +610,19 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .hist-order-tag.slot-mid   { background: #e8f0fe; color: #1a73e8; }
 .hist-order-tag.slot-late  { background: #f3e5f5; color: #6a1b9a; }
 .hist-order-tag.type-tag   { background: #e8f5e9; color: #2e7d32; }
+
+/* ★ v5.1：隱藏 date picker */
+.date-picker-hidden {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+  z-index: -1;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
 </style>
 </head>
 <body>
@@ -807,7 +820,8 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       <div class="order-field-row">
         <span class="order-field-label">單日期</span>
         <input id="oosOrderDate" class="order-input" type="text" inputmode="numeric" maxlength="8" placeholder="YYYYMMDD">
-        <button type="button" class="order-today-btn" onclick="fillTodayDate()">今天</button>
+        <button type="button" class="order-today-btn" onclick="openDatePicker()">📅</button>
+        <input type="date" id="oosOrderDatePicker" class="date-picker-hidden">
       </div>
 
       <div class="order-field-row">
@@ -1399,16 +1413,37 @@ function renderQuickReasons() {
 
 
 // ============================================================
-// ★ v5.0：訂單資訊互動
+// ★ v5.1：訂單資訊互動（含日曆）
 // ============================================================
-function fillTodayDate() {
+function getTodayYMD() {
   var now = new Date();
   var y = now.getFullYear();
   var m = String(now.getMonth() + 1).padStart(2, '0');
   var d = String(now.getDate()).padStart(2, '0');
-  var v = '' + y + m + d;
-  var el = $('oosOrderDate');
-  if (el) el.value = v;
+  return '' + y + m + d;
+}
+
+function openDatePicker() {
+  var picker = $('oosOrderDatePicker');
+  if (!picker) return;
+
+  var curVal = ($('oosOrderDate').value || '').trim();
+  if (/^\d{8}$/.test(curVal)) {
+    picker.value = curVal.substring(0,4) + '-' + curVal.substring(4,6) + '-' + curVal.substring(6,8);
+  } else {
+    var t = getTodayYMD();
+    picker.value = t.substring(0,4) + '-' + t.substring(4,6) + '-' + t.substring(6,8);
+  }
+
+  try {
+    if (typeof picker.showPicker === 'function') {
+      picker.showPicker();
+      return;
+    }
+  } catch (e) {}
+
+  picker.click();
+  picker.focus();
 }
 
 function selectSlot(btn) {
@@ -1440,8 +1475,12 @@ function getSelectedChipValue(groupId) {
 
 function resetOrderInfo() {
   var el;
-  el = $('oosOrderDate'); if (el) el.value = '';
+  // ★ v5.1：單日期 prefill 今天
+  el = $('oosOrderDate');
+  if (el) el.value = getTodayYMD();
+
   el = $('oosOrderTail'); if (el) el.value = '';
+
   var g1 = $('oosTimeSlotGroup');
   if (g1) g1.querySelectorAll('.chip-btn').forEach(function(b) { b.classList.remove('selected'); });
   var g2 = $('oosOrderTypeGroup');
@@ -1534,7 +1573,6 @@ function formatOOSHistory(h, isLatest) {
           (reporter ? ' · ' + esc(reporter) : '') +
           '</div>';
 
-  // ★ v5.0：訂單資訊標籤
   var orderTags = [];
   if (h.orderDate) {
     var dStr = String(h.orderDate);
@@ -1580,7 +1618,6 @@ async function submitOOSReport() {
     return;
   }
 
-  // ★ v5.0：驗證訂單資訊
   var errMsg = validateOrderInfo();
   if (errMsg) {
     $('oosErrMsg').textContent = '❌ ' + errMsg;
@@ -2444,7 +2481,6 @@ function renderCard(d) {
     var oosAt = d._oos_at ? timeAgo(d._oos_at) : '';
     var reporter = d._oos_reporter || '';
 
-    // ★ v5.0：訂單資訊標籤
     var oosOrderTags = [];
     if (d._oos_orderDate) {
       var odStr = String(d._oos_orderDate);
@@ -3515,6 +3551,21 @@ document.addEventListener('keydown', function(e) {
     if ($('oosModal').classList.contains('show')) closeOOSModal();
   }
 });
+
+// ★ v5.1：綁定 date picker 的 change 事件
+(function() {
+  var picker = $('oosOrderDatePicker');
+  if (picker) {
+    picker.addEventListener('change', function() {
+      var v = this.value;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+        var ymd = v.replace(/-/g, '');
+        var el = $('oosOrderDate');
+        if (el) el.value = ymd;
+      }
+    });
+  }
+})();
 
 updateBarcodeButton();
 updateOOSFilterButton();
