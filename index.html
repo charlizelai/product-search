@@ -176,6 +176,23 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .oos-icon { font-size: 18px; }
 .oos-reason { font-size: 15px; color: #7f1d1d; font-weight: 600; padding-left: 4px; }
 .oos-meta { font-size: 12px; color: #b91c1c; opacity: 0.75; padding-left: 4px; }
+.oos-order-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+  padding-left: 4px;
+}
+.oos-order-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: #fff;
+  color: #c62828;
+  border: 1px solid #f5c6c6;
+}
 
 .temp-id-banner {
   margin-top: 10px; padding: 10px 12px;
@@ -478,6 +495,121 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 }
 .ocr-progress.show { display: block; }
 .ocr-progress-bar { height: 100%; background: #f57c00; width: 0%; transition: width 0.3s; }
+
+/* ★ v5.0：訂單資訊區 */
+.order-info-section {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: #f8f9fb;
+  border-radius: 12px;
+  border: 2px dashed #d2d2d7;
+}
+.order-info-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #6e6e73;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.order-info-title .optional-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: #86868b;
+  background: #e5e5e7;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.order-field-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  align-items: center;
+}
+.order-field-row:last-child { margin-bottom: 0; }
+.order-field-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6e6e73;
+  flex-shrink: 0;
+  width: 72px;
+}
+.order-input {
+  flex: 1;
+  padding: 10px 12px;
+  font-size: 16px;
+  border: 2px solid #d2d2d7;
+  border-radius: 8px;
+  background: #fff;
+  font-family: inherit;
+  -webkit-appearance: none;
+  min-width: 0;
+}
+.order-input:focus {
+  border-color: #0071e3;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0,113,227,.15);
+}
+.order-today-btn {
+  flex-shrink: 0;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  border: 2px solid #0071e3;
+  background: #e8f0fe;
+  color: #1a73e8;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.order-today-btn:active { background: #d2e3fc; }
+
+.chip-group {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+.chip-btn {
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  border: 2px solid #e5e5e7;
+  background: #fff;
+  color: #1d1d1f;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.chip-btn:active { transform: scale(0.96); }
+.chip-btn.selected {
+  background: #0071e3;
+  border-color: #0071e3;
+  color: #fff;
+}
+.chip-btn.selected.slot-early { background: #f57c00; border-color: #f57c00; }
+.chip-btn.selected.slot-mid   { background: #1a73e8; border-color: #1a73e8; }
+.chip-btn.selected.slot-late  { background: #6a1b9a; border-color: #6a1b9a; }
+
+.hist-order-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: #e8f0fe;
+  color: #1a73e8;
+  margin-right: 4px;
+  margin-top: 4px;
+}
+.hist-order-tag.slot-early { background: #fff3e0; color: #e65100; }
+.hist-order-tag.slot-mid   { background: #e8f0fe; color: #1a73e8; }
+.hist-order-tag.slot-late  { background: #f3e5f5; color: #6a1b9a; }
+.hist-order-tag.type-tag   { background: #e8f5e9; color: #2e7d32; }
 </style>
 </head>
 <body>
@@ -665,6 +797,43 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     </label>
     <textarea id="oosReason" placeholder="請填寫缺貨原因（至少 2 個字）"></textarea>
     <div class="quick-reasons" id="quickReasonsContainer"></div>
+
+    <div class="order-info-section">
+      <div class="order-info-title">
+        <span>📋 訂單資訊</span>
+        <span class="optional-tag">選填</span>
+      </div>
+
+      <div class="order-field-row">
+        <span class="order-field-label">單日期</span>
+        <input id="oosOrderDate" class="order-input" type="text" inputmode="numeric" maxlength="8" placeholder="YYYYMMDD">
+        <button type="button" class="order-today-btn" onclick="fillTodayDate()">今天</button>
+      </div>
+
+      <div class="order-field-row">
+        <span class="order-field-label">單號尾4</span>
+        <input id="oosOrderTail" class="order-input" type="text" inputmode="numeric" maxlength="4" placeholder="1234">
+      </div>
+
+      <div class="order-field-row">
+        <span class="order-field-label">派送時段</span>
+        <div class="chip-group" id="oosTimeSlotGroup">
+          <button type="button" class="chip-btn slot-early" data-value="早" onclick="selectSlot(this)">早 10-14</button>
+          <button type="button" class="chip-btn slot-mid"   data-value="中" onclick="selectSlot(this)">中 14-18</button>
+          <button type="button" class="chip-btn slot-late"  data-value="晚" onclick="selectSlot(this)">晚 18-21</button>
+        </div>
+      </div>
+
+      <div class="order-field-row">
+        <span class="order-field-label">單類型</span>
+        <div class="chip-group" id="oosOrderTypeGroup">
+          <button type="button" class="chip-btn" data-value="O2O" onclick="selectOrderType(this)">O2O</button>
+          <button type="button" class="chip-btn" data-value="CNC" onclick="selectOrderType(this)">CNC</button>
+          <button type="button" class="chip-btn" data-value="B2B" onclick="selectOrderType(this)">B2B</button>
+        </div>
+      </div>
+    </div>
+
     <div id="oosErrMsg" class="oos-err-msg"></div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeOOSModal()">取消</button>
@@ -940,7 +1109,6 @@ function showApp() {
   $('appScreen').style.display = 'block';
   $('btnOptionsMgr').style.display = isAdmin ? 'inline-block' : 'none';
   loadOptions().then(function() {
-    // 分類載入後，恢復上次選擇
     if (categoryFilter) {
       var sel = $('categoryFilter');
       if (sel) sel.value = categoryFilter;
@@ -1039,12 +1207,20 @@ function mergeOOSStates(oosMap) {
       d._oos_reason = oos.reason || '';
       d._oos_at = oos.at || '';
       d._oos_reporter = oos.reporter || '';
+      d._oos_orderDate = oos.orderDate || '';
+      d._oos_orderTail = oos.orderTail || '';
+      d._oos_timeSlot = oos.timeSlot || '';
+      d._oos_orderType = oos.orderType || '';
       count++;
     } else {
       delete d._oos;
       delete d._oos_reason;
       delete d._oos_at;
       delete d._oos_reporter;
+      delete d._oos_orderDate;
+      delete d._oos_orderTail;
+      delete d._oos_timeSlot;
+      delete d._oos_orderType;
     }
   });
 }
@@ -1169,6 +1345,7 @@ function reportOOS(id) {
   oosTargetId = id;
   oosSubmitting = false;
   renderQuickReasons();
+  resetOrderInfo();
   loadOOSHistory(id);
   var info = $('oosProductInfo');
   info.innerHTML =
@@ -1220,6 +1397,82 @@ function renderQuickReasons() {
   }).join('');
 }
 
+
+// ============================================================
+// ★ v5.0：訂單資訊互動
+// ============================================================
+function fillTodayDate() {
+  var now = new Date();
+  var y = now.getFullYear();
+  var m = String(now.getMonth() + 1).padStart(2, '0');
+  var d = String(now.getDate()).padStart(2, '0');
+  var v = '' + y + m + d;
+  var el = $('oosOrderDate');
+  if (el) el.value = v;
+}
+
+function selectSlot(btn) {
+  var group = $('oosTimeSlotGroup');
+  if (!group) return;
+  var wasSelected = btn.classList.contains('selected');
+  group.querySelectorAll('.chip-btn').forEach(function(b) {
+    b.classList.remove('selected');
+  });
+  if (!wasSelected) btn.classList.add('selected');
+}
+
+function selectOrderType(btn) {
+  var group = $('oosOrderTypeGroup');
+  if (!group) return;
+  var wasSelected = btn.classList.contains('selected');
+  group.querySelectorAll('.chip-btn').forEach(function(b) {
+    b.classList.remove('selected');
+  });
+  if (!wasSelected) btn.classList.add('selected');
+}
+
+function getSelectedChipValue(groupId) {
+  var group = $(groupId);
+  if (!group) return '';
+  var sel = group.querySelector('.chip-btn.selected');
+  return sel ? sel.getAttribute('data-value') : '';
+}
+
+function resetOrderInfo() {
+  var el;
+  el = $('oosOrderDate'); if (el) el.value = '';
+  el = $('oosOrderTail'); if (el) el.value = '';
+  var g1 = $('oosTimeSlotGroup');
+  if (g1) g1.querySelectorAll('.chip-btn').forEach(function(b) { b.classList.remove('selected'); });
+  var g2 = $('oosOrderTypeGroup');
+  if (g2) g2.querySelectorAll('.chip-btn').forEach(function(b) { b.classList.remove('selected'); });
+}
+
+function validateOrderInfo() {
+  var date = ($('oosOrderDate').value || '').trim();
+  var tail = ($('oosOrderTail').value || '').trim();
+
+  if (date && !/^\d{8}$/.test(date)) {
+    return '日期格式需為 YYYYMMDD（8 位數字）';
+  }
+  if (date) {
+    var y = parseInt(date.substring(0, 4), 10);
+    var m = parseInt(date.substring(4, 6), 10);
+    var d = parseInt(date.substring(6, 8), 10);
+    if (y < 2000 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) {
+      return '日期不合理，請檢查';
+    }
+  }
+  if (tail && !/^\d{1,4}$/.test(tail)) {
+    return '單號尾需為 1~4 位數字';
+  }
+  return '';
+}
+
+
+// ============================================================
+// OOS 歷史記錄
+// ============================================================
 async function loadOOSHistory(productId) {
   var box = $('oosHistoryBox');
   var content = $('oosHistoryContent');
@@ -1280,6 +1533,32 @@ function formatOOSHistory(h, isLatest) {
           (exact ? '（' + esc(at) + '）' : '') +
           (reporter ? ' · ' + esc(reporter) : '') +
           '</div>';
+
+  // ★ v5.0：訂單資訊標籤
+  var orderTags = [];
+  if (h.orderDate) {
+    var dStr = String(h.orderDate);
+    var dPretty = dStr;
+    if (/^\d{8}$/.test(dStr)) {
+      dPretty = dStr.substring(0,4) + '-' + dStr.substring(4,6) + '-' + dStr.substring(6,8);
+    }
+    orderTags.push('<span class="hist-order-tag">📅 ' + esc(dPretty) + '</span>');
+  }
+  if (h.orderTail) {
+    orderTags.push('<span class="hist-order-tag">#…' + esc(h.orderTail) + '</span>');
+  }
+  if (h.timeSlot) {
+    var slotCls = 'slot-' + (h.timeSlot === '早' ? 'early' : h.timeSlot === '中' ? 'mid' : 'late');
+    var slotLabel = h.timeSlot === '早' ? '早 10-14' : h.timeSlot === '中' ? '中 14-18' : '晚 18-21';
+    orderTags.push('<span class="hist-order-tag ' + slotCls + '">🕐 ' + esc(slotLabel) + '</span>');
+  }
+  if (h.orderType) {
+    orderTags.push('<span class="hist-order-tag type-tag">📦 ' + esc(h.orderType) + '</span>');
+  }
+  if (orderTags.length > 0) {
+    line += '<div style="margin-top:4px;">' + orderTags.join('') + '</div>';
+  }
+
   return line;
 }
 
@@ -1301,6 +1580,18 @@ async function submitOOSReport() {
     return;
   }
 
+  // ★ v5.0：驗證訂單資訊
+  var errMsg = validateOrderInfo();
+  if (errMsg) {
+    $('oosErrMsg').textContent = '❌ ' + errMsg;
+    return;
+  }
+
+  var orderDate = ($('oosOrderDate').value || '').trim();
+  var orderTail = ($('oosOrderTail').value || '').trim();
+  var timeSlot  = getSelectedChipValue('oosTimeSlotGroup');
+  var orderType = getSelectedChipValue('oosOrderTypeGroup');
+
   var p = allData.find(function(d) { return String(d.id) === String(oosTargetId); });
   var productName = p ? (p.name_zh || p.name) : '';
 
@@ -1314,7 +1605,11 @@ async function submitOOSReport() {
       productId: oosTargetId,
       productName: productName,
       reason: reason,
-      reporter: isAdmin ? 'admin' : 'user'
+      reporter: isAdmin ? 'admin' : 'user',
+      orderDate: orderDate,
+      orderTail: orderTail,
+      timeSlot: timeSlot,
+      orderType: orderType
     });
 
     if (result.error) {
@@ -1331,6 +1626,10 @@ async function submitOOSReport() {
       target._oos_reason = reason;
       target._oos_at = new Date().toISOString();
       target._oos_reporter = isAdmin ? 'admin' : 'user';
+      target._oos_orderDate = orderDate;
+      target._oos_orderTail = orderTail;
+      target._oos_timeSlot = timeSlot;
+      target._oos_orderType = orderType;
     }
 
     oosSubmitting = false;
@@ -1362,6 +1661,10 @@ async function restockProduct(id) {
       delete target._oos_reason;
       delete target._oos_at;
       delete target._oos_reporter;
+      delete target._oos_orderDate;
+      delete target._oos_orderTail;
+      delete target._oos_timeSlot;
+      delete target._oos_orderType;
     }
     toast('✅ 已標記為已補貨');
     render();
@@ -1455,7 +1758,6 @@ function updateBarcodeButton() {
   }
 }
 
-// ★ v4.15：切換數字/一般鍵盤
 function applyInputMode() {
   var q = $('q');
   if (!q) return;
@@ -1503,7 +1805,6 @@ function updateOOSFilterButton() {
   }
 }
 
-// ★ v4.16：分類篩選
 function populateCategoryFilter() {
   var sel = $('categoryFilter');
   if (!sel) return;
@@ -2004,7 +2305,9 @@ function saveLocalCache(data) {
           crosslane: p.crosslane, shelfnumber: p.shelfnumber, floor: p.floor,
           _last_modified: p._last_modified, _last_source: p._last_source,
           _oos: p._oos, _oos_reason: p._oos_reason,
-          _oos_at: p._oos_at, _oos_reporter: p._oos_reporter
+          _oos_at: p._oos_at, _oos_reporter: p._oos_reporter,
+          _oos_orderDate: p._oos_orderDate, _oos_orderTail: p._oos_orderTail,
+          _oos_timeSlot: p._oos_timeSlot, _oos_orderType: p._oos_orderType
         };
       });
       safeSetLS(LOCAL_CACHE_KEY, JSON.stringify(lite));
@@ -2042,7 +2345,6 @@ function render() {
     filtered = filtered.filter(function(d) { return d._oos === true || d._oos === 'true'; });
   }
 
-  // ★ v4.16：分類篩選
   if (categoryFilter) {
     filtered = filtered.filter(function(d) {
       return String(d.category_en || '').trim() === categoryFilter;
@@ -2125,7 +2427,6 @@ function renderCard(d) {
     simBadge = '<span class="sim-badge" style="background:' + color + ';">相似 ' + score + '%</span>';
   }
 
-  // ★ v4.16：分類標籤 chip
   var catChipHtml = '';
   if (d.category_en || d.category_zh) {
     var displayCat = d.category_zh || d.category_en || '';
@@ -2142,11 +2443,37 @@ function renderCard(d) {
     var reason = d._oos_reason || '（無原因）';
     var oosAt = d._oos_at ? timeAgo(d._oos_at) : '';
     var reporter = d._oos_reporter || '';
+
+    // ★ v5.0：訂單資訊標籤
+    var oosOrderTags = [];
+    if (d._oos_orderDate) {
+      var odStr = String(d._oos_orderDate);
+      var odPretty = odStr;
+      if (/^\d{8}$/.test(odStr)) {
+        odPretty = odStr.substring(0,4) + '-' + odStr.substring(4,6) + '-' + odStr.substring(6,8);
+      }
+      oosOrderTags.push('<span class="oos-order-tag">📅 ' + esc(odPretty) + '</span>');
+    }
+    if (d._oos_orderTail) {
+      oosOrderTags.push('<span class="oos-order-tag">#…' + esc(d._oos_orderTail) + '</span>');
+    }
+    if (d._oos_timeSlot) {
+      var slotLabel = d._oos_timeSlot === '早' ? '早 10-14' : d._oos_timeSlot === '中' ? '中 14-18' : '晚 18-21';
+      oosOrderTags.push('<span class="oos-order-tag">🕐 ' + esc(slotLabel) + '</span>');
+    }
+    if (d._oos_orderType) {
+      oosOrderTags.push('<span class="oos-order-tag">📦 ' + esc(d._oos_orderType) + '</span>');
+    }
+    var oosOrderHtml = oosOrderTags.length > 0
+      ? '<div class="oos-order-info">' + oosOrderTags.join('') + '</div>'
+      : '';
+
     oosBanner =
       '<div class="oos-banner">' +
         '<div class="oos-row1"><span class="oos-icon">⚠️</span><span>缺貨中</span></div>' +
         '<div class="oos-reason">原因：' + esc(reason) + '</div>' +
         (oosAt ? '<div class="oos-meta">' + esc(oosAt) + (reporter ? ' · ' + esc(reporter) : '') + '</div>' : '') +
+        oosOrderHtml +
       '</div>';
   }
 
