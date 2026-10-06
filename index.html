@@ -505,7 +505,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .ocr-progress.show { display: block; }
 .ocr-progress-bar { height: 100%; background: #f57c00; width: 0%; transition: width 0.3s; }
 
-/* ★ 訂單資訊區 */
+/* 訂單資訊區 */
 .order-info-section {
   margin-top: 14px;
   padding: 12px 14px;
@@ -942,8 +942,6 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     <div class="lightbox-caption" id="lightboxCaption"></div>
   </div>
 </div>
-
-<script>
 // ============================================================
 // 配置
 // ============================================================
@@ -1020,6 +1018,10 @@ let editingOptions = null;
 
 let ocrTargetField = null;
 let ocrProcessing = false;
+
+// ★ 階段 2：假期與繁忙日
+let HK_HOLIDAYS = {};
+let HK_BUSY_DAYS = {};
 
 const $ = function(id) { return document.getElementById(id); };
 const FIELDS = ['id','barcode','name','name_zh','price','original_price','image','category_en','category_zh','description',
@@ -1133,6 +1135,8 @@ function logout() {
   allData = [];
   optionsLoaded = false;
   OPTIONS = { warehouse: [], aisle: [], crosslane: [], floor: [], combine: [], category_en: [], oos_reason: [] };
+  HK_HOLIDAYS = {};
+  HK_BUSY_DAYS = {};
   $('appScreen').style.display = 'none';
   $('loginScreen').style.display = 'block';
   $('pwdInput').value = '';
@@ -1161,6 +1165,7 @@ function showApp() {
   updateOOSFilterButton();
   updateSortButton();
   applyInputMode();
+  loadHolidays();   // ★ 階段 2
   loadData();
   if (isAdmin) {
     setTimeout(checkTempIds, 2500);
@@ -1186,6 +1191,88 @@ async function apiPost(body) {
     body: JSON.stringify(payload)
   });
   return res.json();
+}
+
+
+// ============================================================
+// ★ 階段 2：香港公眾假期 + 自訂繁忙日
+// ============================================================
+async function loadHolidays() {
+  try {
+    var res = await apiGet('holidays');
+    if (!res || !res.ok) return;
+
+    HK_HOLIDAYS = {};
+    (res.holidays || []).forEach(function(h) {
+      HK_HOLIDAYS[h.date] = h.name;
+    });
+
+    HK_BUSY_DAYS = {};
+    (res.busyDays || []).forEach(function(b) {
+      HK_BUSY_DAYS[b.date] = { name: b.name, type: b.type, note: b.note };
+    });
+
+    console.log('🗓️ 公眾假期 ' + Object.keys(HK_HOLIDAYS).length +
+      ' 個，自訂繁忙日 ' + Object.keys(HK_BUSY_DAYS).length + ' 個');
+  } catch (e) {
+    console.warn('載入假期失敗：', e);
+  }
+}
+
+function getBusyDayInfo(ymd) {
+  if (!/^\d{8}$/.test(ymd)) return null;
+  var dash = ymd.substring(0,4) + '-' + ymd.substring(4,6) + '-' + ymd.substring(6,8);
+
+  if (HK_HOLIDAYS[dash]) {
+    return { type: 'public', name: HK_HOLIDAYS[dash], note: '' };
+  }
+  if (HK_BUSY_DAYS[dash]) {
+    return {
+      type: HK_BUSY_DAYS[dash].type || 'busy',
+      name: HK_BUSY_DAYS[dash].name,
+      note: HK_BUSY_DAYS[dash].note
+    };
+  }
+  return null;
+}
+
+function getBusyDayEveInfo(ymd) {
+  var dt = new Date(
+    parseInt(ymd.substring(0,4), 10),
+    parseInt(ymd.substring(4,6), 10) - 1,
+    parseInt(ymd.substring(6,8), 10)
+  );
+  dt.setDate(dt.getDate() + 1);
+  var tomorrow = '' +
+    dt.getFullYear() +
+    String(dt.getMonth() + 1).padStart(2, '0') +
+    String(dt.getDate()).padStart(2, '0');
+  return getBusyDayInfo(tomorrow);
+}
+
+function showTodayBusyDayHint() {
+  var existing = $('oosTodayBusyHint');
+  if (existing) existing.remove();
+
+  var today = getTodayYMD();
+  var info = getBusyDayInfo(today);
+  if (!info) return;
+
+  var hint = document.createElement('div');
+  hint.id = 'oosTodayBusyHint';
+
+  if (info.type === 'public') {
+    hint.style.cssText = 'margin-bottom:12px;padding:10px 14px;background:#fdecea;border-left:4px solid #c62828;border-radius:8px;font-size:14px;font-weight:700;color:#c62828;line-height:1.5;';
+    hint.textContent = '🏖️ 今日為公眾假期：' + info.name + '（備貨高峯）';
+  } else {
+    hint.style.cssText = 'margin-bottom:12px;padding:10px 14px;background:#fff3cd;border-left:4px solid #f57c00;border-radius:8px;font-size:14px;font-weight:700;color:#856404;line-height:1.5;';
+    hint.textContent = '🔥 今日為繁忙日：' + info.name + (info.note ? '（' + info.note + '）' : '');
+  }
+
+  var info2 = $('oosProductInfo');
+  if (info2 && info2.parentNode) {
+    info2.parentNode.insertBefore(hint, info2.nextSibling);
+  }
 }
 
 
@@ -1400,6 +1487,7 @@ function reportOOS(id) {
   $('oosSubmitBtn').textContent = '確認缺貨';
   $('oosModal').classList.add('show');
   setTimeout(function() { $('oosReason').focus(); }, 200);
+  showTodayBusyDayHint();   // ★ 階段 2
 }
 
 function closeOOSModal() {
@@ -1408,9 +1496,11 @@ function closeOOSModal() {
   $('oosModal').classList.remove('show');
   var box = $('oosHistoryBox');
   if (box) box.style.display = 'none';
+  var hb = $('oosTodayBusyHint');
+  if (hb) hb.remove();
 }
 
-// ★ 多選 toggle
+// 多選 toggle
 function toggleQuickReason(btn) {
   if (btn.classList.contains('selected')) {
     btn.classList.remove('selected');
@@ -1479,6 +1569,42 @@ function syncPickerToText() {
   var ymd = v.replace(/-/g, '');
   var el = $('oosOrderDate');
   if (el) el.value = ymd;
+
+  // ★ 階段 2：檢查繁忙日
+  var info = getBusyDayInfo(ymd);
+  var eveInfo = getBusyDayEveInfo(ymd);
+
+  var hint = $('oosHolidayHint');
+  if (!hint) {
+    hint = document.createElement('div');
+    hint.id = 'oosHolidayHint';
+    hint.style.cssText = 'margin-top:8px;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;display:none;line-height:1.5;';
+    var wrap = picker.closest('.date-picker-wrap') || picker.closest('.order-field-row');
+    if (wrap && wrap.parentNode) {
+      wrap.parentNode.insertBefore(hint, wrap.nextSibling);
+    }
+  }
+
+  if (info) {
+    hint.style.display = 'block';
+    if (info.type === 'public') {
+      hint.style.background = '#fdecea';
+      hint.style.color = '#c62828';
+      hint.textContent = '🏖️ 公眾假期：' + info.name + '（最忙、最易缺貨）';
+    } else {
+      hint.style.background = '#fff3cd';
+      hint.style.color = '#856404';
+      hint.textContent = '🔥 繁忙日：' + info.name + (info.note ? '（' + info.note + '）' : '');
+    }
+  } else if (eveInfo) {
+    hint.style.display = 'block';
+    hint.style.background = '#fff3cd';
+    hint.style.color = '#856404';
+    var prefix = eveInfo.type === 'public' ? '🏖️ 假期前夕' : '⚠️ 繁忙日前夕';
+    hint.textContent = prefix + '（明日：' + eveInfo.name + '）—— 備貨高峯';
+  } else {
+    hint.style.display = 'none';
+  }
 }
 
 function syncTextToPicker() {
@@ -1532,6 +1658,9 @@ function resetOrderInfo() {
   if (g2) g2.querySelectorAll('.chip-btn').forEach(function(b) { b.classList.remove('selected'); });
 
   try { syncTextToPicker(); } catch (e) {}
+
+  var hint = $('oosHolidayHint');
+  if (hint) { hint.style.display = 'none'; hint.textContent = ''; }
 }
 
 function validateOrderInfo() {
@@ -1607,7 +1736,6 @@ function formatOOSHistory(h, isLatest) {
       }
     } catch (e) {}
   }
-  // ★ 多選原因顯示：；→ 、
   var reason = (h.reason || '（無原因）').replace(/；/g, '、');
   var reporter = h.reporter || '';
   var statusTag = (h.status === 'active')
@@ -1658,7 +1786,6 @@ async function submitOOSReport() {
   if (oosSubmitting) return;
   if (!oosTargetId) { closeOOSModal(); return; }
 
-  // ★ 收集多選原因 + 額外文字
   var selectedReasons = getSelectedReasons();
   var extraReason = ($('oosReason').value || '').trim();
   var allReasons = selectedReasons.slice();
@@ -1730,6 +1857,8 @@ async function submitOOSReport() {
     oosSubmitting = false;
     oosTargetId = null;
     $('oosModal').classList.remove('show');
+    var hb = $('oosTodayBusyHint');
+    if (hb) hb.remove();
     toast('✅ 已回報缺貨');
     render();
     clearLocalCache();
@@ -2535,7 +2664,6 @@ function renderCard(d) {
 
   var oosBanner = '';
   if (isOOS) {
-    // ★ 多選原因顯示：；→ 、
     var reason = (d._oos_reason || '（無原因）').replace(/；/g, '、');
     var oosAt = d._oos_at ? timeAgo(d._oos_at) : '';
     var reporter = d._oos_reporter || '';
@@ -3591,6 +3719,8 @@ function showDebug() {
     'Tesseract 已載入': isOcrAvailable() ? '是' : '否',
     'oos_reason 選項數': (OPTIONS.oos_reason || []).length,
     'category_en 選項數': (OPTIONS.category_en || []).length,
+    '公眾假期數': Object.keys(HK_HOLIDAYS).length,
+    '自訂繁忙日數': Object.keys(HK_BUSY_DAYS).length,
     'UA': navigator.userAgent.substring(0, 60)
   };
   var msg = '';
@@ -3634,3 +3764,4 @@ else $('loginScreen').style.display = 'block';
 </script>
 </body>
 </html>
+<script>
