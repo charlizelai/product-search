@@ -949,7 +949,9 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 // ============================================================
 const API_URL = 'https://script.google.com/macros/s/AKfycby6NrRUYbt9wnEBhx2pSdC3mtbcdVFZWhtqxYX9gvcV0xVOa-ww5_rm-iQovJwB8dqUmQ/exec';
 const CDN_URL = 'https://raw.githubusercontent.com/charlizelai/product-search/main/data/products.json';
-const ADMIN_TOKEN = 'charlize-admin-2026';
+// ⚠️ 此值必須與 api.gs 的 ADMIN_TOKEN / ScriptProperties 一致。
+//    舊版管理員密碼曾寫死在這一行、已外洩，本次已作廢輪替。
+const ADMIN_TOKEN = 'XESY7S9CABHUQke';
 
 const LOCAL_CACHE_KEY = 'products_v2';
 const LOCAL_CACHE_TIME_KEY = 'products_v2_time';
@@ -2769,7 +2771,7 @@ function renderCard(d) {
       '<button class="btn-edit" onclick="openEdit(\'' + safeId + '\')">✏️ 編輯</button>' +
       '<button class="btn-icon" onclick="copyId(\'' + safeId + '\')" title="複製 ID">📋</button>' +
       oosButton +
-      '<button class="btn-del" onclick="confirmDelete(\'' + safeId + '\')" title="刪除">🗑️</button>' +
+      (isAdmin ? '<button class="btn-del" onclick="confirmDelete(\'' + safeId + '\')" title="刪除">🗑️</button>' : '') +
     '</div>' +
   '</div>';
 }
