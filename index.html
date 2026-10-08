@@ -145,7 +145,11 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .phash-progress { width: 100%; height: 8px; border-radius: 4px; background: #ffe9a8; overflow: hidden; margin-top: 6px; }
 .phash-progress-bar { height: 100%; background: #f57c00; width: 0%; transition: width 0.3s; }
 
-.list { padding: 12px; }
+/* 底部必須留位給浮動按鈕，否則最後一張卡片的 .card-actions 會被蓋住、按不到：
+     1. .add-btn（「+」，bottom 24px + 高 72px）
+     2. #debugBtn（bottom 100px + 約 30px 高）
+   預留空間讓最後一張卡可以捲到浮動按鈕之上。 */
+.list { padding: 12px; padding-bottom: calc(140px + env(safe-area-inset-bottom)); }
 .card {
   background: #fff; border-radius: 16px;
   padding: 14px; margin-bottom: 12px;
