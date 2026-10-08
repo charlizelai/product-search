@@ -1980,7 +1980,7 @@ function updateBarcodeButton() {
     btn.classList.remove('active');
     btn.classList.add('barcode-active');
     if (sb) sb.classList.add('barcode-mode');
-    if (q) q.placeholder = '只搜條碼（完整或尾 6 位以上）...';
+    if (q) q.placeholder = '只搜條碼：輸入尾 6 位數字（完整條碼請用 📷 掃描）...';
   } else {
     btn.textContent = '🏷️ 只搜條碼';
     btn.classList.remove('barcode-active');
@@ -1995,6 +1995,17 @@ function applyInputMode() {
   if (!q) return;
 
   var mode = barcodeOnly ? 'numeric' : 'text';
+
+  // 「只搜條碼」模式：數字鍵盤「手動輸入」上限 6 位。
+  // maxlength 只限制使用者輸入，不會影響程式指派（scan / 歷史紀錄）的 value，
+  // 所以相機掃描帶入的完整條碼（例如 13 位）不會被截短。
+  // 一般搜尋模式則完全不設限（要能打中英文名稱、位置等）。
+  if (barcodeOnly) {
+    q.setAttribute('maxlength', String(MIN_SUFFIX_LEN));
+  } else {
+    q.removeAttribute('maxlength');
+  }
+
   var currentMode = q.getAttribute('inputmode') || 'text';
   if (currentMode === mode) return;
 
@@ -3546,7 +3557,15 @@ function onScanSuccess(decodedText) {
   setScanStatus('✅ 已辨識：' + decodedText, 'ok');
 
   if (scanMode === 'search') {
-    $('q').value = decodedText;
+    // 相機掃描：帶入「完整」條碼（可 > 6 位）。
+    // 先暫時移除 maxlength 再指派，確保不會被截成 6 位；
+    // 指派完成後立刻還原，手動輸入的 6 位上限依然有效。
+    var qEl = $('q');
+    var savedMax = qEl.getAttribute('maxlength');
+    qEl.removeAttribute('maxlength');
+    qEl.value = decodedText;
+    if (savedMax !== null) qEl.setAttribute('maxlength', savedMax);
+
     addSearchHistory(decodedText);
     closeScan();
     searchMode = 'text';
@@ -3623,6 +3642,9 @@ function toggleTorch() {
 var searchTimer;
 $('q').addEventListener('input', function() {
   if (searchMode === 'image') { searchMode = 'text'; loadData(true); return; }
+  // 註：6 位上限由 applyInputMode() 設定的 maxlength 屬性負責。
+  //     maxlength 只限制「使用者輸入」，不影響程式指派的 value，
+  //     所以相機掃描帶入的完整條碼（>6 位）不會被截短。
   clearTimeout(searchTimer);
   searchTimer = setTimeout(render, 150);
 
@@ -3640,8 +3662,23 @@ $('q').addEventListener('input', function() {
       sb.classList.remove('barcode-mode');
       q.placeholder = '搜尋 / 條碼（尾 6 位以上）/ 位置...';
     } else {
-      q.placeholder = '只搜條碼（完整或尾 6 位以上）...';
+      q.placeholder = '只搜條碼：輸入尾 6 位數字（完整條碼請用 📷 掃描）...';
     }
+  }
+});
+
+// 貼上完整條碼時只取「尾 6 位」：條碼搜尋以尾 6 位為鍵，
+// 若照一般截斷取頭 6 位會搜錯東西。
+$('q').addEventListener('paste', function(e) {
+  if (!barcodeOnly) return;
+  var cd = e.clipboardData || window.clipboardData;
+  if (!cd) return;
+  var digits = String(cd.getData('text') || '').replace(/\D/g, '');
+  if (digits.length > MIN_SUFFIX_LEN) {
+    e.preventDefault();
+    $('q').value = digits.slice(-MIN_SUFFIX_LEN);
+    clearTimeout(searchTimer);
+    render();
   }
 });
 $('q').addEventListener('focus', showSearchHistory);
