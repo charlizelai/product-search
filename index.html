@@ -1492,7 +1492,9 @@ function reportOOS(id) {
   $('oosReason').classList.remove('invalid');
   $('oosErrMsg').textContent = '';
   $('oosSubmitBtn').disabled = false;
-  $('oosSubmitBtn').textContent = '確認缺貨';
+  // 已缺貨中再回報（另一張單）→ 後端是更新同一筆記錄，按鈕文字講清楚
+  var alreadyOOS = (p._oos === true || p._oos === 'true');
+  $('oosSubmitBtn').textContent = alreadyOOS ? '更新缺貨記錄' : '確認缺貨';
   $('oosModal').classList.add('show');
   setTimeout(function() { $('oosReason').focus(); }, 200);
   showTodayBusyDayHint();   // ★ 階段 2
@@ -2742,9 +2744,15 @@ function renderCard(d) {
       '</div>';
   }
 
-  var oosButton = isOOS
-    ? '<button class="btn-icon btn-restock" onclick="restockProduct(\'' + safeId + '\')" title="已補貨">✅</button>'
-    : '<button class="btn-icon btn-oos" onclick="reportOOS(\'' + safeId + '\')" title="回報缺貨">❌</button>';
+  // 缺貨回報：❌ 永遠都在。
+  // 已缺貨的產品可以再按 ❌ —— 例如「另一張單都買同一件貨，但仍然無貨」。
+  // 後端 reportOOS 會就地更新同一筆 active 記錄（帶入最新訂單資訊），
+  // 不會新增重複記錄；需要看舊資料時 modal 會顯示「上次缺貨記錄」。
+  // 只有在已缺貨時才額外顯示 ✅（已補貨）。
+  var oosButton =
+    '<button class="btn-icon btn-oos" onclick="reportOOS(\'' + safeId + '\')" title="' +
+      (isOOS ? '再報缺貨（另一張單）' : '回報缺貨') + '">❌</button>' +
+    (isOOS ? '<button class="btn-icon btn-restock" onclick="restockProduct(\'' + safeId + '\')" title="已補貨">✅</button>' : '');
 
   var hasImg = !!(d._preview || d.image);
   var imgSrc = esc(d._preview || d.image) || noImg;
