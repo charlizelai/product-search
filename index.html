@@ -705,6 +705,15 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
         <option value="">📂 全部分類</option>
       </select>
     </div>
+    <!-- #21：以品牌篩選（品牌由惠康 JSON-LD 自動寫入） -->
+    <div class="category-filter-row">
+      <select id="brandFilter" class="category-select" onchange="onBrandChange()" style="display:none;">
+        <option value="">🏷️ 全部品牌</option>
+      </select>
+    </div>
+    <div id="brandFilterHint" style="display:none; text-align:center; font-size:12px; color:#86868b; margin-top:4px;">
+      🏷️ 品牌資料尚未建立 —— 惠康自動更新寫入「品牌」欄後就會出現
+    </div>
     <!-- #20：以「單日期」篩出某日有哪幾張單缺貨 -->
     <div class="category-filter-row">
       <label for="oosDateFilter" style="font-size:14px; font-weight:600; color:#6e6e73; margin-right:8px; white-space:nowrap; align-self:center;">📅 缺貨單日期</label>
@@ -788,6 +797,10 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
         <select id="f_category_en" class="field-select"><option value="">— 請選擇 —</option></select>
       </div>
       <div class="field"><label>分類（中）</label><input id="f_category_zh" autocomplete="off"></div>
+    </div>
+    <div class="field">
+      <label>品牌</label>
+      <input id="f_brand" autocomplete="off" placeholder="例：明治（惠康自動更新時會自動填入）">
     </div>
     <div class="field"><label>描述</label><textarea id="f_description"></textarea></div>
 
@@ -1046,6 +1059,7 @@ let sortMode = 'default';
 let barcodeOnly = false;
 let oosFilterOnly = false;
 let categoryFilter = '';
+let brandFilter = '';   // #21：品牌篩選
 // #20：以「單日期」篩選缺貨訂單（不持久化，屬臨時查詢）
 let oosDateFilter = '';   // 'YYYYMMDD'，空 = 不篩選
 let oosSlotFilter = '';   // '早' / '中' / '晚' / '放假'，空 = 不篩選
@@ -1078,7 +1092,7 @@ let HK_BUSY_DAYS = {};
 
 const $ = function(id) { return document.getElementById(id); };
 const FIELDS = ['id','barcode','name','name_zh','price','original_price','image','category_en','category_zh','description',
-                'temp_location','combine','warehouse','island','aisle','crosslane','shelfnumber','floor'];
+                'brand','temp_location','combine','warehouse','island','aisle','crosslane','shelfnumber','floor'];
 
 
 // ============================================================
@@ -2296,6 +2310,54 @@ function onCategoryChange() {
   }
 }
 
+// ============================================================
+// #21：品牌篩選
+// ============================================================
+/** 由目前資料收集所有品牌，重建下拉選單（按使用量排序，常用在前） */
+function populateBrandFilter() {
+  var sel = $('brandFilter');
+  var hint = $('brandFilterHint');
+  if (!sel) return;
+
+  var counts = {};
+  allData.forEach(function(d) {
+    var b = String(d.brand || '').trim();
+    if (b) counts[b] = (counts[b] || 0) + 1;
+  });
+
+  var brands = Object.keys(counts);
+  // 先按產品數量多的排前面，數量相同才按名稱
+  brands.sort(function(a, b) {
+    if (counts[b] !== counts[a]) return counts[b] - counts[a];
+    return a.localeCompare(b, 'zh-HK');
+  });
+
+  var prev = sel.value;
+  sel.innerHTML = '<option value="">🏷️ 全部品牌（' + brands.length + '）</option>';
+  brands.forEach(function(b) {
+    var o = document.createElement('option');
+    o.value = b;
+    o.textContent = b + '（' + counts[b] + '）';
+    sel.appendChild(o);
+  });
+
+  // 篩選中的品牌若已消失，就清掉篩選
+  if (brandFilter && brands.indexOf(brandFilter) < 0) {
+    brandFilter = '';
+  }
+  sel.value = brandFilter || prev || '';
+  sel.style.display = brands.length ? '' : 'none';
+  if (hint) hint.style.display = brands.length ? 'none' : 'block';
+}
+
+function onBrandChange() {
+  var sel = $('brandFilter');
+  if (!sel) return;
+  brandFilter = sel.value || '';
+  render();
+  toast(brandFilter ? ('🏷️ 已篩選品牌：' + brandFilter) : '🏷️ 顯示全部品牌');
+}
+
 function filterByCategory(cat) {
   if (!cat) return;
   categoryFilter = cat;
@@ -2353,7 +2415,7 @@ function productMatchesTerm(d, term) {
   if (barcodeMatches(d.barcode, term)) return true;
   if (barcodeOnly) return false;
   var searchable = [
-    d.id, d.name, d.name_zh, d.category_en, d.category_zh, d.description,
+    d.id, d.name, d.name_zh, d.brand, d.category_en, d.category_zh, d.description,
     d.temp_location, d.combine, d.warehouse, d.island,
     d.aisle, d.crosslane, d.shelfnumber, d.floor
   ].map(function(v) { return v == null ? '' : String(v); })
@@ -2741,6 +2803,7 @@ function applyProducts(data) {
     return d;
   });
   searchMode = 'text';
+  populateBrandFilter();   // #21：品牌清單跟著資料更新
 }
 
 function saveLocalCache(data) {
@@ -2804,6 +2867,13 @@ function render() {
     });
   }
 
+  // #21：品牌篩選
+  if (brandFilter) {
+    filtered = filtered.filter(function(d) {
+      return String(d.brand || '').trim() === brandFilter;
+    });
+  }
+
   // #20：單日期／派送時段篩選 —— 只留符合條件的產品
   var dateAgg = buildOOSDateMatch();
   if (oosFilterActive()) {
@@ -2839,6 +2909,7 @@ function render() {
     statsText += ' · 📅 ' + oosDateFilter.replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3');
   }
   if (oosSlotFilter) statsText += ' · 🚚 ' + oosSlotFilter;
+  if (brandFilter) statsText += ' · 🏷️ ' + brandFilter;
   $('stats').textContent = statsText;
 
   // #20：符合條件的缺貨訂單摘要（單日期 ＋ 派送時段）
@@ -3277,7 +3348,7 @@ function openEdit(id) {
   pendingImage = null;
   $('modalTitle').textContent = '編輯產品';
   bumpUsage(id);
-  var textFields = ['id','barcode','name','name_zh','price','original_price','image','category_zh','description','temp_location','island','shelfnumber'];
+  var textFields = ['id','barcode','name','name_zh','price','original_price','image','category_zh','description','brand','temp_location','island','shelfnumber'];
   textFields.forEach(function(k) { $('f_' + k).value = p[k] || ''; });
   ['warehouse', 'aisle', 'crosslane', 'floor', 'category_en'].forEach(function(k) {
     var el = $('f_' + k);
