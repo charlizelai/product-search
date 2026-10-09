@@ -178,6 +178,13 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 }
 .oos-row1 { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 800; color: #c62828; }
 .oos-icon { font-size: 18px; }
+.oos-qty {
+  margin-left: auto; flex-shrink: 0;
+  background: #c62828; color: #fff;
+  font-size: 14px; font-weight: 800;
+  padding: 3px 12px; border-radius: 999px; white-space: nowrap;
+}
+.oos-qty-sub { font-size: 11px; font-weight: 700; opacity: .85; margin-left: 4px; }
 .oos-reason { font-size: 15px; color: #7f1d1d; font-weight: 600; padding-left: 4px; }
 .oos-meta { font-size: 12px; color: #b91c1c; opacity: 0.75; padding-left: 4px; }
 .oos-order-info {
@@ -841,6 +848,24 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     <textarea id="oosReason" placeholder="選填：如需補充額外原因，可在此輸入（上方按鈕可多選）"></textarea>
     <div class="quick-reasons" id="quickReasonsContainer"></div>
 
+    <div style="margin-top:16px;">
+      <label for="oosQty" style="display:block; font-size:16px; font-weight:700; margin-bottom:8px;">
+        📦 缺貨件數
+      </label>
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <button type="button" onclick="stepOOSQty(-1)"
+          style="width:44px; height:44px; border-radius:10px; border:2px solid #d2d2d7; background:#f5f5f7; font-size:22px; font-weight:700; cursor:pointer; line-height:1;">−</button>
+        <input id="oosQty" type="text" inputmode="numeric" maxlength="4" value="1"
+          style="width:88px; padding:9px 12px; font-size:20px; font-weight:800; text-align:center;
+                 border:2px solid #d2d2d7; border-radius:10px; -webkit-appearance:none; font-family:inherit;">
+        <button type="button" onclick="stepOOSQty(1)"
+          style="width:44px; height:44px; border-radius:10px; border:2px solid #d2d2d7; background:#f5f5f7; font-size:22px; font-weight:700; cursor:pointer; line-height:1;">＋</button>
+        <span style="font-size:13px; color:#86868b; line-height:1.4;">
+          件<br>同一件貨多張單會累加
+        </span>
+      </div>
+    </div>
+
     <div class="order-info-section">
       <div class="order-info-title">
         <span>📋 訂單資訊</span>
@@ -1348,6 +1373,9 @@ function mergeOOSStates(oosMap) {
       d._oos_orderTail = oos.orderTail || '';
       d._oos_timeSlot = oos.timeSlot || '';
       d._oos_orderType = oos.orderType || '';
+      // 累計缺貨件數／單數（後端 getActiveOOSMap 已按產品加總）
+      d._oos_qty = oos.qty || 0;
+      d._oos_reports = oos.reports || 0;
       count++;
     } else {
       delete d._oos;
@@ -1358,6 +1386,8 @@ function mergeOOSStates(oosMap) {
       delete d._oos_orderTail;
       delete d._oos_timeSlot;
       delete d._oos_orderType;
+      delete d._oos_qty;
+      delete d._oos_reports;
     }
   });
 }
@@ -1476,6 +1506,20 @@ async function copyId(id) {
 // ============================================================
 // OOS 缺貨回報
 // ============================================================
+/**
+ * 缺貨件數的 ＋／－（範圍 1 ~ 9999）
+ */
+function stepOOSQty(delta) {
+  var el = $('oosQty');
+  if (!el) return;
+  var v = parseInt(String(el.value || '').replace(/[^0-9]/g, ''), 10);
+  if (isNaN(v)) v = 1;
+  v += delta;
+  if (v < 1) v = 1;
+  if (v > 9999) v = 9999;
+  el.value = String(v);
+}
+
 function reportOOS(id) {
   var p = allData.find(function(d) { return String(d.id) === String(id); });
   if (!p) { toast('❌ 找不到此產品'); return; }
@@ -1491,6 +1535,8 @@ function reportOOS(id) {
   $('oosReason').value = '';
   $('oosReason').classList.remove('invalid');
   $('oosErrMsg').textContent = '';
+  // 每次回報預設 1 件；同一件貨再回報時，件數會累加到該產品的總數
+  $('oosQty').value = '1';
   $('oosSubmitBtn').disabled = false;
   // 已缺貨中再回報（另一張單）→ 後端是更新同一筆記錄，按鈕文字講清楚
   var alreadyOOS = (p._oos === true || p._oos === 'true');
@@ -1752,7 +1798,14 @@ function formatOOSHistory(h, isLatest) {
     ? '<span style="background:#c62828; color:#fff; font-size:11px; padding:1px 6px; border-radius:4px; margin-left:4px;">現正缺貨</span>'
     : '<span style="background:#e8f5e9; color:#2e7d32; font-size:11px; padding:1px 6px; border-radius:4px; margin-left:4px;">已補貨</span>';
 
-  var line = '<div style="font-weight:700;">' + esc(reason) + statusTag + '</div>';
+  // 該次回報的缺貨件數（舊記錄沒有數量欄 → 當 1 件）
+  var hQty = parseInt(String(h.qty == null ? '' : h.qty).replace(/[^0-9]/g, ''), 10);
+  if (isNaN(hQty) || hQty < 1) hQty = 1;
+  var qtyTag = '<span style="background:#fdecea; color:#c62828; border:1px solid #f5c6c6; ' +
+               'font-size:11px; font-weight:700; padding:1px 6px; border-radius:4px; margin-left:4px;">' +
+               hQty + ' 件</span>';
+
+  var line = '<div style="font-weight:700;">' + esc(reason) + statusTag + qtyTag + '</div>';
   line += '<div style="font-size:12px; color:#8d6e63; margin-top:2px;">' +
           esc(exact || at) +
           (exact ? '（' + esc(at) + '）' : '') +
@@ -1824,6 +1877,15 @@ async function submitOOSReport() {
   var timeSlot  = getSelectedChipValue('oosTimeSlotGroup');
   var orderType = getSelectedChipValue('oosOrderTypeGroup');
 
+  // 缺貨件數（預設 1）。同一件貨再回報時，後端會把件數累加。
+  var qty = parseInt(String($('oosQty').value || '').replace(/[^0-9]/g, ''), 10);
+  if (isNaN(qty) || qty < 1) {
+    $('oosErrMsg').textContent = '❌ 缺貨件數需為 1 或以上';
+    $('oosQty').focus();
+    return;
+  }
+  if (qty > 9999) qty = 9999;
+
   var p = allData.find(function(d) { return String(d.id) === String(oosTargetId); });
   var productName = p ? (p.name_zh || p.name) : '';
 
@@ -1841,7 +1903,8 @@ async function submitOOSReport() {
       orderDate: orderDate,
       orderTail: orderTail,
       timeSlot: timeSlot,
-      orderType: orderType
+      orderType: orderType,
+      qty: qty
     });
 
     if (result.error) {
@@ -1862,6 +1925,13 @@ async function submitOOSReport() {
       target._oos_orderTail = orderTail;
       target._oos_timeSlot = timeSlot;
       target._oos_orderType = orderType;
+      // 累計件數：優先用後端回傳的總數（已含本次）
+      target._oos_qty = (result.totalQty != null)
+        ? result.totalQty
+        : ((parseInt(target._oos_qty, 10) || 0) + qty);
+      target._oos_reports = (result.reports != null)
+        ? result.reports
+        : ((parseInt(target._oos_reports, 10) || 0) + 1);
     }
 
     oosSubmitting = false;
@@ -1869,7 +1939,7 @@ async function submitOOSReport() {
     $('oosModal').classList.remove('show');
     var hb = $('oosTodayBusyHint');
     if (hb) hb.remove();
-    toast('✅ 已回報缺貨');
+    toast('✅ 已回報缺貨　共缺 ' + (result.totalQty != null ? result.totalQty : qty) + ' 件');
     render();
     clearLocalCache();
     setTimeout(refreshOOSOnly, 1500);
@@ -2715,9 +2785,21 @@ function renderCard(d) {
       ? '<div class="oos-order-info">' + oosOrderTags.join('') + '</div>'
       : '';
 
+    // 累計缺貨件數：同一件貨多張單缺貨的總和（後端 getActiveOOSMap 已加總）
+    var qtyTotal = parseInt(d._oos_qty, 10);
+    if (isNaN(qtyTotal) || qtyTotal < 0) qtyTotal = 0;
+    var orderCount = parseInt(d._oos_reports, 10);
+    if (isNaN(orderCount) || orderCount < 0) orderCount = 0;
+
+    var qtyBadge = qtyTotal > 0
+      ? '<span class="oos-qty">共缺 ' + qtyTotal + ' 件' +
+          (orderCount > 1 ? '<span class="oos-qty-sub">' + orderCount + ' 張單</span>' : '') +
+        '</span>'
+      : '';
+
     oosBanner =
       '<div class="oos-banner">' +
-        '<div class="oos-row1"><span class="oos-icon">⚠️</span><span>缺貨中</span></div>' +
+        '<div class="oos-row1"><span class="oos-icon">⚠️</span><span>缺貨中</span>' + qtyBadge + '</div>' +
         '<div class="oos-reason">原因：' + esc(reason) + '</div>' +
         (oosAt ? '<div class="oos-meta">' + esc(oosAt) + (reporter ? ' · ' + esc(reporter) : '') + '</div>' : '') +
         oosOrderHtml +
