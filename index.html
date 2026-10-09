@@ -708,7 +708,14 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     <!-- #20：以「單日期」篩出某日有哪幾張單缺貨 -->
     <div class="category-filter-row">
       <label for="oosDateFilter" style="font-size:14px; font-weight:600; color:#6e6e73; margin-right:8px; white-space:nowrap; align-self:center;">📅 缺貨單日期</label>
-      <input type="date" id="oosDateFilter" class="category-select" style="max-width:190px;" onchange="onOOSDateChange()">
+      <input type="date" id="oosDateFilter" class="category-select" style="max-width:180px;" onchange="onOOSDateChange()">
+      <select id="oosSlotFilter" class="category-select" style="max-width:132px; margin-left:8px;" onchange="onOOSSlotChange()">
+        <option value="">🚚 全部時段</option>
+        <option value="早">早 10-14</option>
+        <option value="中">中 14-18</option>
+        <option value="晚">晚 18-21</option>
+        <option value="放假">放假</option>
+      </select>
       <button type="button" id="btnOOSDateClear" class="tool-btn" onclick="clearOOSDateFilter()" style="display:none; margin-left:8px;">✕ 清除</button>
     </div>
   </header>
@@ -1041,6 +1048,7 @@ let oosFilterOnly = false;
 let categoryFilter = '';
 // #20：以「單日期」篩選缺貨訂單（不持久化，屬臨時查詢）
 let oosDateFilter = '';   // 'YYYYMMDD'，空 = 不篩選
+let oosSlotFilter = '';   // '早' / '中' / '晚' / '放假'，空 = 不篩選
 let allOOSReports = [];   // _OOS 逐筆記錄（getActiveOOSMap 每件貨只有最新一張單，不夠用）
 let oosDateMatch = {};    // 當次篩選結果：productId -> { tail, timeSlot, orderType, qty, n }
 
@@ -2135,48 +2143,73 @@ async function loadOOSReports() {
   return allOOSReports;
 }
 
+/** 篩選器是否生效（單日期或派送時段，任一有值就算） */
+function oosFilterActive() { return !!(oosDateFilter || oosSlotFilter); }
+
+/** 日期／時段共用的套用流程；reload=true 時重新拉逐筆記錄 */
+async function applyOOSDateFilter(reload) {
+  var clr = $('btnOOSDateClear');
+  if (clr) clr.style.display = oosFilterActive() ? 'inline-block' : 'none';
+
+  if (!oosFilterActive()) { render(); return; }
+
+  if (reload || allOOSReports.length === 0) {
+    toast('📅 載入缺貨記錄...', 1200);
+    await loadOOSReports();
+  }
+  render();
+}
+
 async function onOOSDateChange() {
   var el = $('oosDateFilter');
   oosDateFilter = dateInputToYMD(el ? el.value : '');
-  var clr = $('btnOOSDateClear');
-  if (clr) clr.style.display = oosDateFilter ? 'inline-block' : 'none';
+  await applyOOSDateFilter(true);
+}
 
-  if (!oosDateFilter) { render(); return; }
-
-  toast('📅 載入缺貨記錄...', 1200);
-  await loadOOSReports();
-  render();
-
-  var n = Object.keys(oosDateMatch).length;
-  toast(n > 0 ? ('📅 找到 ' + n + ' 件貨在該日缺貨') : '📅 該日沒有缺貨記錄', 2000);
+async function onOOSSlotChange() {
+  var el = $('oosSlotFilter');
+  oosSlotFilter = el ? String(el.value || '').trim() : '';
+  // 時段只是就同一批已載入的記錄再篩，不必重新拉資料
+  await applyOOSDateFilter(false);
 }
 
 function clearOOSDateFilter() {
   oosDateFilter = '';
-  var el = $('oosDateFilter');
-  if (el) el.value = '';
+  oosSlotFilter = '';
+  var d = $('oosDateFilter'); if (d) d.value = '';
+  var s = $('oosSlotFilter'); if (s) s.value = '';
   var clr = $('btnOOSDateClear');
   if (clr) clr.style.display = 'none';
   render();
 }
 
 /**
- * 依 oosDateFilter 建立
- *   oosDateMatch : productId -> 該日該貨的缺貨彙總（給卡片用）
- *   orders       : 該日的訂單清單（單號尾4 為一組，給摘要條用）
+ * 依 oosDateFilter（單日期）＋ oosSlotFilter（派送時段）建立
+ *   oosDateMatch : productId -> 符合條件的缺貨彙總（給卡片用）
+ *   orders       : 訂單清單（給摘要條用）
+ *
+ * 訂單識別方式：
+ *   有單號尾4 → 以單號當作一張單
+ *   沒有單號  → 後備用「派送時段 ＋ 單類型」當作一張單
+ *   （用戶經常忘記填單號，所以時段／類型就是辨識訂單的依據）
  */
 function buildOOSDateMatch() {
   oosDateMatch = {};
   var orders = {};
   var totalQty = 0, entries = 0;
 
-  if (!oosDateFilter) return { orders: [], totalQty: 0, entries: 0 };
+  if (!oosFilterActive()) return { orders: [], totalQty: 0, entries: 0 };
 
   allOOSReports.forEach(function(r) {
     if (String(r.status || '').trim() !== 'active') return;
-    if (String(r.orderDate || '').trim() !== oosDateFilter) return;
+    if (oosDateFilter && String(r.orderDate || '').trim() !== oosDateFilter) return;
 
-    var pid = String(r.productId || '').trim();
+    var slot = String(r.timeSlot || '').trim();
+    if (oosSlotFilter && slot !== oosSlotFilter) return;
+
+    var pid  = String(r.productId || '').trim();
+    var tail = String(r.orderTail || '').trim();
+    var type = String(r.orderType || '').trim();
     var q = parseInt(r.qty, 10);
     if (isNaN(q) || q < 1) q = 1;
 
@@ -2185,17 +2218,16 @@ function buildOOSDateMatch() {
     }
     oosDateMatch[pid].qty += q;
     oosDateMatch[pid].n   += 1;
-    oosDateMatch[pid].tail      = String(r.orderTail || '').trim();
-    oosDateMatch[pid].timeSlot  = String(r.timeSlot || '').trim();
-    oosDateMatch[pid].orderType = String(r.orderType || '').trim();
+    oosDateMatch[pid].tail      = tail;
+    oosDateMatch[pid].timeSlot  = slot;
+    oosDateMatch[pid].orderType = type;
 
-    var tail = String(r.orderTail || '').trim();
-    var key = tail || '(無單號)';
-    if (!orders[key]) orders[key] = { tail: tail, qty: 0, n: 0, slot: '', type: '' };
+    // 沒有單號時改用 時段＋類型 當識別，否則全部會擠進「(無單號)」同一組
+    var key = tail ? ('#' + tail)
+                   : ('(' + (slot || '無時段') + '|' + (type || '無類型') + ')');
+    if (!orders[key]) orders[key] = { tail: tail, qty: 0, n: 0, slot: slot, type: type };
     orders[key].qty += q;
     orders[key].n   += 1;
-    orders[key].slot = String(r.timeSlot || '').trim();
-    orders[key].type = String(r.orderType || '').trim();
 
     totalQty += q;
     entries++;
@@ -2772,9 +2804,9 @@ function render() {
     });
   }
 
-  // #20：單日期篩選 —— 只留「該單日期有缺貨記錄」的產品
+  // #20：單日期／派送時段篩選 —— 只留符合條件的產品
   var dateAgg = buildOOSDateMatch();
-  if (oosDateFilter) {
+  if (oosFilterActive()) {
     filtered = filtered.filter(function(d) {
       return !!oosDateMatch[String(d.id || '').trim()];
     });
@@ -2806,30 +2838,41 @@ function render() {
   if (oosDateFilter) {
     statsText += ' · 📅 ' + oosDateFilter.replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3');
   }
+  if (oosSlotFilter) statsText += ' · 🚚 ' + oosSlotFilter;
   $('stats').textContent = statsText;
 
-  // #20：該日的缺貨訂單摘要
+  // #20：符合條件的缺貨訂單摘要（單日期 ＋ 派送時段）
   var sumEl = $('oosDateSummary');
   if (sumEl) {
-    if (oosDateFilter) {
-      var ymdPretty = oosDateFilter.replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3');
+    if (oosFilterActive()) {
+      var ymdPretty = oosDateFilter
+        ? oosDateFilter.replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3')
+        : '';
+      var scopeParts = [];
+      if (ymdPretty) scopeParts.push('📅 ' + esc(ymdPretty));
+      if (oosSlotFilter) scopeParts.push('🚚 ' + esc(oosSlotFilter));
+
       var chips = dateAgg.orders.map(function(o) {
         var extra = [];
         if (o.slot) extra.push(o.slot);
         if (o.type) extra.push(o.type);
+        // 沒有單號的，直接把「時段＋類型」當成這張單的標籤
+        var label = o.tail
+          ? ('#…' + esc(o.tail))
+          : ('無單號' + (extra.length ? '（' + esc(extra.join(' ')) + '）' : ''));
         return '<span style="display:inline-block; background:#fff; border:1px solid #f5c6c6; ' +
                'border-radius:6px; padding:1px 7px; margin:2px 4px 2px 0; font-weight:700;">' +
-               (o.tail ? '#…' + esc(o.tail) : '(無單號)') +
-               (extra.length ? '（' + esc(extra.join(' ')) + '）' : '') +
-               ' ×' + o.n + ' 筆 · ' + o.qty + ' 件</span>';
+               label + ' ×' + o.n + ' 筆 · ' + o.qty + ' 件</span>';
       }).join('');
 
       sumEl.innerHTML =
-        '<div style="font-weight:800; font-size:14px;">📅 ' + esc(ymdPretty) +
+        '<div style="font-weight:800; font-size:14px;">' + scopeParts.join('　') +
           '　共 ' + dateAgg.orders.length + ' 張單 · ' + dateAgg.entries + ' 筆缺貨 · ' +
           dateAgg.totalQty + ' 件</div>' +
         (chips ? '<div style="margin-top:5px;">' + chips + '</div>' : '') +
-        '<div style="margin-top:5px; font-size:12px; opacity:.85;">只計「缺貨中」的記錄；已補貨的不會列出。</div>';
+        '<div style="margin-top:5px; font-size:12px; opacity:.85;">' +
+          '只計「缺貨中」的記錄；已補貨的不會列出。沒有填單號的，以「派送時段＋單類型」當作一張單。' +
+        '</div>';
       sumEl.style.display = 'block';
     } else {
       sumEl.style.display = 'none';
@@ -2945,16 +2988,22 @@ function renderCard(d) {
         '</span>'
       : '';
 
-    // #20：啟用單日期篩選時，額外標示「該日那張單」的資訊
-    var dm = oosDateFilter ? oosDateMatch[String(d.id || '').trim()] : null;
+    // #20：啟用篩選時，額外標示「符合條件那張單」的資訊
+    var dm = oosFilterActive() ? oosDateMatch[String(d.id || '').trim()] : null;
     var dateMatchHtml = '';
     if (dm) {
       var dmExtra = [];
       if (dm.timeSlot) dmExtra.push(dm.timeSlot);
       if (dm.orderType) dmExtra.push(dm.orderType);
+      var dmScope = [];
+      if (oosDateFilter) dmScope.push(oosDateFilter.replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3'));
+      if (oosSlotFilter) dmScope.push(oosSlotFilter);
+      // 沒有單號時，用「派送時段＋單類型」代表這張單
+      var dmLabel = dm.tail
+        ? ('#…' + esc(dm.tail))
+        : ('無單號' + (dmExtra.length ? '（' + esc(dmExtra.join(' ')) + '）' : ''));
       dateMatchHtml = '<div class="oos-meta" style="color:#c62828; font-weight:700;">' +
-        '📅 該日：' + (dm.tail ? '#…' + esc(dm.tail) : '(無單號)') +
-        (dmExtra.length ? '（' + esc(dmExtra.join(' ')) + '）' : '') +
+        '🔎 ' + esc(dmScope.join(' ')) + '：' + dmLabel +
         ' ×' + dm.n + ' 筆 · ' + dm.qty + ' 件</div>';
     }
 
