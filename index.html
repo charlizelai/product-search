@@ -785,6 +785,14 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
         <button type="button" class="upload-btn" onclick="startEditScan()">📷</button>
       </div>
     </div>
+    <!-- #36：SKU code（Y 欄），可新增／修改 -->
+    <div class="field" id="f_sku_wrap">
+      <label>SKU code</label>
+      <input id="f_sku" autocomplete="off" inputmode="numeric" placeholder="純數字（可以 0 開頭，例如 0123）">
+      <div class="field-note" id="f_sku_note" style="display:none;">
+        ⚠️ 目前資料來源冇 SKU 欄位（api.gs 可能未部署）。為免儲存時用空白蓋走試算表原有嘅 SKU，此欄暫時停用。
+      </div>
+    </div>
     <div class="field">
       <label>英文名稱</label>
       <div class="field-with-btn">
@@ -1080,6 +1088,7 @@ let _lastVersion = 0;
 let sortMode = 'default';
 let barcodeOnly = false;
 let skuOnly = false;        // #32：只搜 SKU code（Y 欄）
+let skuFieldAvailable = true;   // #36：資料來源有冇 sku 欄位（決定可否編輯）
 let oosFilterOnly = false;
 let categoryFilter = '';
 let brandFilter = '';   // #21：品牌篩選
@@ -1118,7 +1127,7 @@ let HK_BUSY_DAYS = {};
 
 const $ = function(id) { return document.getElementById(id); };
 const FIELDS = ['id','barcode','name','name_zh','price','original_price','image','category_en','category_zh','description',
-                'brand','temp_location','combine','warehouse','island','aisle','crosslane','shelfnumber','floor'];
+                'brand','sku','temp_location','combine','warehouse','island','aisle','crosslane','shelfnumber','floor'];
 
 
 // ============================================================
@@ -3562,6 +3571,8 @@ function openAdd() {
   pendingImage = null;
   $('modalTitle').textContent = '新增產品';
   FIELDS.forEach(function(k) { $('f_' + k).value = ''; });
+  skuFieldAvailable = true;      // #36：新增產品一定要可以入 SKU
+  applySkuFieldState();
   ['f_warehouse', 'f_aisle', 'f_crosslane', 'f_floor', 'f_category_en'].forEach(function(id) {
     var el = $(id); if (el) el.value = '';
   });
@@ -3602,8 +3613,13 @@ function openEdit(id) {
   pendingImage = null;
   $('modalTitle').textContent = '編輯產品';
   bumpUsage(id);
-  var textFields = ['id','barcode','name','name_zh','price','original_price','image','category_zh','description','brand','temp_location','island','shelfnumber'];
+  var textFields = ['id','barcode','name','name_zh','price','original_price','image','category_zh','description','brand','sku','temp_location','island','shelfnumber'];
   textFields.forEach(function(k) { $('f_' + k).value = p[k] || ''; });
+
+  // #36：如果資料來源根本冇 sku 欄位（api.gs 未部署、或 CDN 未重新匯出），
+  //      就停用 SKU 欄 —— 否則空白值儲存時會蓋走試算表原有嘅 SKU。
+  skuFieldAvailable = Object.prototype.hasOwnProperty.call(p, 'sku');
+  applySkuFieldState();
   ['warehouse', 'aisle', 'crosslane', 'floor', 'category_en'].forEach(function(k) {
     var el = $('f_' + k);
     if (el) {
@@ -3800,6 +3816,9 @@ async function uploadImageImmediate(file) {
 async function saveProduct() {
   var data = {};
   FIELDS.forEach(function(k) { data[k] = $('f_' + k).value.trim(); });
+
+  // #36：資料來源冇 sku 欄位時唔好送 sku，免得以空白蓋走原有 SKU
+  if (!skuFieldAvailable) delete data.sku;
   if (!data.id) { toast('❌ ID 不能為空'); return; }
 
   var wasTempId = isTempId(data.id);
@@ -4180,6 +4199,24 @@ $('btnScanSearch').onclick = function() { openScanner('🔍 掃碼搜尋', 'sear
  * 所以提供一個掣直接插入，唔使特登轉返文字鍵盤。
  * 已經以「;」結尾就唔會重複加。
  */
+/**
+ * #36：控制 SKU 欄可否編輯。
+ * 資料來源有 sku 欄位 → 可編輯；冇 → 停用並顯示提示，
+ * 避免儲存時用空白蓋走試算表原有嘅 SKU。
+ */
+function applySkuFieldState() {
+  var wrap = $('f_sku_wrap');
+  var note = $('f_sku_note');
+  var inp  = $('f_sku');
+  if (wrap) wrap.style.display = '';
+  if (inp) {
+    inp.disabled = !skuFieldAvailable;
+    inp.style.background = skuFieldAvailable ? '#fff' : '#f5f5f7';
+    if (!skuFieldAvailable) inp.value = '';
+  }
+  if (note) note.style.display = skuFieldAvailable ? 'none' : 'block';
+}
+
 function insertBarcodeSep() {
   var el = $('f_barcode');
   if (!el) return;
