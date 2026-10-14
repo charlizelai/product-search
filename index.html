@@ -2342,12 +2342,21 @@ function populateBrandFilter() {
   var hint = $('brandFilterHint');
   if (!sel) return;
 
-  // 目前分類範圍：未選分類 = 全部；「未分類」= 只算沒有 category_en 的貨
+  // #29：品牌清單按「分類 + 細分」兩層收窄。
+  //      揀咗細分（例如 紅酒）之後，品牌就只列紅酒嘅牌子 ——
+  //      咁樣品牌清單先會夠短，唔會蓋住手機畫面。
   function inScope(d) {
-    if (!categoryFilter) return true;
-    var c = String(d.category_en || '').trim();
-    if (categoryFilter === FILTER_NONE) return !c;
-    return c === categoryFilter;
+    if (categoryFilter) {
+      var c = String(d.category_en || '').trim();
+      if (categoryFilter === FILTER_NONE) { if (c) return false; }
+      else if (c !== categoryFilter) return false;
+    }
+    if (subcatFilter) {
+      var s = String(d.category_zh || '').trim();
+      if (subcatFilter === FILTER_NONE) { if (s) return false; }
+      else if (s !== subcatFilter) return false;
+    }
+    return true;
   }
 
   var counts = {};
@@ -2400,7 +2409,9 @@ function populateBrandFilter() {
         : '🏷️ 品牌資料尚未建立 —— 惠康自動更新寫入「品牌」欄後就會出現';
       hint.style.display = 'block';
     } else if (!listBrands) {
-      hint.textContent = '🏷️ 品牌數量多，先選「分類」才會列出品牌；或直接選「未有品牌」找出未填的貨';
+      hint.textContent = subcatFilter
+        ? '🏷️ 品牌已按「' + subcatFilter + '」收窄；再揀「細分」可以收得更窄'
+        : '🏷️ 品牌數量多，先選「分類」才會列出品牌；再揀「細分」可收得更窄';
       hint.style.display = 'block';
     } else {
       hint.style.display = 'none';
@@ -2482,6 +2493,7 @@ function onSubcatChange() {
   var sel = $('subcatFilter');
   if (!sel) return;
   subcatFilter = sel.value || '';
+  populateBrandFilter();   // #29：品牌清單跟住細分收窄
   render();
   if (subcatFilter === FILTER_NONE)      toast('🔎 只顯示「未設定細分」產品');
   else if (subcatFilter)                 toast('🔎 已篩選細分：' + subcatFilter);
