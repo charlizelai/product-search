@@ -705,14 +705,21 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
         <option value="">📂 全部分類</option>
       </select>
     </div>
-    <!-- #21：以品牌篩選（品牌由惠康 JSON-LD 自動寫入） -->
-    <div class="category-filter-row">
-      <select id="brandFilter" class="category-select" onchange="onBrandChange()" style="display:none;">
+    <!-- #21：品牌篩選（惠康 JSON-LD 自動寫入）｜ #28：細分篩選（讀 I 欄 category_zh，你手動填）
+         兩個都以「已選分類」為範圍，避免清單太長蓋住手機畫面 -->
+    <div class="category-filter-row" style="gap:8px;">
+      <select id="brandFilter" class="category-select" onchange="onBrandChange()" style="display:none; max-width:172px;">
         <option value="">🏷️ 全部品牌</option>
+      </select>
+      <select id="subcatFilter" class="category-select" onchange="onSubcatChange()" style="display:none; max-width:172px;">
+        <option value="">🔎 全部細分</option>
       </select>
     </div>
     <div id="brandFilterHint" style="display:none; text-align:center; font-size:12px; color:#86868b; margin-top:4px;">
       🏷️ 品牌資料尚未建立 —— 惠康自動更新寫入「品牌」欄後就會出現
+    </div>
+    <div id="subcatFilterHint" style="display:none; text-align:center; font-size:12px; color:#86868b; margin-top:4px;">
+      🔎 細分係讀 I 欄（中文分類）—— 先揀「分類」，再加上你填嘅細分（例如 紅酒／白酒／烈酒）
     </div>
     <!-- #20：以「單日期」篩出某日有哪幾張單缺貨 -->
     <div class="category-filter-row">
@@ -1062,6 +1069,7 @@ let barcodeOnly = false;
 let oosFilterOnly = false;
 let categoryFilter = '';
 let brandFilter = '';   // #21：品牌篩選
+let subcatFilter = '';  // #28：細分篩選（讀 I 欄 category_zh）
 // #20：以「單日期」篩選缺貨訂單（不持久化，屬臨時查詢）
 let oosDateFilter = '';   // 'YYYYMMDD'，空 = 不篩選
 let oosSlotFilter = '';   // '早' / '中' / '晚' / '放假'，空 = 不篩選
@@ -2313,6 +2321,7 @@ function onCategoryChange() {
   try { localStorage.setItem(CATEGORY_FILTER_KEY, categoryFilter); } catch (e) {}
   updateCategoryButtonState();
   populateBrandFilter();   // #22：品牌清單跟著分類範圍重建
+  populateSubcatFilter();  // #28：細分清單同時重建
   render();
   if (categoryFilter === FILTER_NONE) {
     toast('📂 只顯示「未分類」產品');
@@ -2399,6 +2408,86 @@ function populateBrandFilter() {
   }
 }
 
+/**
+ * #28：細分篩選 —— 讀 I 欄（category_zh），即你手動填嘅中文細分
+ *      （紅酒／白酒／烈酒／香檳／啤酒…）。
+ *      同品牌一樣以「已選分類」為範圍，唔會一次列出幾百項。
+ */
+function populateSubcatFilter() {
+  var sel = $('subcatFilter');
+  var hint = $('subcatFilterHint');
+  if (!sel) return;
+
+  function inScope(d) {
+    if (!categoryFilter) return true;
+    var c = String(d.category_en || '').trim();
+    if (categoryFilter === FILTER_NONE) return !c;
+    return c === categoryFilter;
+  }
+
+  var counts = {};
+  var noneCount = 0;
+  allData.forEach(function(d) {
+    if (!inScope(d)) return;
+    var s = String(d.category_zh || '').trim();
+    if (s) counts[s] = (counts[s] || 0) + 1;
+    else noneCount++;
+  });
+
+  var subs = Object.keys(counts);
+  subs.sort(function(a, b) {
+    if (counts[b] !== counts[a]) return counts[b] - counts[a];
+    return a.localeCompare(b, 'zh-HK');
+  });
+
+  var listSubs = !!categoryFilter;
+
+  var html = '<option value="">🔎 全部細分</option>';
+  if (listSubs) {
+    subs.forEach(function(s) {
+      html += '<option value="' + escAttr(s) + '">' + esc(s + '（' + counts[s] + '）') + '</option>';
+    });
+  }
+  if (noneCount) {
+    html += '<option value="' + FILTER_NONE + '">❓ 未設定（' + noneCount + '）</option>';
+  }
+  sel.innerHTML = html;
+
+  if (subcatFilter === FILTER_NONE && !noneCount) subcatFilter = '';
+  if (subcatFilter && subcatFilter !== FILTER_NONE &&
+      (!listSubs || subs.indexOf(subcatFilter) < 0)) {
+    subcatFilter = '';
+  }
+  sel.value = subcatFilter || '';
+
+  var hasAny = (listSubs && subs.length > 0) || noneCount > 0;
+  sel.style.display = hasAny ? '' : 'none';
+
+  if (hint) {
+    if (!hasAny) {
+      hint.textContent = categoryFilter
+        ? '🔎 此分類嘅 I 欄（中文細分）仲未填 —— 填咗就會出現'
+        : '🔎 細分係讀 I 欄（中文分類）—— 先揀「分類」先會列出細分';
+      hint.style.display = 'block';
+    } else if (!listSubs) {
+      hint.textContent = '🔎 先揀「分類」，細分先會列出（例如 分類=Beer, Wines & Spirits → 紅酒／白酒／烈酒）';
+      hint.style.display = 'block';
+    } else {
+      hint.style.display = 'none';
+    }
+  }
+}
+
+function onSubcatChange() {
+  var sel = $('subcatFilter');
+  if (!sel) return;
+  subcatFilter = sel.value || '';
+  render();
+  if (subcatFilter === FILTER_NONE)      toast('🔎 只顯示「未設定細分」產品');
+  else if (subcatFilter)                 toast('🔎 已篩選細分：' + subcatFilter);
+  else                                   toast('🔎 顯示全部細分');
+}
+
 function onBrandChange() {
   var sel = $('brandFilter');
   if (!sel) return;
@@ -2417,6 +2506,7 @@ function filterByCategory(cat) {
   if (sel) sel.value = cat;
   updateCategoryButtonState();
   populateBrandFilter();   // #22：品牌清單跟著分類範圍重建
+  populateSubcatFilter();  // #28：細分清單同時重建
   try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
   render();
   var found = (OPTIONS.category_en || []).find(function(c) { return c.value === cat; });
@@ -2857,6 +2947,7 @@ function applyProducts(data) {
   searchMode = 'text';
   populateCategoryFilter();   // #23：更新「未分類」數量
   populateBrandFilter();      // #21：品牌清單跟著資料更新
+  populateSubcatFilter();     // #28：細分清單跟著資料更新
 }
 
 function saveLocalCache(data) {
@@ -2932,6 +3023,15 @@ function render() {
     });
   }
 
+  // #28：細分篩選（讀 I 欄 category_zh，即 紅酒／白酒／烈酒／香檳／啤酒…）
+  if (subcatFilter === FILTER_NONE) {
+    filtered = filtered.filter(function(d) { return !String(d.category_zh || '').trim(); });
+  } else if (subcatFilter) {
+    filtered = filtered.filter(function(d) {
+      return String(d.category_zh || '').trim() === subcatFilter;
+    });
+  }
+
   // #20：單日期／派送時段篩選 —— 只留符合條件的產品
   var dateAgg = buildOOSDateMatch();
   if (oosFilterActive()) {
@@ -2973,6 +3073,9 @@ function render() {
   if (oosSlotFilter) statsText += ' · 🚚 ' + oosSlotFilter;
   if (brandFilter) {
     statsText += ' · 🏷️ ' + (brandFilter === FILTER_NONE ? '未有品牌' : brandFilter);
+  }
+  if (subcatFilter) {
+    statsText += ' · 🔎 ' + (subcatFilter === FILTER_NONE ? '未設定細分' : subcatFilter);
   }
   $('stats').textContent = statsText;
 
