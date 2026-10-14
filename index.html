@@ -776,9 +776,13 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     </div>
     <div class="field">
       <label>條碼 (Barcode) — 可多個，用 ; 分隔</label>
-      <div style="display:flex; gap:10px;">
+      <div style="display:flex; gap:8px;">
         <input id="f_barcode" autocomplete="off" inputmode="numeric" style="flex:1;" placeholder="123456;789012">
-        <button type="button" class="upload-btn" onclick="startEditScan()">📷 掃描</button>
+        <!-- #35：手機數字鍵盤打唔到「;」，所以加一個掣直接插入分隔符 -->
+        <button type="button" onclick="insertBarcodeSep()" title="加入「;」分隔下一個條碼"
+          style="flex:0 0 48px; border-radius:12px; border:2px solid #d2d2d7; background:#e8f0fe;
+                 color:#1a73e8; font-size:20px; font-weight:800; cursor:pointer; line-height:1;">;</button>
+        <button type="button" class="upload-btn" onclick="startEditScan()">📷</button>
       </div>
     </div>
     <div class="field">
@@ -2164,7 +2168,9 @@ function updateBarcodeButton() {
     btn.classList.remove('barcode-active');
     btn.classList.remove('active');
     if (sb) sb.classList.remove('barcode-mode');
-    if (q) q.placeholder = '搜尋 / 條碼（尾 6 位以上）/ 位置...';
+    if (q) q.placeholder = skuOnly
+      ? '只搜 SKU：輸入 SKU code（Y 欄）...'
+      : '搜尋 / 條碼（尾 6 位以上）/ SKU / 位置...';
   }
 }
 
@@ -2172,7 +2178,9 @@ function applyInputMode() {
   var q = $('q');
   if (!q) return;
 
-  var mode = barcodeOnly ? 'numeric' : 'text';
+  // #33：只搜條碼 同 只搜 SKU 都用數字鍵盤（手機彈數字 keypad）。
+  //      一般搜尋模式維持文字鍵盤（要打中文名、位置等）。
+  var mode = (barcodeOnly || skuOnly) ? 'numeric' : 'text';
 
   // 「只搜條碼」模式：數字鍵盤「手動輸入」上限 6 位。
   // maxlength 只限制使用者輸入，不會影響程式指派（scan / 歷史紀錄）的 value，
@@ -4166,6 +4174,28 @@ async function openScanner(title, mode) {
 }
 
 $('btnScanSearch').onclick = function() { openScanner('🔍 掃碼搜尋', 'search'); };
+/**
+ * #35：喺條碼欄插入「;」分隔符。
+ * 因為欄位用 inputmode="numeric"（手機彈數字鍵盤），數字鍵盤冇「;」可以打，
+ * 所以提供一個掣直接插入，唔使特登轉返文字鍵盤。
+ * 已經以「;」結尾就唔會重複加。
+ */
+function insertBarcodeSep() {
+  var el = $('f_barcode');
+  if (!el) return;
+  var v = el.value || '';
+  if (v.length > 0 && v.charAt(v.length - 1) === ';') {
+    el.focus();
+    return;
+  }
+  el.value = v + ';';
+  el.focus();
+  try {
+    var n = el.value.length;
+    el.setSelectionRange(n, n);
+  } catch (e) {}
+}
+
 function startEditScan() { openScanner('📷 掃描條碼', 'edit'); }
 function onScanCloseClick() { closeScan(); }
 
