@@ -84,6 +84,11 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .tool-btn.active { background: #e8f0fe; border-color: #0071e3; color: #1a73e8; }
 .tool-btn.barcode-active { background: #fef2f2; border-color: #d93025; color: #d93025; }
 .tool-btn.oos-filter-active { background: #fdecea; border-color: #c62828; color: #c62828; }
+/* #32：只搜 SKU 模式 */
+.tool-btn.sku-active { background: #d1e7dd; border-color: #0f5132; color: #0f5132; }
+.search-box.sku-mode input { border-color: #0f5132; background: #f2fbf6; }
+.search-box.sku-mode input:focus { border-color: #0f5132; box-shadow: 0 0 0 4px rgba(15,81,50,.15); }
+.search-box.sku-mode .search-icon { fill: #0f5132; }
 .tool-btn:active { transform: scale(0.97); }
 
 .category-filter-row {
@@ -169,6 +174,8 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .price { font-size: 20px; font-weight: 700; color: #ff3b30; }
 .id { font-family: ui-monospace, monospace; font-size: 13px; color: #86868b; }
 .id-temp { font-family: ui-monospace, monospace; font-size: 12px; color: #e65100; background: #fff3e0; padding: 2px 6px; border-radius: 4px; font-weight: 700; }
+/* #31：SKU（Y 欄）—— 唯讀，只顯示唔會寫入 */
+.sku-tag { font-family: ui-monospace, monospace; font-size: 12px; color: #0f5132; background: #d1e7dd; padding: 2px 7px; border-radius: 4px; font-weight: 700; letter-spacing: .3px; }
 .sim-badge { padding: 3px 10px; border-radius: 6px; font-size: 13px; font-weight: 700; color: #fff; }
 
 .oos-banner {
@@ -696,6 +703,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     <div class="stats" id="stats">載入中...</div>
     <div class="toolbar">
       <button id="btnBarcodeOnly" class="tool-btn" onclick="toggleBarcodeOnly()">🏷️ 只搜條碼</button>
+      <button id="btnSkuOnly" class="tool-btn" onclick="toggleSkuOnly()">🔖 只搜 SKU</button>
       <button id="btnOOSFilter" class="tool-btn" onclick="toggleOOSFilter()">⚠️ 只看缺貨</button>
       <button id="btnSortToggle" class="tool-btn" onclick="toggleSort()">📍 位置排序</button>
       <button id="btnRefreshAPI" class="tool-btn" onclick="refreshFromAPIManual()">🔄 用 API 刷新</button>
@@ -1026,6 +1034,7 @@ const SEARCH_HISTORY_MAX = 20;
 
 const USAGE_KEY = 'product_usage_v1';
 const BARCODE_MODE_KEY = 'barcode_mode_v1';
+const SKU_MODE_KEY     = 'sku_mode_v1';   // #32
 const OOS_FILTER_KEY = 'oos_filter_v1';
 const CATEGORY_FILTER_KEY = 'category_filter_v1';
 
@@ -1066,6 +1075,7 @@ let _bgRefreshing = false;
 let _lastVersion = 0;
 let sortMode = 'default';
 let barcodeOnly = false;
+let skuOnly = false;        // #32：只搜 SKU code（Y 欄）
 let oosFilterOnly = false;
 let categoryFilter = '';
 let brandFilter = '';   // #21：品牌篩選
@@ -1078,6 +1088,8 @@ let oosDateMatch = {};    // 當次篩選結果：productId -> { tail, timeSlot,
 
 try {
   barcodeOnly = localStorage.getItem(BARCODE_MODE_KEY) === '1';
+  skuOnly     = localStorage.getItem(SKU_MODE_KEY) === '1';
+  if (skuOnly) barcodeOnly = false;          // #32：兩種模式互斥
   oosFilterOnly = localStorage.getItem(OOS_FILTER_KEY) === '1';
   categoryFilter = localStorage.getItem(CATEGORY_FILTER_KEY) || '';
 } catch (e) {}
@@ -2075,8 +2087,13 @@ async function refreshFromAPIManual() {
 // ============================================================
 function toggleBarcodeOnly() {
   barcodeOnly = !barcodeOnly;
-  try { localStorage.setItem(BARCODE_MODE_KEY, barcodeOnly ? '1' : '0'); } catch (e) {}
+  if (barcodeOnly) skuOnly = false;            // #32：兩種模式互斥
+  try {
+    localStorage.setItem(BARCODE_MODE_KEY, barcodeOnly ? '1' : '0');
+    localStorage.setItem(SKU_MODE_KEY, skuOnly ? '1' : '0');
+  } catch (e) {}
   updateBarcodeButton();
+  updateSkuButton();
   applyInputMode();
   if (barcodeOnly) {
     setTimeout(function() {
@@ -2086,6 +2103,49 @@ function toggleBarcodeOnly() {
   }
   if (allData.length > 0) render();
   toast(barcodeOnly ? '🏷️ 只搜條碼模式（數字鍵盤）' : '🔍 一般搜尋模式');
+}
+
+/**
+ * #32：「只搜 SKU」模式 —— 只比對 Y 欄（sku），其他欄位一概唔搜。
+ * 同「只搜條碼」互斥。
+ */
+function toggleSkuOnly() {
+  skuOnly = !skuOnly;
+  if (skuOnly) barcodeOnly = false;
+  try {
+    localStorage.setItem(SKU_MODE_KEY, skuOnly ? '1' : '0');
+    localStorage.setItem(BARCODE_MODE_KEY, barcodeOnly ? '1' : '0');
+  } catch (e) {}
+  updateSkuButton();
+  updateBarcodeButton();
+  applyInputMode();
+  if (skuOnly) {
+    setTimeout(function() {
+      var q = $('q');
+      if (q) q.focus();
+    }, 120);
+  }
+  if (allData.length > 0) render();
+  toast(skuOnly ? '🔖 只搜 SKU 模式' : '🔍 一般搜尋模式');
+}
+
+function updateSkuButton() {
+  var btn = $('btnSkuOnly');
+  var sb = $('searchBox');
+  var q = $('q');
+  if (!btn) return;
+  if (skuOnly) {
+    btn.textContent = '🔖 只搜 SKU 中';
+    btn.classList.remove('active');
+    btn.classList.add('sku-active');
+    if (sb) sb.classList.add('sku-mode');
+    if (q) q.placeholder = '只搜 SKU：輸入 SKU code（Y 欄）...';
+  } else {
+    btn.textContent = '🔖 只搜 SKU';
+    btn.classList.remove('sku-active');
+    if (sb) sb.classList.remove('sku-mode');
+    if (q && !barcodeOnly) q.placeholder = '搜尋 / 條碼（尾 6 位以上）/ SKU / 位置...';
+  }
 }
 
 function updateBarcodeButton() {
@@ -2565,10 +2625,14 @@ function barcodeMatches(barcodeStr, term) {
 }
 
 function productMatchesTerm(d, term) {
+  // #32：「只搜 SKU」模式 —— 只比對 Y 欄（sku），其他欄位一概唔參與
+  if (skuOnly) {
+    return String(d.sku || '').trim().toLowerCase().indexOf(term) >= 0;
+  }
   if (barcodeMatches(d.barcode, term)) return true;
   if (barcodeOnly) return false;
   var searchable = [
-    d.id, d.name, d.name_zh, d.brand, d.category_en, d.category_zh, d.description,
+    d.id, d.barcode, d.sku, d.name, d.name_zh, d.brand, d.category_en, d.category_zh, d.description,
     d.temp_location, d.combine, d.warehouse, d.island,
     d.aisle, d.crosslane, d.shelfnumber, d.floor
   ].map(function(v) { return v == null ? '' : String(v); })
@@ -3062,7 +3126,9 @@ function render() {
 
   var statsText;
   if (terms.length) {
-    statsText = (barcodeOnly ? '🏷️ 只搜條碼：找到 ' : '找到 ')
+    statsText = (skuOnly ? '🔖 只搜 SKU：找到 '
+               : barcodeOnly ? '🏷️ 只搜條碼：找到 '
+               : '找到 ')
               + filtered.length + ' / ' + allData.length + ' 項';
   } else {
     statsText = '共 ' + allData.length + ' 項';
@@ -3271,6 +3337,11 @@ function renderCard(d) {
 
   var idDisplay = '<span class="' + (tempFlag ? 'id-temp' : 'id') + '">ID: ' + esc(d.id) + '</span>';
 
+  // #31：SKU（Y 欄）—— 唯讀顯示，只喺有值時出現
+  var skuTag = String(d.sku || '').trim()
+    ? '<span class="sku-tag">SKU ' + esc(String(d.sku).trim()) + '</span>'
+    : '';
+
   var barcodeHtml = '';
   if (d.barcode) {
     var safeBc = escAttr(d.barcode);
@@ -3312,6 +3383,7 @@ function renderCard(d) {
         '<div class="meta">' +
           '<span class="price">$' + esc(d.price) + '</span>' +
           idDisplay +
+          skuTag +
           simBadge +
         '</div>' +
       '</div>' +
@@ -4197,6 +4269,15 @@ $('q').addEventListener('input', function() {
   var v = $('q').value.trim();
   var sb = $('searchBox');
   var q = $('q');
+
+  // #32：只搜 SKU 模式唔理條碼提示，保持 SKU 樣式
+  if (skuOnly) {
+    sb.classList.remove('barcode-mode');
+    sb.classList.add('sku-mode');
+    q.placeholder = v ? ('✅ 只搜 SKU：' + v) : '只搜 SKU：輸入 SKU code（Y 欄）...';
+    return;
+  }
+
   if (/^\d{4,5}$/.test(v)) {
     sb.classList.add('barcode-mode');
     q.placeholder = '⚠️ 條碼需至少 ' + MIN_SUFFIX_LEN + ' 位，目前 ' + v.length + ' 位';
@@ -4206,7 +4287,7 @@ $('q').addEventListener('input', function() {
   } else {
     if (!barcodeOnly) {
       sb.classList.remove('barcode-mode');
-      q.placeholder = '搜尋 / 條碼（尾 6 位以上）/ 位置...';
+      q.placeholder = '搜尋 / 條碼（尾 6 位以上）/ SKU / 位置...';
     } else {
       q.placeholder = '只搜條碼：輸入尾 6 位數字（完整條碼請用 📷 掃描）...';
     }
@@ -4216,7 +4297,7 @@ $('q').addEventListener('input', function() {
 // 貼上完整條碼時只取「尾 6 位」：條碼搜尋以尾 6 位為鍵，
 // 若照一般截斷取頭 6 位會搜錯東西。
 $('q').addEventListener('paste', function(e) {
-  if (!barcodeOnly) return;
+  if (!barcodeOnly || skuOnly) return;   // #32：SKU 模式唔應該被「尾 6 位」邏輯改寫
   var cd = e.clipboardData || window.clipboardData;
   if (!cd) return;
   var digits = String(cd.getData('text') || '').replace(/\D/g, '');
@@ -4302,6 +4383,7 @@ function showDebug() {
     '臨時ID數': tempIdCount,
     'sortMode': sortMode,
     'barcodeOnly': barcodeOnly,
+    'skuOnly': skuOnly,
     'oosFilterOnly': oosFilterOnly,
     'categoryFilter': categoryFilter || '（無）',
     'inputmode': $('q') ? $('q').getAttribute('inputmode') : 'n/a',
@@ -4310,6 +4392,7 @@ function showDebug() {
     'Tesseract 已載入': isOcrAvailable() ? '是' : '否',
     'oos_reason 選項數': (OPTIONS.oos_reason || []).length,
     'category_en 選項數': (OPTIONS.category_en || []).length,
+    '有 SKU 的貨': allData.filter(function(d) { return String(d.sku || '').trim(); }).length,
     '公眾假期數': Object.keys(HK_HOLIDAYS).length,
     '自訂繁忙日數': Object.keys(HK_BUSY_DAYS).length,
     'UA': navigator.userAgent.substring(0, 60)
@@ -4346,6 +4429,7 @@ document.addEventListener('keydown', function(e) {
 })();
 
 updateBarcodeButton();
+updateSkuButton();          // #32
 updateOOSFilterButton();
 updateSortButton();
 applyInputMode();
