@@ -2282,28 +2282,44 @@ function updateOOSFilterButton() {
   }
 }
 
+/**
+ * #30：分類下拉直接由資料嘅 H 欄（category_en）產生，
+ *      唔再用 _Config 嘅選項清單 —— 下拉永遠同試算表實際值一致，
+ *      唔會出現「揀咗一個選項但一件貨都搵唔到」。
+ */
 function populateCategoryFilter() {
   var sel = $('categoryFilter');
   if (!sel) return;
-  var cur = sel.value;
-  var cats = (OPTIONS.category_en || []);
 
-  // #23：新產品可能完全沒有分類 —— 提供一個「未分類」選項把它們找出來，
-  //      否則只要套用任何分類篩選，這些貨就會完全消失。
-  var noneCount = allData.filter(function(d) {
-    return !String(d.category_en || '').trim();
-  }).length;
+  var counts = {};
+  var noneCount = 0;
+  allData.forEach(function(d) {
+    var c = String(d.category_en || '').trim();
+    if (c) counts[c] = (counts[c] || 0) + 1;
+    else noneCount++;
+  });
 
-  sel.innerHTML = '<option value="">📂 全部分類</option>' +
-    cats.map(function(c) {
-      var v = String(c.value || '').trim();
-      var l = String(c.label || v).trim();
-      if (!v) return '';
-      return '<option value="' + escAttr(v) + '">' + esc(l) + '</option>';
-    }).join('') +
-    (noneCount ? '<option value="' + FILTER_NONE + '">❓ 未分類（' + noneCount + '）</option>' : '');
+  var cats = Object.keys(counts);
+  cats.sort(function(a, b) {
+    if (counts[b] !== counts[a]) return counts[b] - counts[a];
+    return a.localeCompare(b, 'zh-HK');
+  });
 
-  sel.value = categoryFilter || cur || '';
+  var html = '<option value="">📂 全部分類（' + cats.length + '）</option>';
+  cats.forEach(function(c) {
+    html += '<option value="' + escAttr(c) + '">' + esc(c + '（' + counts[c] + '）') + '</option>';
+  });
+  if (noneCount) {
+    html += '<option value="' + FILTER_NONE + '">❓ 未分類（' + noneCount + '）</option>';
+  }
+  sel.innerHTML = html;
+
+  // 篩選中嘅分類若已唔存在（例如資料更新後），就清掉，避免空白結果
+  if (categoryFilter === FILTER_NONE && !noneCount) categoryFilter = '';
+  if (categoryFilter && categoryFilter !== FILTER_NONE && cats.indexOf(categoryFilter) < 0) {
+    categoryFilter = '';
+  }
+  sel.value = categoryFilter || '';
   updateCategoryButtonState();
 }
 
@@ -2326,8 +2342,7 @@ function onCategoryChange() {
   if (categoryFilter === FILTER_NONE) {
     toast('📂 只顯示「未分類」產品');
   } else if (categoryFilter) {
-    var found = (OPTIONS.category_en || []).find(function(c) { return c.value === categoryFilter; });
-    toast('📂 已篩選：' + (found ? found.label : categoryFilter));
+    toast('📂 已篩選：' + categoryFilter);
   } else {
     toast('📂 顯示全部分類');
   }
@@ -2375,9 +2390,9 @@ function populateBrandFilter() {
     return a.localeCompare(b, 'zh-HK');
   });
 
-  // #22：只有「已選分類」時才列出品牌。
-  //      品牌可能幾百個，全量清單在手機原生選單會長到蓋住整個畫面。
-  var listBrands = !!categoryFilter;
+  // #22/#30：有揀「分類」或「細分」就列出品牌；
+  //          兩者都冇揀就只顯示「未有品牌」，避免幾百個品牌塞爆手機選單。
+  var listBrands = !!(categoryFilter || subcatFilter);
 
   var html = '<option value="">🏷️ 全部品牌</option>';
   if (listBrands) {
@@ -2429,17 +2444,11 @@ function populateSubcatFilter() {
   var hint = $('subcatFilterHint');
   if (!sel) return;
 
-  function inScope(d) {
-    if (!categoryFilter) return true;
-    var c = String(d.category_en || '').trim();
-    if (categoryFilter === FILTER_NONE) return !c;
-    return c === categoryFilter;
-  }
-
+  // #30：細分直接由資料嘅 I 欄（category_zh）產生，唔再要求先揀分類。
+  //      細分名（紅酒／白酒／烈酒…）本身數量唔多，手機選單唔會過長。
   var counts = {};
   var noneCount = 0;
   allData.forEach(function(d) {
-    if (!inScope(d)) return;
     var s = String(d.category_zh || '').trim();
     if (s) counts[s] = (counts[s] || 0) + 1;
     else noneCount++;
@@ -2451,37 +2460,28 @@ function populateSubcatFilter() {
     return a.localeCompare(b, 'zh-HK');
   });
 
-  var listSubs = !!categoryFilter;
-
-  var html = '<option value="">🔎 全部細分</option>';
-  if (listSubs) {
-    subs.forEach(function(s) {
-      html += '<option value="' + escAttr(s) + '">' + esc(s + '（' + counts[s] + '）') + '</option>';
-    });
-  }
+  var html = '<option value="">🔎 全部細分（' + subs.length + '）</option>';
+  subs.forEach(function(s) {
+    html += '<option value="' + escAttr(s) + '">' + esc(s + '（' + counts[s] + '）') + '</option>';
+  });
   if (noneCount) {
     html += '<option value="' + FILTER_NONE + '">❓ 未設定（' + noneCount + '）</option>';
   }
   sel.innerHTML = html;
 
+  // 篩選中嘅細分若已唔存在，就清掉
   if (subcatFilter === FILTER_NONE && !noneCount) subcatFilter = '';
-  if (subcatFilter && subcatFilter !== FILTER_NONE &&
-      (!listSubs || subs.indexOf(subcatFilter) < 0)) {
+  if (subcatFilter && subcatFilter !== FILTER_NONE && subs.indexOf(subcatFilter) < 0) {
     subcatFilter = '';
   }
   sel.value = subcatFilter || '';
 
-  var hasAny = (listSubs && subs.length > 0) || noneCount > 0;
+  var hasAny = subs.length > 0 || noneCount > 0;
   sel.style.display = hasAny ? '' : 'none';
 
   if (hint) {
     if (!hasAny) {
-      hint.textContent = categoryFilter
-        ? '🔎 此分類嘅 I 欄（中文細分）仲未填 —— 填咗就會出現'
-        : '🔎 細分係讀 I 欄（中文分類）—— 先揀「分類」先會列出細分';
-      hint.style.display = 'block';
-    } else if (!listSubs) {
-      hint.textContent = '🔎 先揀「分類」，細分先會列出（例如 分類=Beer, Wines & Spirits → 紅酒／白酒／烈酒）';
+      hint.textContent = '🔎 I 欄（中文細分）仲未填 —— 例如填「紅酒／白酒／烈酒／香檳／啤酒」就會出現';
       hint.style.display = 'block';
     } else {
       hint.style.display = 'none';
@@ -2521,8 +2521,7 @@ function filterByCategory(cat) {
   populateSubcatFilter();  // #28：細分清單同時重建
   try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
   render();
-  var found = (OPTIONS.category_en || []).find(function(c) { return c.value === cat; });
-  toast('📂 已篩選：' + (found ? found.label : cat));
+  toast('📂 已篩選：' + cat);
 }
 
 function locationSortKey(d) {
@@ -2957,9 +2956,10 @@ function applyProducts(data) {
     return d;
   });
   searchMode = 'text';
-  populateCategoryFilter();   // #23：更新「未分類」數量
-  populateBrandFilter();      // #21：品牌清單跟著資料更新
-  populateSubcatFilter();     // #28：細分清單跟著資料更新
+  // #30：順序要緊 —— 品牌係按「分類 + 細分」收窄，所以要最後才建
+  populateCategoryFilter();   // 分類 <- H 欄
+  populateSubcatFilter();     // 細分 <- I 欄
+  populateBrandFilter();      // 品牌 <- 受上面兩者限制
 }
 
 function saveLocalCache(data) {
@@ -3070,14 +3070,9 @@ function render() {
   if (oosFilterOnly) statsText += ' · ⚠️ 只看缺貨';
   if (sortMode === 'location') statsText += ' · 按位置';
   if (categoryFilter) {
-    var catLabel = categoryFilter;
-    if (categoryFilter === FILTER_NONE) {
-      catLabel = '未分類';
-    } else {
-      var foundCat = (OPTIONS.category_en || []).find(function(c) { return c.value === categoryFilter; });
-      if (foundCat && foundCat.label) catLabel = foundCat.label;
-    }
-    statsText += ' · 📂 ' + catLabel;
+    // #30：篩選值本身就係 H 欄嘅實際值，直接顯示，唔再查 _Config（避免名唔對）
+    statsText += ' · 📂 ' +
+      (categoryFilter === FILTER_NONE ? '未分類' : categoryFilter);
   }
   if (oosDateFilter) {
     statsText += ' · 📅 ' + oosDateFilter.replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3');
