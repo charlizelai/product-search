@@ -1023,6 +1023,8 @@ const OOS_FILTER_KEY = 'oos_filter_v1';
 const CATEGORY_FILTER_KEY = 'category_filter_v1';
 
 const MIN_SUFFIX_LEN = 6;
+// #23：篩選器用的「空值」哨兵，用來找出未填分類／品牌的新產品
+const FILTER_NONE = '__NONE__';
 
 // ============================================================
 // 狀態
@@ -2277,14 +2279,23 @@ function populateCategoryFilter() {
   if (!sel) return;
   var cur = sel.value;
   var cats = (OPTIONS.category_en || []);
+
+  // #23：新產品可能完全沒有分類 —— 提供一個「未分類」選項把它們找出來，
+  //      否則只要套用任何分類篩選，這些貨就會完全消失。
+  var noneCount = allData.filter(function(d) {
+    return !String(d.category_en || '').trim();
+  }).length;
+
   sel.innerHTML = '<option value="">📂 全部分類</option>' +
     cats.map(function(c) {
       var v = String(c.value || '').trim();
       var l = String(c.label || v).trim();
       if (!v) return '';
       return '<option value="' + escAttr(v) + '">' + esc(l) + '</option>';
-    }).join('');
-  if (cur) sel.value = cur;
+    }).join('') +
+    (noneCount ? '<option value="' + FILTER_NONE + '">❓ 未分類（' + noneCount + '）</option>' : '');
+
+  sel.value = categoryFilter || cur || '';
   updateCategoryButtonState();
 }
 
@@ -2301,8 +2312,11 @@ function onCategoryChange() {
   categoryFilter = sel.value;
   try { localStorage.setItem(CATEGORY_FILTER_KEY, categoryFilter); } catch (e) {}
   updateCategoryButtonState();
+  populateBrandFilter();   // #22：品牌清單跟著分類範圍重建
   render();
-  if (categoryFilter) {
+  if (categoryFilter === FILTER_NONE) {
+    toast('📂 只顯示「未分類」產品');
+  } else if (categoryFilter) {
     var found = (OPTIONS.category_en || []).find(function(c) { return c.value === categoryFilter; });
     toast('📂 已篩選：' + (found ? found.label : categoryFilter));
   } else {
@@ -2319,10 +2333,21 @@ function populateBrandFilter() {
   var hint = $('brandFilterHint');
   if (!sel) return;
 
+  // 目前分類範圍：未選分類 = 全部；「未分類」= 只算沒有 category_en 的貨
+  function inScope(d) {
+    if (!categoryFilter) return true;
+    var c = String(d.category_en || '').trim();
+    if (categoryFilter === FILTER_NONE) return !c;
+    return c === categoryFilter;
+  }
+
   var counts = {};
+  var noneCount = 0;
   allData.forEach(function(d) {
+    if (!inScope(d)) return;
     var b = String(d.brand || '').trim();
     if (b) counts[b] = (counts[b] || 0) + 1;
+    else noneCount++;
   });
 
   var brands = Object.keys(counts);
@@ -2332,22 +2357,46 @@ function populateBrandFilter() {
     return a.localeCompare(b, 'zh-HK');
   });
 
-  var prev = sel.value;
-  sel.innerHTML = '<option value="">🏷️ 全部品牌（' + brands.length + '）</option>';
-  brands.forEach(function(b) {
-    var o = document.createElement('option');
-    o.value = b;
-    o.textContent = b + '（' + counts[b] + '）';
-    sel.appendChild(o);
-  });
+  // #22：只有「已選分類」時才列出品牌。
+  //      品牌可能幾百個，全量清單在手機原生選單會長到蓋住整個畫面。
+  var listBrands = !!categoryFilter;
 
-  // 篩選中的品牌若已消失，就清掉篩選
-  if (brandFilter && brands.indexOf(brandFilter) < 0) {
+  var html = '<option value="">🏷️ 全部品牌</option>';
+  if (listBrands) {
+    brands.forEach(function(b) {
+      html += '<option value="' + escAttr(b) + '">' + esc(b + '（' + counts[b] + '）') + '</option>';
+    });
+  }
+  // #23：永遠提供「未有品牌」，否則未填品牌的新產品無法被找出來
+  if (noneCount) {
+    html += '<option value="' + FILTER_NONE + '">❓ 未有品牌（' + noneCount + '）</option>';
+  }
+  sel.innerHTML = html;
+
+  // 原本選的品牌若已不在新範圍內就清掉
+  if (brandFilter === FILTER_NONE && !noneCount) brandFilter = '';
+  if (brandFilter && brandFilter !== FILTER_NONE &&
+      (!listBrands || brands.indexOf(brandFilter) < 0)) {
     brandFilter = '';
   }
-  sel.value = brandFilter || prev || '';
-  sel.style.display = brands.length ? '' : 'none';
-  if (hint) hint.style.display = brands.length ? 'none' : 'block';
+  sel.value = brandFilter || '';
+
+  var hasAny = (listBrands && brands.length > 0) || noneCount > 0;
+  sel.style.display = hasAny ? '' : 'none';
+
+  if (hint) {
+    if (!hasAny) {
+      hint.textContent = categoryFilter
+        ? '🏷️ 此分類尚無品牌資料 —— 惠康自動更新寫入「品牌」欄後就會出現'
+        : '🏷️ 品牌資料尚未建立 —— 惠康自動更新寫入「品牌」欄後就會出現';
+      hint.style.display = 'block';
+    } else if (!listBrands) {
+      hint.textContent = '🏷️ 品牌數量多，先選「分類」才會列出品牌；或直接選「未有品牌」找出未填的貨';
+      hint.style.display = 'block';
+    } else {
+      hint.style.display = 'none';
+    }
+  }
 }
 
 function onBrandChange() {
@@ -2355,7 +2404,9 @@ function onBrandChange() {
   if (!sel) return;
   brandFilter = sel.value || '';
   render();
-  toast(brandFilter ? ('🏷️ 已篩選品牌：' + brandFilter) : '🏷️ 顯示全部品牌');
+  if (brandFilter === FILTER_NONE) toast('🏷️ 只顯示「未有品牌」產品');
+  else if (brandFilter)      toast('🏷️ 已篩選品牌：' + brandFilter);
+  else                       toast('🏷️ 顯示全部品牌');
 }
 
 function filterByCategory(cat) {
@@ -2365,6 +2416,7 @@ function filterByCategory(cat) {
   var sel = $('categoryFilter');
   if (sel) sel.value = cat;
   updateCategoryButtonState();
+  populateBrandFilter();   // #22：品牌清單跟著分類範圍重建
   try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
   render();
   var found = (OPTIONS.category_en || []).find(function(c) { return c.value === cat; });
@@ -2803,7 +2855,8 @@ function applyProducts(data) {
     return d;
   });
   searchMode = 'text';
-  populateBrandFilter();   // #21：品牌清單跟著資料更新
+  populateCategoryFilter();   // #23：更新「未分類」數量
+  populateBrandFilter();      // #21：品牌清單跟著資料更新
 }
 
 function saveLocalCache(data) {
@@ -2861,14 +2914,19 @@ function render() {
     filtered = filtered.filter(function(d) { return d._oos === true || d._oos === 'true'; });
   }
 
-  if (categoryFilter) {
+  // #23：分類篩選（含「未分類」＝找出沒有 category_en 的新產品）
+  if (categoryFilter === FILTER_NONE) {
+    filtered = filtered.filter(function(d) { return !String(d.category_en || '').trim(); });
+  } else if (categoryFilter) {
     filtered = filtered.filter(function(d) {
       return String(d.category_en || '').trim() === categoryFilter;
     });
   }
 
-  // #21：品牌篩選
-  if (brandFilter) {
+  // #23：品牌篩選（含「未有品牌」）
+  if (brandFilter === FILTER_NONE) {
+    filtered = filtered.filter(function(d) { return !String(d.brand || '').trim(); });
+  } else if (brandFilter) {
     filtered = filtered.filter(function(d) {
       return String(d.brand || '').trim() === brandFilter;
     });
@@ -2901,15 +2959,21 @@ function render() {
   if (sortMode === 'location') statsText += ' · 按位置';
   if (categoryFilter) {
     var catLabel = categoryFilter;
-    var found = (OPTIONS.category_en || []).find(function(c) { return c.value === categoryFilter; });
-    if (found && found.label) catLabel = found.label;
+    if (categoryFilter === FILTER_NONE) {
+      catLabel = '未分類';
+    } else {
+      var foundCat = (OPTIONS.category_en || []).find(function(c) { return c.value === categoryFilter; });
+      if (foundCat && foundCat.label) catLabel = foundCat.label;
+    }
     statsText += ' · 📂 ' + catLabel;
   }
   if (oosDateFilter) {
     statsText += ' · 📅 ' + oosDateFilter.replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3');
   }
   if (oosSlotFilter) statsText += ' · 🚚 ' + oosSlotFilter;
-  if (brandFilter) statsText += ' · 🏷️ ' + brandFilter;
+  if (brandFilter) {
+    statsText += ' · 🏷️ ' + (brandFilter === FILTER_NONE ? '未有品牌' : brandFilter);
+  }
   $('stats').textContent = statsText;
 
   // #20：符合條件的缺貨訂單摘要（單日期 ＋ 派送時段）
