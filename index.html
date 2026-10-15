@@ -363,6 +363,17 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .toast.show { opacity: 1; }
 .login-box { padding: 60px 24px; max-width: 420px; margin: 0 auto; }
 .login-box h1 { margin-bottom: 28px; font-size: 26px; text-align: center; }
+/* #38 登入 / 註冊 */
+.login-box input[type="text"] {
+  width: 100%; padding: 16px; font-size: 19px;
+  border: 2px solid #d2d2d7; border-radius: 14px;
+  margin-bottom: 12px; -webkit-appearance: none;
+}
+.login-err { color: #d93025; font-size: 14px; font-weight: 600; min-height: 20px; margin: -6px 0 8px; }
+.login-switch { text-align: center; margin-top: 14px; font-size: 15px; }
+.login-switch a { color: #0071e3; text-decoration: none; font-weight: 600; }
+.login-note { text-align: center; margin-top: 10px; font-size: 12px; color: #86868b; }
+
 .login-box input[type="password"] {
   width: 100%; padding: 16px; font-size: 19px;
   border: 2px solid #d2d2d7; border-radius: 14px;
@@ -672,13 +683,37 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 <body>
 
 <div id="loginScreen" class="login-box" style="display:none">
-  <h1>🔐 請輸入密碼</h1>
-  <input type="password" id="pwdInput" placeholder="輸入密碼" autocomplete="current-password">
-  <label class="remember-row">
-    <input type="checkbox" id="rememberMe" checked>
-    <span>記住我（下次自動登入）</span>
-  </label>
-  <button onclick="login()">登入</button>
+  <h1 id="loginTitle">🔐 登入</h1>
+
+  <!-- 登入 -->
+  <div id="loginPane">
+    <input type="text" id="nameInput" placeholder="名稱（員工姓名）"
+           autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <input type="password" id="pwdInput" placeholder="密碼" autocomplete="current-password">
+    <label class="remember-row">
+      <input type="checkbox" id="rememberMe" checked>
+      <span>記住我（下次自動登入）</span>
+    </label>
+    <div class="login-err" id="loginErr"></div>
+    <button onclick="login()">登入</button>
+    <div class="login-switch"><a href="#" onclick="showRegisterPane();return false;">第一次用？註冊</a></div>
+    <div class="login-note">名稱留空 = 用舊共用密碼登入</div>
+  </div>
+
+  <!-- 註冊 -->
+  <div id="registerPane" style="display:none">
+    <input type="text" id="regName" placeholder="登入名稱（例如 阿明）"
+           autocapitalize="off" autocorrect="off" spellcheck="false">
+    <input type="text" id="regDisplay" placeholder="顯示名（例如 陳小明，可留空）"
+           autocapitalize="off" autocorrect="off" spellcheck="false">
+    <input type="password" id="regPwd" placeholder="密碼（至少 6 位）" autocomplete="new-password">
+    <input type="password" id="regPwd2" placeholder="再輸入一次密碼" autocomplete="new-password">
+    <input type="text" id="regInvite" placeholder="邀請碼（問管理員）"
+           autocapitalize="characters" autocorrect="off" spellcheck="false">
+    <div class="login-err" id="regErr"></div>
+    <button onclick="register()">註冊並登入</button>
+    <div class="login-switch"><a href="#" onclick="showLoginPane();return false;">已經有帳戶？返回登入</a></div>
+  </div>
 </div>
 
 <div id="appScreen" style="display:none">
@@ -687,6 +722,8 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       <span>📦 產品管理</span>
       <button id="btnOptionsMgr" onclick="openOptionsModal()" title="選項管理"
         style="display:none;background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">⚙️</button>
+      <button id="btnUserMgr" onclick="openUserMgr()" title="員工管理"
+        style="display:none;background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">👥</button>
       <button id="btnLogout" onclick="logout()" title="登出"
         style="background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">🚪</button>
     </h1>
@@ -968,6 +1005,30 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   </div>
 </div>
 
+<!-- #38：管理員員工管理 -->
+<div class="modal" id="userModal" style="align-items: center;">
+  <div class="modal-content">
+    <h2>👥 員工管理</h2>
+
+    <div style="background:#e8f0fe; border-radius:12px; padding:12px 14px; margin-bottom:16px; font-size:15px;">
+      <div style="font-weight:700; margin-bottom:6px;">註冊邀請碼</div>
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <b id="userInviteCode" style="font-family:ui-monospace,monospace; font-size:19px; letter-spacing:1px;">—</b>
+        <button type="button" onclick="copyInviteCode()" style="padding:8px 14px; border-radius:8px; border:none; background:#0071e3; color:#fff; font-weight:600; cursor:pointer;">複製</button>
+      </div>
+      <div style="font-size:12px; color:#5f6368; margin-top:8px; line-height:1.5;">
+        將呢個碼話俾同事，佢哋開 App →「第一次用？註冊」→ 填名稱、密碼、邀請碼就得。
+      </div>
+    </div>
+
+    <div id="userListBox"></div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeUserModal()">關閉</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="optionsModal" style="align-items: stretch;">
   <div class="modal-content" style="border-radius: 0; max-height: 100vh; height: 100vh; padding: 20px 14px calc(20px + env(safe-area-inset-bottom));">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;position:sticky;top:0;background:#fff;padding-bottom:12px;border-bottom:2px solid #e5e5e7;z-index:10;">
@@ -1089,6 +1150,7 @@ let sortMode = 'default';
 let barcodeOnly = false;
 let skuOnly = false;        // #32：只搜 SKU code（Y 欄）
 let skuFieldAvailable = true;   // #36：資料來源有冇 sku 欄位（決定可否編輯）
+let authUser = null;            // #38：目前登入者 { name, display, role }
 let oosFilterOnly = false;
 let categoryFilter = '';
 let brandFilter = '';   // #21：品牌篩選
@@ -1200,39 +1262,171 @@ function generateTempId() {
 // ============================================================
 // 登入 / 登出
 // ============================================================
-function login() {
-  var pwd = $('pwdInput').value.trim();
-  if (!pwd) return;
-  TOKEN = pwd;
-  isAdmin = (pwd === ADMIN_TOKEN);
-  var remember = $('rememberMe').checked;
-  rememberLogin = remember;
+function showLoginPane() {
+  $('loginPane').style.display = 'block';
+  $('registerPane').style.display = 'none';
+  $('loginTitle').textContent = '🔐 登入';
+  var e1 = $('loginErr'); if (e1) e1.textContent = '';
+}
+
+function showRegisterPane() {
+  $('loginPane').style.display = 'none';
+  $('registerPane').style.display = 'block';
+  $('loginTitle').textContent = '📝 註冊新帳戶';
+  var e2 = $('regErr'); if (e2) e2.textContent = '';
+  ['regName','regDisplay','regPwd','regPwd2','regInvite'].forEach(function(id) {
+    var el = $(id); if (el) el.value = '';
+  });
+}
+
+/** #38：儲存 session（token 由伺服器發出；舊共用密碼模式就係密碼本身） */
+function saveSession(token, adminFlag, remember) {
+  rememberLogin = !!remember;
   try {
-    localStorage.removeItem('token');
-    localStorage.removeItem('isAdmin');
-    sessionStorage.removeItem('token');
-    sessionStorage.removeItem('isAdmin');
+    localStorage.removeItem('token');    localStorage.removeItem('isAdmin');
+    sessionStorage.removeItem('token');  sessionStorage.removeItem('isAdmin');
   } catch (e) {}
   var store = remember ? localStorage : sessionStorage;
   try {
-    store.setItem('token', pwd);
-    store.setItem('isAdmin', isAdmin ? '1' : '0');
+    store.setItem('token', token);
+    store.setItem('isAdmin', adminFlag ? '1' : '0');
   } catch (e) {}
+}
+
+function clearSession() {
+  try {
+    localStorage.removeItem('token');    localStorage.removeItem('isAdmin');
+    sessionStorage.removeItem('token');  sessionStorage.removeItem('isAdmin');
+  } catch (e) {}
+  TOKEN = '';
+  isAdmin = false;
+  authUser = null;
+}
+
+async function login() {
+  var name = ($('nameInput').value || '').trim();
+  var pwd  = ($('pwdInput').value || '').trim();
+  var err  = $('loginErr');
+  if (err) err.textContent = '';
+  if (!pwd) { if (err) err.textContent = '請輸入密碼'; return; }
+
+  var remember = $('rememberMe').checked;
+
+  // 名稱留空 → 舊共用密碼模式（向後兼容，唔會鎖死未搬去個人帳戶嘅人）
+  if (!name) {
+    TOKEN = pwd;
+    isAdmin = (pwd === ADMIN_TOKEN);
+    authUser = { name: 'staff', display: isAdmin ? '管理員' : '同事',
+                 role: isAdmin ? 'admin' : 'staff', legacy: true };
+    saveSession(TOKEN, isAdmin, remember);
+    $('pwdInput').value = '';
+    showApp();
+    return;
+  }
+
+  var btn = document.querySelector('#loginPane button');
+  if (btn) btn.disabled = true;
+  try {
+    var res = await apiPost({ action: 'login', name: name, password: pwd, remember: remember });
+    if (!res || res.error) {
+      if (err) err.textContent = '❌ ' + ((res && res.error) || '登入失敗');
+      return;
+    }
+    TOKEN = res.token;
+    isAdmin = (res.role === 'admin');
+    authUser = { name: res.name, display: res.display || res.name, role: res.role };
+    saveSession(TOKEN, isAdmin, remember);
+    $('pwdInput').value = '';
+    showApp();
+    toast('👋 ' + authUser.display);
+  } catch (e) {
+    if (err) err.textContent = '❌ ' + e.message;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function register() {
+  var name    = ($('regName').value || '').trim();
+  var display = ($('regDisplay').value || '').trim();
+  var p1      = $('regPwd').value || '';
+  var p2      = $('regPwd2').value || '';
+  var invite  = ($('regInvite').value || '').trim();
+  var err     = $('regErr');
+  if (err) err.textContent = '';
+
+  if (name.length < 2)   { if (err) err.textContent = '名稱至少 2 個字'; return; }
+  if (p1.length < 6)     { if (err) err.textContent = '密碼至少 6 位'; return; }
+  if (p1 !== p2)         { if (err) err.textContent = '兩次輸入嘅密碼唔一樣'; return; }
+  if (!invite)           { if (err) err.textContent = '請輸入邀請碼'; return; }
+
+  var btn = document.querySelector('#registerPane button');
+  if (btn) btn.disabled = true;
+  try {
+    var res = await apiPost({
+      action: 'register', name: name, displayName: display,
+      password: p1, inviteCode: invite
+    });
+    if (!res || res.error) {
+      if (err) err.textContent = '❌ ' + ((res && res.error) || '註冊失敗');
+      return;
+    }
+    TOKEN = res.token;
+    isAdmin = (res.role === 'admin');
+    authUser = { name: res.name, display: res.display || res.name, role: res.role };
+    saveSession(TOKEN, isAdmin, true);
+    showApp();
+    toast('🎉 註冊成功，歡迎 ' + authUser.display);
+  } catch (e) {
+    if (err) err.textContent = '❌ ' + e.message;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+/**
+ * #38：開機時驗證已儲存嘅 token。
+ * token 失效 → 返登入畫面；網絡問題 → 照樣入 App（用本地狀態），唔會因為 API 掛咗而入唔到。
+ */
+async function bootstrapAuth() {
+  if (!TOKEN) { $('loginScreen').style.display = 'block'; return; }
+  try {
+    var res = await apiGet('me');
+    if (res && res.error) {          // token 已失效／被停用
+      clearSession();
+      $('loginScreen').style.display = 'block';
+      return;
+    }
+    if (res && res.user) {
+      authUser = res.user;
+      isAdmin = (res.user.role === 'admin');
+      try {
+        var store = rememberLogin ? localStorage : sessionStorage;
+        store.setItem('isAdmin', isAdmin ? '1' : '0');
+      } catch (e) {}
+    }
+  } catch (e) {
+    console.warn('無法驗證登入狀態，照樣進入：', e);
+  }
   showApp();
 }
 
-function logout() {
+async function logout() {
   if (!confirm('確定要登出嗎？')) return;
-  TOKEN = '';
-  isAdmin = false;
-  rememberLogin = true;
+
+  // #38：通知伺服器註銷 session（失敗都照樣清本地，唔會登出唔到）
   try {
-    localStorage.removeItem('token');
-    localStorage.removeItem('isAdmin');
+    if (TOKEN && authUser && !authUser.legacy) {
+      await apiPost({ action: 'logout', token: TOKEN });
+    }
+  } catch (e) {
+    console.warn('logout API 失敗（照樣登出）：', e);
+  }
+
+  clearSession();
+  try {
     localStorage.removeItem(LOCAL_CACHE_KEY);
     localStorage.removeItem(LOCAL_CACHE_TIME_KEY);
-    sessionStorage.removeItem('token');
-    sessionStorage.removeItem('isAdmin');
   } catch (e) {}
   allData = [];
   optionsLoaded = false;
@@ -1242,11 +1436,14 @@ function logout() {
   $('appScreen').style.display = 'none';
   $('loginScreen').style.display = 'block';
   $('pwdInput').value = '';
+  $('nameInput').value = '';
   $('rememberMe').checked = true;
+  if (typeof showLoginPane === 'function') showLoginPane();
   $('q').value = '';
   $('list').innerHTML = '';
   $('stats').textContent = '載入中...';
   $('btnOptionsMgr').style.display = 'none';
+  var bum2 = $('btnUserMgr'); if (bum2) bum2.style.display = 'none';   // #38
   $('phashBanner').style.display = 'none';
   $('tempIdBanner').style.display = 'none';
   toast('👋 已登出');
@@ -1256,6 +1453,7 @@ function showApp() {
   $('loginScreen').style.display = 'none';
   $('appScreen').style.display = 'block';
   $('btnOptionsMgr').style.display = isAdmin ? 'inline-block' : 'none';
+  var bum = $('btnUserMgr'); if (bum) bum.style.display = isAdmin ? 'inline-block' : 'none';   // #38
   loadOptions().then(function() {
     if (categoryFilter) {
       var sel = $('categoryFilter');
@@ -3639,6 +3837,102 @@ function openEdit(id) {
   $('modal').classList.add('show');
 }
 
+// ============================================================
+//  #38  管理員：員工管理
+// ============================================================
+function openUserMgr() {
+  $('userModal').classList.add('show');
+  refreshUserList();
+}
+function closeUserModal() { $('userModal').classList.remove('show'); }
+
+function copyInviteCode() {
+  copyText($('userInviteCode').textContent || '', '邀請碼');
+}
+
+async function refreshUserList() {
+  var box = $('userListBox');
+  if (!box) return;
+  box.innerHTML = '<div class="loading">載入中...</div>';
+  try {
+    var res = await apiPost({ action: 'listUsers' });
+    if (!res || res.error) {
+      box.innerHTML = '<div class="loading">❌ ' + esc((res && res.error) || '讀取失敗') + '</div>';
+      return;
+    }
+    $('userInviteCode').textContent = res.inviteCode || '—';
+    renderUserRows(res.users || []);
+  } catch (e) {
+    box.innerHTML = '<div class="loading">❌ ' + esc(e.message) + '</div>';
+  }
+}
+
+function renderUserRows(users) {
+  var box = $('userListBox');
+  if (!users.length) { box.innerHTML = '<div class="loading">仲未有員工註冊</div>'; return; }
+
+  users.sort(function(a, b) { return String(a.name).localeCompare(String(b.name), 'zh-HK'); });
+  var btn = 'padding:6px 12px;border-radius:8px;border:none;font-weight:600;font-size:13px;cursor:pointer;';
+
+  var html = '';
+  users.forEach(function(u) {
+    var tags = '';
+    if (u.role === 'admin') tags += '<span style="background:#e8f0fe;color:#1a73e8;font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px;">管理員</span>';
+    if (!u.active)         tags += '<span style="background:#fce8e6;color:#d93025;font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px;">已停用</span>';
+
+    var last = u.lastLogin ? timeAgo(u.lastLogin) : '未登入過';
+    var nm = escAttr(u.name);
+
+    html += '<div style="border-bottom:1px dashed #e5e5e7; padding:10px 0;">' +
+      '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">' +
+        '<b style="font-size:16px;">' + esc(u.display || u.name) + '</b>' +
+        '<span style="font-size:12px;color:#86868b;font-family:ui-monospace,monospace;">' + esc(u.name) + '</span>' +
+        tags +
+      '</div>' +
+      '<div style="font-size:12px;color:#86868b;margin-top:2px;">最後登入：' + esc(last) + '</div>' +
+      '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">' +
+        '<button onclick="toggleUserActive(\'' + nm + '\',' + (u.active ? 'false' : 'true') + ')" style="' + btn +
+          (u.active ? 'background:#fce8e6;color:#d93025;' : 'background:#e8f5e9;color:#2e7d32;') + '">' +
+          (u.active ? '停用' : '啟用') + '</button>' +
+        '<button onclick="resetUserPw(\'' + nm + '\')" style="' + btn + 'background:#fff3cd;color:#856404;">重設密碼</button>' +
+        '<button onclick="toggleUserRole(\'' + nm + '\',\'' + (u.role === 'admin' ? 'staff' : 'admin') + '\')" style="' + btn + 'background:#e8f0fe;color:#1a73e8;">' +
+          (u.role === 'admin' ? '取消管理員' : '設為管理員') + '</button>' +
+      '</div>' +
+    '</div>';
+  });
+  box.innerHTML = html;
+}
+
+async function toggleUserActive(name, active) {
+  var msg = active ? ('啟用「' + name + '」？')
+                   : ('停用「' + name + '」？\n停用後佢會即刻被登出，唔能夠再登入。');
+  if (!confirm(msg)) return;
+  var res = await apiPost({ action: 'setUserActive', name: name, active: active });
+  if (!res || res.error) { toast('❌ ' + ((res && res.error) || '失敗'), 3000); return; }
+  toast(active ? '✅ 已啟用' : '⛔ 已停用');
+  refreshUserList();
+}
+
+async function toggleUserRole(name, role) {
+  var grant = (role === 'admin');
+  if (!confirm((grant ? '將「' + name + '」設為管理員？' : '取消「' + name + '」嘅管理員權限？') +
+               '\n（對方需要重新登入）')) return;
+  var res = await apiPost({ action: 'setUserRole', name: name, role: role });
+  if (!res || res.error) { toast('❌ ' + ((res && res.error) || '失敗'), 3000); return; }
+  toast(grant ? '✅ 已設為管理員' : '✅ 已取消管理員');
+  refreshUserList();
+}
+
+async function resetUserPw(name) {
+  var pw = prompt('輸入「' + name + '」嘅新密碼（至少 6 位）：');
+  if (!pw) return;
+  if (pw.length < 6) { toast('❌ 密碼至少 6 位'); return; }
+  var res = await apiPost({ action: 'resetUserPassword', name: name, password: pw });
+  if (!res || res.error) { toast('❌ ' + ((res && res.error) || '失敗'), 3000); return; }
+  toast('✅ 已重設密碼（對方會被強制登出），請通知佢新密碼');
+  refreshUserList();
+}
+
 function closeModal() { $('modal').classList.remove('show'); }
 
 
@@ -4474,6 +4768,8 @@ function showDebug() {
 // 啟動
 // ============================================================
 $('pwdInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') login(); });
+$('nameInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') $('pwdInput').focus(); });
+$('regInvite').addEventListener('keydown', function(e) { if (e.key === 'Enter') register(); });   // #38
 $('oosModal').addEventListener('click', function(e) { if (e.target === $('oosModal')) closeOOSModal(); });
 $('ocrModal').addEventListener('click', function(e) { if (e.target === $('ocrModal')) closeOcrModal(); });
 document.addEventListener('keydown', function(e) {
@@ -4501,8 +4797,8 @@ updateOOSFilterButton();
 updateSortButton();
 applyInputMode();
 
-if (TOKEN) showApp();
-else $('loginScreen').style.display = 'block';
+// #38：先向 API 驗證已儲存嘅 token，再決定顯示登入畫面定 App
+bootstrapAuth();
 </script>
 </body>
 </html>
