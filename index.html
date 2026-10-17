@@ -1114,6 +1114,16 @@ const CATEGORY_FILTER_KEY = 'category_filter_v1';
 const MIN_SUFFIX_LEN = 6;
 // #23：篩選器用的「空值」哨兵，用來找出未填分類／品牌的新產品
 const FILTER_NONE = '__NONE__';
+// #39：未揀分類時，品牌下拉只列最熱門嘅頭 N 個（按產品數量），
+//      令你唔使先揀分類都揀得到常用品牌，又唔會幾百個塞爆手機選單。
+const HOT_BRAND_LIMIT = 15;
+
+// #40：手動釘住嘅品牌 —— 永遠排最前，按以下次序顯示，
+//      即使惠康冇推廣都永遠置頂。想改就改呢個陣列。
+const PINNED_BRANDS = [
+  '維他', '無激素', '泰正', 'S-Pure', '明治', '日清', '嘉頓',
+  'Meadows', '十字牌', '灣仔碼頭', '公仔點心', '淘大', '李錦記'
+];
 
 // ============================================================
 // 狀態
@@ -2659,21 +2669,40 @@ function populateBrandFilter() {
   });
 
   var brands = Object.keys(counts);
-  // 先按產品數量多的排前面，數量相同才按名稱
+  // 其餘品牌：先按產品數量多的排前面，數量相同才按名稱
   brands.sort(function(a, b) {
     if (counts[b] !== counts[a]) return counts[b] - counts[a];
     return a.localeCompare(b, 'zh-HK');
   });
 
-  // #22/#30：有揀「分類」或「細分」就列出品牌；
-  //          兩者都冇揀就只顯示「未有品牌」，避免幾百個品牌塞爆手機選單。
-  var listBrands = !!(categoryFilter || subcatFilter);
+  // #40：釘住嘅品牌永遠排最前（按 PINNED_BRANDS 嘅次序），
+  //      而且即使惠康冇推廣、產品數量少都一樣置頂。
+  //      冇貨／唔存在嘅釘住品牌會自動略過，唔會出現空白選項。
+  var seenPinned = {};
+  var ordered = [];
+  PINNED_BRANDS.forEach(function(p) {
+    var key = String(p || '').trim();
+    if (!key || seenPinned[key]) return;
+    seenPinned[key] = true;
+    if (counts[key]) ordered.push(key);
+  });
+  brands.forEach(function(b) {
+    if (!seenPinned[b]) ordered.push(b);
+  });
 
-  var html = '<option value="">🏷️ 全部品牌</option>';
-  if (listBrands) {
-    brands.forEach(function(b) {
-      html += '<option value="' + escAttr(b) + '">' + esc(b + '（' + counts[b] + '）') + '</option>';
-    });
+  // #39：未揀分類 → 只列頭 HOT_BRAND_LIMIT 個（即釘住嘅 + 最熱門嘅補足）
+  //      揀咗分類／細分 → 列該範圍全部品牌
+  var scoped = !!(categoryFilter || subcatFilter);
+  var shown = scoped ? ordered : ordered.slice(0, HOT_BRAND_LIMIT);
+
+  var html = '<option value="">🏷️ 全部品牌（' + brands.length + '）</option>';
+  shown.forEach(function(b) {
+    var star = seenPinned[b] ? '⭐ ' : '';      // #40：釘住嘅品牌加星
+    html += '<option value="' + escAttr(b) + '">' + esc(star + b + '（' + counts[b] + '）') + '</option>';
+  });
+  if (!scoped && brands.length > shown.length) {
+    html += '<option value="" disabled>— 只列最熱門 ' + shown.length +
+            ' 個 · 揀分類或細分可睇全部 ' + brands.length + ' 個 —</option>';
   }
   // #23：永遠提供「未有品牌」，否則未填品牌的新產品無法被找出來
   if (noneCount) {
@@ -2681,15 +2710,15 @@ function populateBrandFilter() {
   }
   sel.innerHTML = html;
 
-  // 原本選的品牌若已不在新範圍內就清掉
+  // 原本選的品牌若已不在今次顯示範圍內就清掉
   if (brandFilter === FILTER_NONE && !noneCount) brandFilter = '';
   if (brandFilter && brandFilter !== FILTER_NONE &&
-      (!listBrands || brands.indexOf(brandFilter) < 0)) {
+      shown.indexOf(brandFilter) < 0) {
     brandFilter = '';
   }
   sel.value = brandFilter || '';
 
-  var hasAny = (listBrands && brands.length > 0) || noneCount > 0;
+  var hasAny = shown.length > 0 || noneCount > 0;
   sel.style.display = hasAny ? '' : 'none';
 
   if (hint) {
@@ -2698,10 +2727,10 @@ function populateBrandFilter() {
         ? '🏷️ 此分類尚無品牌資料 —— 惠康自動更新寫入「品牌」欄後就會出現'
         : '🏷️ 品牌資料尚未建立 —— 惠康自動更新寫入「品牌」欄後就會出現';
       hint.style.display = 'block';
-    } else if (!listBrands) {
-      hint.textContent = subcatFilter
-        ? '🏷️ 品牌已按「' + subcatFilter + '」收窄；再揀「細分」可以收得更窄'
-        : '🏷️ 品牌數量多，先選「分類」才會列出品牌；再揀「細分」可收得更窄';
+    } else if (!scoped && brands.length > shown.length) {
+      // #39：熱門清單唔夠用時，提示可以揀分類收窄／展開全部
+      hint.textContent = '🏷️ 未揀分類只列 ⭐熱門 ' + shown.length + ' 個品牌；' +
+                         '揀「分類」或「細分」可以睇全部 ' + brands.length + ' 個';
       hint.style.display = 'block';
     } else {
       hint.style.display = 'none';
