@@ -1120,6 +1120,10 @@ const HOT_BRAND_LIMIT = 15;
 
 // #40：手動釘住嘅品牌 —— 永遠排最前，按以下次序顯示，
 //      即使惠康冇推廣都永遠置頂。想改就改呢個陣列。
+// #43：惠康當期推廣品牌（由 API promoBrands 自動更新）
+let promoBrands = [];
+let promoBrandsAt = '';
+
 const PINNED_BRANDS = [
   '維他', '無激素', '泰正', 'S-Pure', '明治', '日清', '嘉頓',
   'Meadows', '十字牌', '灣仔碼頭', '公仔點心', '淘大', '李錦記'
@@ -1476,6 +1480,7 @@ function showApp() {
   updateSortButton();
   applyInputMode();
   loadHolidays();   // ★ 階段 2
+  loadPromoBrands();   // #43：惠康推廣品牌
   loadData();
   if (isAdmin) {
     setTimeout(checkTempIds, 2500);
@@ -2678,27 +2683,43 @@ function populateBrandFilter() {
   // #40：釘住嘅品牌永遠排最前（按 PINNED_BRANDS 嘅次序），
   //      而且即使惠康冇推廣、產品數量少都一樣置頂。
   //      冇貨／唔存在嘅釘住品牌會自動略過，唔會出現空白選項。
-  var seenPinned = {};
+  // 1) 手動釘住 —— 永遠最前，按指定次序
+  var seenTop = {};
   var ordered = [];
+  var pinnedShown = 0;
   PINNED_BRANDS.forEach(function(p) {
     var key = String(p || '').trim();
-    if (!key || seenPinned[key]) return;
-    seenPinned[key] = true;
-    if (counts[key]) ordered.push(key);
-  });
-  brands.forEach(function(b) {
-    if (!seenPinned[b]) ordered.push(b);
+    if (!key || seenTop[key]) return;
+    seenTop[key] = true;
+    if (counts[key]) { ordered.push(key); pinnedShown++; }
   });
 
-  // #39：未揀分類 → 只列頭 HOT_BRAND_LIMIT 個（即釘住嘅 + 最熱門嘅補足）
-  //      揀咗分類／細分 → 列該範圍全部品牌
+  // 2) 惠康當期推廣品牌（自動更新）
+  var seenPromo = {};
+  var promoShown = 0;
+  (Array.isArray(promoBrands) ? promoBrands : []).forEach(function(p) {
+    var key = String(p || '').trim();
+    if (!key || seenTop[key] || seenPromo[key]) return;
+    seenPromo[key] = true;
+    if (counts[key]) { ordered.push(key); promoShown++; }
+  });
+
+  // 3) 其餘按產品數量
+  brands.forEach(function(b) {
+    if (!seenTop[b] && !seenPromo[b]) ordered.push(b);
+  });
+
+  // #39/#43：未揀分類 → 只列前面一段，但一定要包住全部釘住 + 推廣品牌再加 5 個
+  //          揀咗分類／細分 → 列該範圍全部品牌
   var scoped = !!(categoryFilter || subcatFilter);
-  var shown = scoped ? ordered : ordered.slice(0, HOT_BRAND_LIMIT);
+  var hotLimit = Math.max(HOT_BRAND_LIMIT, pinnedShown + promoShown + 5);
+  var shown = scoped ? ordered : ordered.slice(0, hotLimit);
 
   var html = '<option value="">🏷️ 全部品牌（' + brands.length + '）</option>';
   shown.forEach(function(b) {
-    var star = seenPinned[b] ? '⭐ ' : '';      // #40：釘住嘅品牌加星
-    html += '<option value="' + escAttr(b) + '">' + esc(star + b + '（' + counts[b] + '）') + '</option>';
+    // #40 釘住 = ⭐ ／ #43 推廣 = 🔥
+    var mark = seenTop[b] ? '⭐ ' : (seenPromo[b] ? '🔥 ' : '');
+    html += '<option value="' + escAttr(b) + '">' + esc(mark + b + '（' + counts[b] + '）') + '</option>';
   });
   if (!scoped && brands.length > shown.length) {
     html += '<option value="" disabled>— 只列最熱門 ' + shown.length +
@@ -2802,6 +2823,23 @@ function onSubcatChange() {
   if (subcatFilter === FILTER_NONE)      toast('🔎 只顯示「未設定細分」產品');
   else if (subcatFilter)                 toast('🔎 已篩選細分：' + subcatFilter);
   else                                   toast('🔎 顯示全部細分');
+}
+
+/**
+ * #43：向 API 攞「惠康當期推廣品牌」。
+ * 由 api.gs 嘅 updatePromoBrands()（每日 05:30）維護；失敗就用上一次嘅清單。
+ */
+async function loadPromoBrands() {
+  try {
+    var res = await apiGet('promoBrands');
+    if (res && !res.error && Array.isArray(res.brands)) {
+      promoBrands = res.brands;
+      promoBrandsAt = res.updated || '';
+    }
+  } catch (e) {
+    console.warn('loadPromoBrands 失敗（用回上一次清單）：', e);
+  }
+  populateBrandFilter();
 }
 
 function onBrandChange() {
