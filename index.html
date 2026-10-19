@@ -837,6 +837,15 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 
   <div id="oosDateSummary" style="display:none; margin:10px 12px 0; padding:10px 12px; background:#fdecea; border-left:4px solid #c62828; border-radius:8px; font-size:13px; color:#7f1d1d; line-height:1.65;"></div>
 
+  <!-- #45 一鍵套用建議分類（只限管理員，只喺「分類待修」模式出現） -->
+  <div id="catBulkBar" style="display:none; margin:10px 12px 0; padding:12px; background:#fff6e5; border-left:4px solid #f57c00; border-radius:10px;">
+    <div style="font-size:13px; color:#8a4b00; line-height:1.55; margin-bottom:10px;">
+      ⚡ 可以由品名推測出 <b id="catBulkCount">0</b> 件貨嘅分類。<br>
+      套用之後仍然可以逐件改。
+    </div>
+    <button onclick="openBulkCatModal()" style="width:100%; padding:13px; font-size:16px; font-weight:700; border:none; border-radius:10px; background:#f57c00; color:#fff; cursor:pointer;">⚡ 一鍵套用全部建議</button>
+  </div>
+
   <div class="list" id="list"></div>
   <button class="add-btn" onclick="openAdd()">+</button>
 </div>
@@ -1155,6 +1164,20 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeCatModal()">取消</button>
       <button class="btn-save" id="btnCatFixSave" onclick="saveCatFix()">✅ 儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- #45 批量套用前嘅確認視窗：列清單、講明只會改邊啲行 -->
+<div class="modal" id="bulkCatModal">
+  <div class="modal-content">
+    <h2 style="margin:0 0 10px; font-size:20px;">⚡ 套用建議分類</h2>
+    <div id="bulkCatSummary" style="font-size:14px; color:#1d1d1f; line-height:1.6; margin-bottom:12px;"></div>
+    <div id="bulkCatPreview" style="max-height:36vh; overflow-y:auto; border:1px solid #e5e5e7; border-radius:10px; padding:8px 10px; font-size:12px; line-height:1.55; color:#3a3a3c;"></div>
+    <div id="bulkCatNote" style="margin-top:12px; font-size:12px; color:#86868b; line-height:1.6;"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeBulkCatModal()">取消</button>
+      <button class="btn-save" id="btnBulkCatGo" onclick="confirmBulkCat()">⚡ 確認套用</button>
     </div>
   </div>
 </div>
@@ -3389,6 +3412,7 @@ function applyProducts(data) {
     return d;
   });
   _catSuspectMap = null;        // #45：資料換咗，重新掃描分類待修
+  _catSuggestList = null;
   searchMode = 'text';
   // #30：順序要緊 —— 品牌係按「分類 + 細分」收窄，所以要最後才建
   populateCategoryFilter();   // 分類 <- H 欄
@@ -3590,6 +3614,7 @@ function render() {
     html += '<div class="loading">還有 ' + (filtered.length - MAX) + ' 項，請縮小搜尋範圍</div>';
   }
   $('list').innerHTML = html;
+  updateCatBulkBar();     // #45：登入狀態／篩選改變後都要重算
 }
 
 function renderCard(d) {
@@ -4417,6 +4442,7 @@ function catWhy(d) {
 
 /** 改完一件貨之後只更新佢自己；傳 null 就全部重算 */
 function invalidateCatSuspect(id) {
+  _catSuggestList = null;       // 建議清單同偵測清單一齊失效
   if (!_catSuspectMap) return;
   if (id == null) { _catSuspectMap = null; return; }
   var key = String(id).trim();
@@ -4446,6 +4472,7 @@ function updateCatSuspectButton() {
   btn.textContent = '🧩 分類待修' + (n ? ' (' + n + ')' : '');
   if (catSuspectOnly) btn.classList.add('oos-filter-active');
   else btn.classList.remove('oos-filter-active');
+  updateCatBulkBar();     // #45：一鍵套用 bar 跟住顯示／隱藏
 }
 
 // ---------- 快速改分類 modal ----------
@@ -4589,6 +4616,120 @@ async function saveCatFix() {
     toast('❌ ' + e.message, 3000);
   } finally {
     btn.disabled = false;
+  }
+}
+
+// ============================================================
+// #45 一鍵套用全部建議
+//
+//   只會處理「分類係 Case Deal 或空白」而且「推測得到分類」嘅貨。
+//   你已經手動改好嘅分類，前端唔會收集、後端亦唔會覆蓋（兩重保護）。
+// ============================================================
+
+var _catSuggestList = null;
+
+function catSuggestList() {
+  if (_catSuggestList) return _catSuggestList;
+  var sm = catSuspectMap();
+  var list = [];
+  for (var i = 0; i < allData.length; i++) {
+    var d = allData[i];
+    var id = String(d.id || '').trim();
+    if (!id || !sm[id]) continue;                    // 唔係待修嘅貨，跳過
+    var cur = String(d.category_en || '').trim();
+    if (cur && !/^case deal$/i.test(cur)) continue;  // 已經有真分類，唔碰
+    var sug = suggestCategory(d.name_zh || d.name);
+    if (!sug) continue;                              // 推測唔到就唔亂改
+    list.push({ id: id, category_en: sug, name: d.name_zh || d.name || '' });
+  }
+  _catSuggestList = list;
+  return list;
+}
+
+function updateCatBulkBar() {
+  var bar = $('catBulkBar');
+  if (!bar) return;
+  if (!catSuspectOnly || !isAdmin) { bar.style.display = 'none'; return; }
+  var n = catSuggestList().length;
+  if (!n) { bar.style.display = 'none'; return; }
+  $('catBulkCount').textContent = n;
+  bar.style.display = 'block';
+}
+
+function openBulkCatModal() {
+  var list = catSuggestList();
+  if (!list.length) { toast('冇可套用嘅建議'); return; }
+
+  var by = {};
+  list.forEach(function (it) { by[it.category_en] = (by[it.category_en] || 0) + 1; });
+  var parts = Object.keys(by)
+    .sort(function (a, b) { return by[b] - by[a]; })
+    .map(function (c) { return c + ' ' + by[c]; });
+
+  $('bulkCatSummary').innerHTML =
+    '會套用建議到 <b>' + list.length + '</b> 件貨：<br>' +
+    '<span style="color:#86868b;font-size:13px;">' + esc(parts.join('、')) + '</span>';
+
+  var prev = list.slice(0, 40).map(function (it) {
+    return '<div style="padding:3px 0;border-bottom:1px solid #f2f2f7;">' +
+      '📂 ' + esc(it.category_en) + '　←　' + esc(String(it.name).slice(0, 28)) + '</div>';
+  }).join('');
+  if (list.length > 40) {
+    prev += '<div style="padding:8px 0;color:#86868b;">…仲有 ' + (list.length - 40) + ' 件</div>';
+  }
+  $('bulkCatPreview').innerHTML = prev;
+
+  $('bulkCatNote').innerHTML =
+    '🛡️ 只會改「Case Deal」同空白分類嘅貨 —— 你已經手動改好嘅分類一定唔會被覆蓋。<br>' +
+    '細分（I 欄）會留空，之後可以逐件補。';
+
+  $('bulkCatModal').classList.add('show');
+}
+
+function closeBulkCatModal() { $('bulkCatModal').classList.remove('show'); }
+
+async function confirmBulkCat() {
+  var list = catSuggestList();
+  if (!list.length) { closeBulkCatModal(); return; }
+
+  var btn = $('btnBulkCatGo');
+  btn.disabled = true;
+  btn.textContent = '上載中…';
+  try {
+    var res = await apiPost({
+      action: 'bulkFixCategory',
+      items: list.map(function (it) { return { id: it.id, category_en: it.category_en, category_zh: '' }; })
+    });
+    if (res.error) { toast('❌ ' + res.error, 4000); return; }
+
+    // 只更新 server 真正改咗嘅行（可能因為 sheet 已經有真分類而被略過）
+    var done = {}, sugOf = {};
+    (res.appliedIds || []).forEach(function (id) { done[id] = true; });
+    list.forEach(function (it) { sugOf[it.id] = it.category_en; });
+
+    var now = new Date().toISOString();
+    for (var i = 0; i < allData.length; i++) {
+      var d = allData[i];
+      var k = String(d.id || '').trim();
+      if (!done[k]) continue;
+      d.category_en = sugOf[k];
+      d.category_zh = '';
+      d._last_modified = now;
+      d._last_source = 'user';
+    }
+
+    closeBulkCatModal();
+    clearLocalCache();
+    invalidateCatSuspect(null);
+    render();
+    updateCatSuspectButton();
+    toast('✅ 已套用 ' + res.applied + ' 件' +
+          (res.skipped ? '（略過 ' + res.skipped + ' 件）' : ''), 4000);
+  } catch (e) {
+    toast('❌ ' + e.message, 4000);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⚡ 確認套用';
   }
 }
 
