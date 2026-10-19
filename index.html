@@ -231,6 +231,22 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .barcode-line .bc-tail { color: #d93025; font-weight: 800; background: #fef2f2; padding: 1px 3px; border-radius: 3px; margin-left: 1px; }
 .barcode-line .bc-sep { color: #86868b; margin: 0 2px; }
 .barcode-line .bc-copy { background: none; border: none; font-size: 16px; cursor: pointer; padding: 2px 6px; color: #1d1d1f; flex-shrink: 0; }
+.barcode-line .bc-show { background: none; border: none; font-size: 16px; cursor: pointer; padding: 2px 6px; color: #0071e3; flex-shrink: 0; }
+
+/* #44 顯示條碼（畀 POS 掃描槍掃手機畫面）。只讀 B 欄真實條碼，唔會生成新碼。 */
+#bcModal { align-items: center; }
+#bcModal .modal-content { border-radius: 24px; margin: 12px; padding: 18px 16px calc(20px + env(safe-area-inset-bottom)); max-height: 96vh; }
+.bc-panel { text-align: center; }
+.bc-panel .bc-name { font-size: 15px; font-weight: 700; color: #1d1d1f; margin-bottom: 4px; line-height: 1.35; }
+.bc-panel .bc-sub { font-size: 12px; color: #86868b; margin-bottom: 14px; }
+.bc-stage { background: #fff; border: 1px solid #e5e5e7; border-radius: 12px; padding: 10px 8px; }
+.bc-stage svg { display: block; width: 100%; height: 150px; }
+.bc-digit { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 26px; font-weight: 700; letter-spacing: 2px; margin: 12px 0 2px; color: #000; word-break: break-all; }
+.bc-kind { font-size: 12px; color: #86868b; min-height: 16px; }
+.bc-nav { display: flex; gap: 10px; justify-content: center; align-items: center; margin-top: 14px; }
+.bc-nav button { padding: 10px 16px; border-radius: 10px; border: 2px solid #d2d2d7; background: #fff; font-size: 15px; font-weight: 600; cursor: pointer; color: #1d1d1f; }
+.bc-nav .bc-count { font-size: 14px; color: #86868b; font-weight: 600; min-width: 54px; }
+.bc-hint { margin-top: 14px; background: #f0f7ff; color: #0071e3; font-size: 13px; line-height: 1.55; padding: 10px 12px; border-radius: 10px; text-align: left; }
 
 .loc-section { margin-top: 12px; padding-top: 12px; border-top: 1px dashed #e5e5e7; }
 .loc-title { font-size: 14px; font-weight: 700; color: #2e7d32; margin-bottom: 8px; }
@@ -1071,6 +1087,24 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       <button class="btn-cancel" onclick="closeOcrModal()">取消</button>
       <button class="btn-cancel" id="ocrRetakeBtn" onclick="retakeOcr()" style="background:#fff3cd;color:#856404;">🔄 重拍</button>
       <button class="btn-save" id="ocrApplyBtn" onclick="applyOcrResult()">✅ 確認填入</button>
+    </div>
+  </div>
+</div>
+
+<!-- #44 顯示條碼：唔係生成，係顯示 B 欄本身嘅真實條碼，畀 POS 掃描槍直接掃手機畫面 -->
+<div class="modal" id="bcModal">
+  <div class="modal-content">
+    <div class="bc-panel">
+      <div class="bc-name" id="bcName"></div>
+      <div class="bc-sub" id="bcSub"></div>
+      <div class="bc-stage" id="bcStage"></div>
+      <div class="bc-digit" id="bcDigit"></div>
+      <div class="bc-kind" id="bcKind"></div>
+      <div class="bc-nav" id="bcNav"></div>
+      <div class="bc-hint">📱 螢幕調到最光，將條碼貼近掃描槍（約 5–15 厘米）掃描。<br>⚠️ 呢個係貨品本身嘅真實條碼，POS 認得。App 唔會自己生成新碼。</div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeBarcodeModal()">關閉</button>
+      </div>
     </div>
   </div>
 </div>
@@ -3631,6 +3665,7 @@ function renderCard(d) {
       '<div class="barcode-line">' +
         '<span class="bc-icon">🏷️</span>' +
         '<span class="bc-value">' + renderBarcodeHtml(d.barcode) + '</span>' +
+        '<button class="bc-show" onclick="showBarcode(\'' + escAttr(d.id) + '\', \'' + safeBc + '\')" title="顯示條碼（畀掃描槍掃）">⤢</button>' +
         '<button class="bc-copy" onclick="copyText(\'' + safeBc + '\', \'條碼\')" title="複製條碼">📋</button>' +
       '</div>';
   }
@@ -3999,6 +4034,177 @@ async function resetUserPw(name) {
   toast('✅ 已重設密碼（對方會被強制登出），請通知佢新密碼');
   refreshUserList();
 }
+
+// ============================================================
+// #44 顯示條碼（畀 POS 掃描槍由手機螢幕直接掃）
+//   ⚠️ 呢個功能「唔會生成」任何新條碼，亦唔會寫入資料。
+//      只會將 B 欄（barcode）本身已經存在嘅真實條碼畫出嚟，
+//      方便店員唔使打字都可以將貨品入 POS。
+//   判定：13 位 + 檢查碼正確 → EAN-13（超市雷射槍最易讀）
+//         其他（PLU 4 位 / 箱碼 ITF-14 / 字母碼）→ Code 128
+// ============================================================
+var CODE128_PATTERNS = (
+  '212222 222122 222221 121223 121322 131222 122213 122312 132212 221213 ' +
+  '221312 231212 112232 122132 122231 113222 123122 123221 223211 221132 ' +
+  '221231 213212 223112 312131 311222 321122 321221 312212 322112 322211 ' +
+  '212123 212321 232121 111323 131123 131321 112313 132113 132311 211313 ' +
+  '231113 231311 112133 112331 132131 113123 113321 133121 313121 211331 ' +
+  '231131 213113 213311 213131 311123 311321 331121 312113 312311 332111 ' +
+  '314111 221411 431111 111224 111422 121124 121421 141122 141221 112214 ' +
+  '112412 122114 122411 142112 142211 241211 221114 413111 241112 134111 ' +
+  '111242 121142 121241 114212 124112 124211 411212 421112 421211 212141 ' +
+  '214121 412121 111143 111341 131141 114113 114311 411113 411311 113141 ' +
+  '114131 311141 411131 211412 211214 211232 2331112'
+).split(' ');
+
+var BC_EAN_L   = ['0001101','0011001','0010011','0111101','0100011','0110001','0101111','0111011','0110111','0001011'];
+var BC_EAN_G   = ['0100111','0110011','0011011','0100001','0011101','0111001','0000101','0010001','0001001','0010111'];
+var BC_EAN_R   = ['1110010','1100110','1101100','1000010','1011100','1001110','1010000','1000100','1001000','1110100'];
+var BC_EAN_PAR = ['LLLLLL','LLGLGG','LLGGLG','LLGGGL','LGLLGG','LGGLLG','LGGGLL','LGLGLG','LGLGGL','LGGLGL'];
+
+// 將 '1011001…' 位元字串畫成 SVG。quiet = 左右靜區（module 數）
+function bcSvgFromBits(bits, quiet) {
+  var h = 70;
+  var w = bits.length + quiet * 2;
+  var out = '';
+  var x = quiet, run = 0, cur = '0';
+  for (var i = 0; i < bits.length; i++) {
+    var c = bits.charAt(i);
+    if (c === cur) { run++; continue; }
+    if (cur === '1') out += '<rect x="' + x + '" y="0" width="' + run + '" height="' + h + '"/>';
+    x += run; run = 1; cur = c;
+  }
+  if (cur === '1') out += '<rect x="' + x + '" y="0" width="' + run + '" height="' + h + '"/>';
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '"' +
+         ' preserveAspectRatio="none" shape-rendering="crispEdges">' +
+         '<rect x="0" y="0" width="' + w + '" height="' + h + '" fill="#ffffff"/>' +
+         '<g fill="#000000">' + out + '</g></svg>';
+}
+
+function bcEan13CheckOk(d) {
+  if (!/^[0-9]{13}$/.test(d)) return false;
+  var sum = 0;
+  for (var i = 0; i < 12; i++) sum += (+d.charAt(i)) * (i % 2 === 0 ? 1 : 3);
+  return ((10 - (sum % 10)) % 10) === (+d.charAt(12));
+}
+
+function bcEan13Svg(d) {
+  var par = BC_EAN_PAR[+d.charAt(0)];
+  var bits = '101';
+  for (var i = 1; i <= 6; i++) {
+    var v = +d.charAt(i);
+    bits += (par.charAt(i - 1) === 'L') ? BC_EAN_L[v] : BC_EAN_G[v];
+  }
+  bits += '01010';
+  for (var j = 7; j <= 12; j++) bits += BC_EAN_R[+d.charAt(j)];
+  bits += '101';
+  return bcSvgFromBits(bits, 9);
+}
+
+function bcCode128Svg(text) {
+  var vals = [104]; // Start Code B
+  for (var i = 0; i < text.length; i++) {
+    var cc = text.charCodeAt(i);
+    if (cc < 32 || cc > 126) continue;
+    vals.push(cc - 32);
+  }
+  if (vals.length < 2) return '';
+  var sum = vals[0];
+  for (var k = 1; k < vals.length; k++) sum += vals[k] * k;
+  vals.push(sum % 103);   // 檢查碼
+  vals.push(106);         // Stop
+  var bits = '';
+  for (var m = 0; m < vals.length; m++) {
+    var pat = CODE128_PATTERNS[vals[m]];
+    for (var n = 0; n < pat.length; n++) {
+      var wd = +pat.charAt(n);
+      for (var r = 0; r < wd; r++) bits += (n % 2 === 0 ? '1' : '0');
+    }
+  }
+  return bcSvgFromBits(bits, 10);
+}
+
+// 回傳 { svg, kind }
+function bcMakeSvg(code) {
+  var digits = String(code).replace(/[^0-9]/g, '');
+  if (digits.length === 13 && bcEan13CheckOk(digits)) {
+    return { svg: bcEan13Svg(digits), kind: 'EAN-13（標準零售條碼）' };
+  }
+  var svg = bcCode128Svg(String(code));
+  var kind = 'Code 128';
+  if (digits.length === 4) kind += '（PLU 4 位）';
+  else if (digits.length === 14) kind += '（箱碼 ITF-14）';
+  return { svg: svg, kind: kind };
+}
+
+function bcSplitCodes(raw) {
+  return String(raw || '').split(/[;,，、\s]+/).filter(function (x) { return x; });
+}
+
+var bcState = { codes: [], idx: 0, product: null };
+
+function showBarcode(id, fallbackCode) {
+  var p = null;
+  for (var i = 0; i < allData.length; i++) {
+    if (String(allData[i].id) === String(id)) { p = allData[i]; break; }
+  }
+  if (!p && fallbackCode) p = { id: id, barcode: fallbackCode };
+
+  var codes = bcSplitCodes(p && p.barcode);
+  bcState = { codes: codes, idx: 0, product: p || {} };
+  bcRender();
+  $('bcModal').classList.add('show');
+}
+
+function bcRender() {
+  var p = bcState.product || {};
+  $('bcName').textContent = p.name_zh || p.name || p.id || '';
+
+  var sub = [];
+  if (p.id) sub.push('ID ' + p.id);
+  if (p.sku) sub.push('SKU ' + p.sku);
+  if (p.brand) sub.push(p.brand);
+  $('bcSub').textContent = sub.join(' · ');
+
+  if (!bcState.codes.length) {
+    $('bcStage').innerHTML = '';
+    $('bcDigit').textContent = '—';
+    $('bcKind').textContent = 'B 欄未有條碼';
+    $('bcNav').innerHTML =
+      '<div style="font-size:13px;color:#d93025;line-height:1.65;text-align:left;">' +
+      '⚠️ App 唔會自己生成條碼（POS 認唔到假碼）。<br>' +
+      '請先攞返真實條碼：<br>' +
+      '• <b>原箱</b> → 箱面嘅 ITF-14 條碼（14 位）<br>' +
+      '• <b>散裝蔬果</b> → POS 用緊嘅 PLU／店內碼<br>' +
+      '再按「✏️ 編輯」填入條碼欄（多個碼用 <b>;</b> 分隔）。' +
+      '</div>';
+    return;
+  }
+
+  var code = bcState.codes[bcState.idx] || '';
+  var made = bcMakeSvg(code);
+  $('bcStage').innerHTML = made.svg;
+  $('bcDigit').textContent = code;
+  $('bcKind').textContent = made.kind;
+
+  if (bcState.codes.length > 1) {
+    $('bcNav').innerHTML =
+      '<button onclick="bcStep(-1)">◀ 上一個</button>' +
+      '<span class="bc-count">' + (bcState.idx + 1) + ' / ' + bcState.codes.length + '</span>' +
+      '<button onclick="bcStep(1)">下一個 ▶</button>';
+  } else {
+    $('bcNav').innerHTML = '';
+  }
+}
+
+function bcStep(n) {
+  var len = bcState.codes.length;
+  if (!len) return;
+  bcState.idx = ((bcState.idx + n) % len + len) % len;
+  bcRender();
+}
+
+function closeBarcodeModal() { $('bcModal').classList.remove('show'); }
 
 function closeModal() { $('modal').classList.remove('show'); }
 
