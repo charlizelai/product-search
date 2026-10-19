@@ -140,6 +140,30 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 }
 .cat-chip:active { background: #d0e0ff; }
 
+/* #45 分類待修：卡片上嘅「改分類」入口 */
+.cat-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.cat-chip-none { background: #fdecec; color: #d93025; }
+.cat-fix-btn {
+  background: #fff; border: 1.5px solid #d2d2d7; color: #1d1d1f;
+  border-radius: 999px; padding: 4px 10px; font-size: 13px; font-weight: 600;
+  cursor: pointer; flex-shrink: 0;
+}
+.cat-fix-btn:active { background: #f0f0f2; }
+.cat-warn {
+  flex: 1 1 100%; font-size: 12px; line-height: 1.45; color: #b25000;
+  background: #fff6e5; border-radius: 8px; padding: 5px 8px;
+}
+#catModal { align-items: center; }
+#catModal .modal-content {
+  border-radius: 24px; margin: 12px; max-height: 94vh;
+  padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+}
+.cat-fix-name { font-size: 15px; font-weight: 700; color: #1d1d1f; line-height: 1.4; margin-bottom: 10px; }
+.cat-fix-warn {
+  font-size: 13px; line-height: 1.5; color: #b25000; background: #fff6e5;
+  border-radius: 10px; padding: 10px 12px; margin-bottom: 14px;
+}
+
 .phash-banner {
   margin: 10px 12px 0; padding: 12px 14px;
   background: #fff3cd; border-radius: 12px;
@@ -758,6 +782,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       <button id="btnBarcodeOnly" class="tool-btn" onclick="toggleBarcodeOnly()">🏷️ 只搜條碼</button>
       <button id="btnSkuOnly" class="tool-btn" onclick="toggleSkuOnly()">🔖 只搜 SKU</button>
       <button id="btnOOSFilter" class="tool-btn" onclick="toggleOOSFilter()">⚠️ 只看缺貨</button>
+      <button id="btnCatSuspect" class="tool-btn" onclick="toggleCatSuspect()">🧩 分類待修</button>
       <button id="btnSortToggle" class="tool-btn" onclick="toggleSort()">📍 位置排序</button>
       <button id="btnRefreshAPI" class="tool-btn" onclick="refreshFromAPIManual()">🔄 用 API 刷新</button>
     </div>
@@ -1109,6 +1134,31 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   </div>
 </div>
 
+<!-- #45 快速改分類：撳一下揀分類 + 細分即存，唔使開整個編輯表單 -->
+<div class="modal" id="catModal">
+  <div class="modal-content">
+    <h2 style="margin:0 0 12px; font-size:20px;">🧩 改分類</h2>
+    <div class="cat-fix-name" id="catFixName"></div>
+    <div class="cat-fix-warn" id="catFixWarn" style="display:none;"></div>
+    <div class="field">
+      <label>分類（英文，寫入 H 欄）</label>
+      <select id="cmCategory" class="field-select" onchange="onCatFixCatChange()">
+        <option value="">— 請選擇 —</option>
+      </select>
+    </div>
+    <div class="field" style="margin-bottom:6px;">
+      <label>細分（中文，寫入 I 欄）</label>
+      <select id="cmSubcat" class="field-select">
+        <option value="">— 留空 —</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeCatModal()">取消</button>
+      <button class="btn-save" id="btnCatFixSave" onclick="saveCatFix()">✅ 儲存</button>
+    </div>
+  </div>
+</div>
+
 <input type="file" id="imageSearchInput" accept="image/*" style="display:none">
 <input type="file" id="ocrImageInput" accept="image/*" capture="environment" style="display:none">
 <button id="debugBtn" onclick="showDebug()">DEBUG</button>
@@ -1143,6 +1193,7 @@ const USAGE_KEY = 'product_usage_v1';
 const BARCODE_MODE_KEY = 'barcode_mode_v1';
 const SKU_MODE_KEY     = 'sku_mode_v1';   // #32
 const OOS_FILTER_KEY = 'oos_filter_v1';
+const CAT_SUSPECT_KEY = 'cat_suspect_v1';   // #45
 const CATEGORY_FILTER_KEY = 'category_filter_v1';
 
 const MIN_SUFFIX_LEN = 6;
@@ -1200,6 +1251,7 @@ let skuOnly = false;        // #32：只搜 SKU code（Y 欄）
 let skuFieldAvailable = true;   // #36：資料來源有冇 sku 欄位（決定可否編輯）
 let authUser = null;            // #38：目前登入者 { name, display, role }
 let oosFilterOnly = false;
+let catSuspectOnly = false;     // #45：只顯示「分類待修」貨品
 let categoryFilter = '';
 let brandFilter = '';   // #21：品牌篩選
 let subcatFilter = '';  // #28：細分篩選（讀 I 欄 category_zh）
@@ -1214,6 +1266,7 @@ try {
   skuOnly     = localStorage.getItem(SKU_MODE_KEY) === '1';
   if (skuOnly) barcodeOnly = false;          // #32：兩種模式互斥
   oosFilterOnly = localStorage.getItem(OOS_FILTER_KEY) === '1';
+  catSuspectOnly = localStorage.getItem(CAT_SUSPECT_KEY) === '1';
   categoryFilter = localStorage.getItem(CATEGORY_FILTER_KEY) || '';
 } catch (e) {}
 
@@ -3335,11 +3388,13 @@ function applyProducts(data) {
     if (previewMap[d.id]) d._preview = previewMap[d.id];
     return d;
   });
+  _catSuspectMap = null;        // #45：資料換咗，重新掃描分類待修
   searchMode = 'text';
   // #30：順序要緊 —— 品牌係按「分類 + 細分」收窄，所以要最後才建
   populateCategoryFilter();   // 分類 <- H 欄
   populateSubcatFilter();     // 細分 <- I 欄
   populateBrandFilter();      // 品牌 <- 受上面兩者限制
+  updateCatSuspectButton();   // #45：更新「分類待修 (N)」數字
 }
 
 function saveLocalCache(data) {
@@ -3424,6 +3479,12 @@ function render() {
     });
   }
 
+  // #45：分類待修（冇分類 / 促銷分類 / 品名對唔上）
+  if (catSuspectOnly) {
+    var csMap = catSuspectMap();
+    filtered = filtered.filter(function(d) { return !!csMap[String(d.id || '').trim()]; });
+  }
+
   // #20：單日期／派送時段篩選 —— 只留符合條件的產品
   var dateAgg = buildOOSDateMatch();
   if (oosFilterActive()) {
@@ -3450,6 +3511,7 @@ function render() {
     statsText = '共 ' + allData.length + ' 項';
   }
   if (oosFilterOnly) statsText += ' · ⚠️ 只看缺貨';
+  if (catSuspectOnly) statsText += ' · 🧩 分類待修';
   if (sortMode === 'location') statsText += ' · 按位置';
   if (categoryFilter) {
     // #30：篩選值本身就係 H 欄嘅實際值，直接顯示，唔再查 _Config（避免名唔對）
@@ -3560,16 +3622,18 @@ function renderCard(d) {
     simBadge = '<span class="sim-badge" style="background:' + color + ';">相似 ' + score + '%</span>';
   }
 
-  var catChipHtml = '';
-  if (d.category_en || d.category_zh) {
-    var displayCat = d.category_zh || d.category_en || '';
-    var catValue = d.category_en || '';
-    catChipHtml = '<div style="margin-top:8px;">' +
-      '<button type="button" class="cat-chip" onclick="event.stopPropagation();filterByCategory(\'' + escAttr(catValue) + '\')">' +
-        '📂 ' + esc(displayCat) +
-      '</button>' +
-    '</div>';
-  }
+  // #45：分類列永遠都在 —— 有值可以撳去篩選，冇值提示「未分類」，
+  //      旁邊一定有「🧩 改分類」快速入口；分類可疑就順手顯示原因。
+  var catWhyText = catWhy(d);
+  var catChipHtml = '<div class="cat-row">' +
+    ((d.category_en || d.category_zh)
+      ? '<button type="button" class="cat-chip" onclick="event.stopPropagation();filterByCategory(\'' + escAttr(d.category_en || '') + '\')">' +
+          '📂 ' + esc(d.category_zh || d.category_en) +
+        '</button>'
+      : '<span class="cat-chip cat-chip-none">📂 未分類</span>') +
+    '<button type="button" class="cat-fix-btn" onclick="event.stopPropagation();openCatFix(\'' + escAttr(d.id) + '\')">🧩 改分類</button>' +
+    (catWhyText ? '<span class="cat-warn">⚠️ ' + esc(catWhyText) + '</span>' : '') +
+  '</div>';
 
   var oosBanner = '';
   if (isOOS) {
@@ -4205,6 +4269,328 @@ function bcStep(n) {
 }
 
 function closeBarcodeModal() { $('bcModal').classList.remove('show'); }
+
+
+// ============================================================
+// #45 分類待修（快速糾錯）
+//
+//   背景：13,679 件貨入面，有幾類「分類一定錯」嘅情況：
+//     1. B 欄空 → 完全冇分類
+//     2. category_en = "Case Deal" → 惠康嘅「原箱優惠」係促銷分類，
+//        唔係商品分類，所以 621 件原箱貨嘅真分類被蓋走
+//     3. 品名有強烈關鍵字（啤酒／紅酒／貓糧／尿片…）但分類唔對
+//
+//   呢個模式只會列出上面三類，你逐件撳「🧩 改分類」改，
+//   唔需要喺 13,679 件貨入面撈。
+// ============================================================
+
+// 只在「幾乎冇歧義」嘅關鍵字先標記，避免噪音。
+// okAlso = 如果現時分類係呢啲，就算合理，唔標記。
+var CAT_FIX_RULES = [
+  { target: 'Beer, Wines & Spirits',
+    kw: ['啤酒','紅酒','白酒','威士忌','清酒','梅酒','燒酎','伏特加','香檳','汽泡酒',
+         'beer','wine','whisky','whiskey','vodka'],
+    // 香薰／香檳味／雪糕／朱古力 呢類唔係酒
+    exclude: ['香薰','香檳味','香檳色','味','雪糕','雪條','糖果','朱古力','蛋糕','沐浴','香水','護膚'],
+    okAlso: ['Kitchen & Dining', 'Case Deal'] },   // 酒杯／開瓶器／原箱都由 B 類處理
+  { target: 'Cat',  kw: ['貓糧','貓罐','貓砂','貓零食','貓濕糧'], exclude: [], okAlso: [] },
+  { target: 'Dog',  kw: ['狗糧','狗罐','狗零食','狗濕糧'],       exclude: [], okAlso: [] },
+  { target: 'Mother & Baby',
+    kw: ['紙尿片','尿片','奶瓶','奶嘴','嬰兒'],
+    exclude: ['狗','貓'],                // 寵物尿墊唔關 BB 事
+    okAlso: [] },
+  { target: 'Snacks & Confectionery',
+    // 只留高精確度：薯條喺急凍、高蛋白薯片喺 Fitness 都係正常，所以全部排除
+    kw: ['薯片','蝦片','粟米片','香口膠','爆谷','蛋卷','威化'],
+    exclude: ['嬰兒','雪糕','杯','玩具','蛋白'],
+    okAlso: ['Breakfast & Bakery','Frozen Food','Fitness & Wellness','Case Deal'] },
+  { target: 'Rice, Oil & Noodles',
+    kw: ['白米','香米','泰國米','花生油','意大利粉','通粉','即食麵','杯麵'],
+    exclude: ['味'],
+    okAlso: ['Condiment & Sauce','Mother & Baby','Case Deal'] }
+];
+
+// #45 建議分類：比偵測規則寬鬆好多 —— 因為呢個只係「預先幫你揀好」，
+//      你仍然要撳「儲存」確認，揀錯可以即刻改。順序 = 優先次序，
+//      所以一定要「具體」行先（食油 / 意大利粉 排喺 Condiment / Beverages 之前）。
+var CAT_SUGGEST = [
+  ['Cat', ['貓糧','貓罐','貓砂','貓零食','貓濕糧']],
+  ['Dog', ['狗糧','狗罐','狗零食','狗濕糧']],
+  ['Mother & Baby', ['紙尿片','尿片','奶瓶','奶嘴','嬰兒','奶粉','配方奶','尿墊']],
+  ['Beer, Wines & Spirits', ['啤酒','紅酒','白酒','威士忌','清酒','梅酒','燒酎','伏特加',
+                             '香檳','汽泡酒','氣泡酒','汽酒','拔蘭地','白蘭地','氈酒','龍舌蘭',
+                             '蘭姆酒','冧酒','甜酒','葡萄酒','果酒','米酒','花雕','干邑','波本',
+                             '琴酒','開胃酒','燒酌','黑啤','生啤','白啤','赤霞珠','梅洛',
+                             '蘇維翁','霞多麗','西拉','香檳','beer','wine','whisky','vodka','gin',
+                             'rum','tequila','brandy','champagne','liqueur','sparkling','prosecco',
+                             'cabernet','merlot','sauvignon','chardonnay','shiraz']],
+  ['Frozen Food', ['雪糕','雪條','急凍','冰凍','湯圓','水餃','餃子','點心']],
+  ['Rice, Oil & Noodles', ['白米','香米','泰國米','食油','花生油','意大利粉','通粉','即食麵','杯麵']],
+  ['Dairy, Chilled & Eggs', ['牛奶','鮮奶','乳酪','芝士','牛油','雞蛋','豆奶']],
+  ['Snacks & Confectionery', ['薯片','蝦片','粟米片','香口膠','曲奇','餅乾','餅','朱古力',
+                              '巧克力','糖果','糖','蛋卷','威化','果仁','肉乾']],
+  ['Condiment & Sauce', ['豉油','生抽','老抽','蠔油','鹽','醋','沙律醬','茄汁','麻油','調味']],
+  ['Canned, Preserved & Soup', ['罐頭','湯','吞拿魚','午餐肉','粟米粒']],
+  ['Beauty & Personal Care', ['洗頭','沐浴','牙膏','牙刷','護膚','面膜','剃鬚','衛生巾',
+                              '洗面','潤手','防曬']],
+  ['Health Care', ['維他命','保健','口罩','溫度計','藥膏','止痛']],
+  ['Household Supplies', ['洗衣','清潔','漂白','紙巾','廁紙','垃圾袋','洗潔精','柔順劑',
+                          '抹布','地拖','蚊']],
+  ['Breakfast & Bakery', ['麵包','麥片','穀物','早餐','牛角包','多士']],
+  ['Fruits & Vegetables', ['蘋果','香蕉','橙','生菜','菜心','生果','水果','薯仔','洋蔥','番茄']],
+  ['Meat & Seafood', ['豬肉','牛肉','雞肉','魚','蝦','蟹','海鮮','排骨','雞翼']],
+  ['Beverages', ['可樂','汽水','梳打','茶','水','咖啡','果汁','飲品','飲料','豆漿','椰青',
+                 '葡萄適','黑加侖子','乳酸','能量飲品','運動飲品','蘆薈','美祿','阿華田',
+                 '奶昔','仙地','豆奶','米漿']]
+];
+
+/** 由品名推測分類。估唔到就回傳 '' —— 寧願唔估，好過估錯。 */
+function suggestCategory(name) {
+  var nm = String(name || '');
+  if (!nm) return '';
+  var low = nm.toLowerCase();
+  for (var i = 0; i < CAT_SUGGEST.length; i++) {
+    var kw = CAT_SUGGEST[i][1];
+    for (var j = 0; j < kw.length; j++) {
+      var k = kw[j];
+      if ((k.charCodeAt(0) > 127) ? nm.indexOf(k) >= 0 : low.indexOf(k) >= 0) {
+        return CAT_SUGGEST[i][0];
+      }
+    }
+  }
+  return '';
+}
+
+var _catSuspectMap = null;   // { productId: 原因字串 }
+
+/** 判斷一件貨嘅分類係唔係有問題；冇問題回傳 '' */
+function catSuspectReason(d) {
+  var ce = String(d.category_en || '').trim();
+  if (!ce) return '冇填分類';
+
+  // 惠康「原箱優惠」係促銷分類，唔係商品分類
+  if (/^case deal$/i.test(ce)) return '「Case Deal」係促銷分類，唔係商品分類';
+
+  var nm = String(d.name_zh || d.name || '');
+  if (!nm) return '';
+  var low = nm.toLowerCase();
+
+  for (var i = 0; i < CAT_FIX_RULES.length; i++) {
+    var r = CAT_FIX_RULES[i];
+    if (ce === r.target) continue;
+    if (r.okAlso.indexOf(ce) >= 0) continue;
+
+    // 有「排除字」就當係另一個意思，唔標記（減少誤判）
+    var skip = false;
+    for (var x = 0; x < r.exclude.length; x++) {
+      var ex = r.exclude[x];
+      if ((ex.charCodeAt(0) > 127) ? nm.indexOf(ex) >= 0 : low.indexOf(ex) >= 0) { skip = true; break; }
+    }
+    if (skip) continue;
+
+    for (var j = 0; j < r.kw.length; j++) {
+      var k = r.kw[j];
+      // 中文關鍵字用原名比對；英文統一細楷
+      var hit = (k.charCodeAt(0) > 127) ? nm.indexOf(k) >= 0 : low.indexOf(k) >= 0;
+      if (hit) return '品名有「' + k + '」，應該係「' + r.target + '」';
+    }
+  }
+  return '';
+}
+
+/** 全量掃描一次並快取（13,679 件，一次過，之後 O(1) 查） */
+function catSuspectMap() {
+  if (_catSuspectMap) return _catSuspectMap;
+  var m = {};
+  for (var i = 0; i < allData.length; i++) {
+    var d = allData[i];
+    var why = catSuspectReason(d);
+    if (why) m[String(d.id || '').trim()] = why;
+  }
+  _catSuspectMap = m;
+  return m;
+}
+
+function catWhy(d) {
+  return catSuspectMap()[String(d.id || '').trim()] || '';
+}
+
+/** 改完一件貨之後只更新佢自己；傳 null 就全部重算 */
+function invalidateCatSuspect(id) {
+  if (!_catSuspectMap) return;
+  if (id == null) { _catSuspectMap = null; return; }
+  var key = String(id).trim();
+  var d = null;
+  for (var i = 0; i < allData.length; i++) {
+    if (String(allData[i].id || '').trim() === key) { d = allData[i]; break; }
+  }
+  var why = d ? catSuspectReason(d) : '';
+  if (why) _catSuspectMap[key] = why;
+  else delete _catSuspectMap[key];
+}
+
+function toggleCatSuspect() {
+  catSuspectOnly = !catSuspectOnly;
+  try { localStorage.setItem(CAT_SUSPECT_KEY, catSuspectOnly ? '1' : '0'); } catch (e) {}
+  updateCatSuspectButton();
+  if (allData.length > 0) render();
+  toast(catSuspectOnly
+    ? ('🧩 只顯示分類待修：' + Object.keys(catSuspectMap()).length + ' 件')
+    : '顯示全部產品');
+}
+
+function updateCatSuspectButton() {
+  var btn = $('btnCatSuspect');
+  if (!btn) return;
+  var n = allData.length ? Object.keys(catSuspectMap()).length : 0;
+  btn.textContent = '🧩 分類待修' + (n ? ' (' + n + ')' : '');
+  if (catSuspectOnly) btn.classList.add('oos-filter-active');
+  else btn.classList.remove('oos-filter-active');
+}
+
+// ---------- 快速改分類 modal ----------
+var catFixId = null;
+
+function openCatFix(id) {
+  var p = null;
+  for (var i = 0; i < allData.length; i++) {
+    if (String(allData[i].id) === String(id)) { p = allData[i]; break; }
+  }
+  if (!p) { toast('搵唔到件貨'); return; }
+
+  catFixId = String(p.id);
+  $('catFixName').textContent = (p.name_zh || p.name || '') + '　ID ' + p.id;
+
+  var why = catWhy(p);
+  var w = $('catFixWarn');
+  if (why) { w.style.display = 'block'; w.textContent = '⚠️ ' + why; }
+  else { w.style.display = 'none'; w.textContent = ''; }
+
+  populateCatFixSelects();
+
+  // 現有值可能係大小楷變體，喺選單搵唔到就補一個選項，免得被清空
+  var cur = String(p.category_en || '').trim();
+  if (cur && !selectHasValue_('cmCategory', cur)) addSelectOption_('cmCategory', cur);
+
+  // #45：冇分類或者係「Case Deal」促銷分類 → 由品名估一個，預先幫你揀好。
+  //      只係預選，唔會自動儲存，你仍然要撳「✅ 儲存」確認。
+  var sug = '';
+  if (!cur || /^case deal$/i.test(cur)) sug = suggestCategory(p.name_zh || p.name);
+  if (sug && !selectHasValue_('cmCategory', sug)) addSelectOption_('cmCategory', sug);
+
+  $('cmCategory').value = sug || cur;
+
+  if (sug && sug !== cur) {
+    var wt = $('catFixWarn');
+    wt.style.display = 'block';
+    wt.textContent = (why ? '⚠️ ' + why + '\n' : '') + '💡 由品名推測應該係「' + sug + '」，撳「儲存」即套用（可以改）。';
+    wt.style.whiteSpace = 'pre-line';
+  }
+
+  var curZ = String(p.category_zh || '').trim();
+  if (curZ && !selectHasValue_('cmSubcat', curZ)) addSelectOption_('cmSubcat', curZ);
+  $('cmSubcat').value = curZ;
+
+  $('catModal').classList.add('show');
+}
+
+/** 改咗分類 → 舊細分多數唔再對應，清空避免寫錯 I 欄 */
+function onCatFixCatChange() {
+  var sub = $('cmSubcat');
+  if (sub) sub.value = '';
+}
+
+function closeCatModal() {
+  $('catModal').classList.remove('show');
+  catFixId = null;
+}
+
+function selectHasValue_(selId, v) {
+  var sel = $(selId);
+  if (!sel) return false;
+  for (var i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value === v) return true;
+  }
+  return false;
+}
+
+function addSelectOption_(selId, v) {
+  var sel = $(selId);
+  if (!sel) return;
+  var o = document.createElement('option');
+  o.value = v;
+  o.textContent = v;
+  sel.appendChild(o);
+}
+
+function populateCatFixSelects() {
+  // 分類：用 H 欄實際值（去重、排序）
+  var seen = {}, cats = [];
+  for (var i = 0; i < allData.length; i++) {
+    var v = String(allData[i].category_en || '').trim();
+    if (!v) continue;
+    var k = v.toLowerCase();
+    if (seen[k]) continue;
+    seen[k] = true; cats.push(v);
+  }
+  cats.sort();
+  $('cmCategory').innerHTML = '<option value="">— 請選擇 —</option>' +
+    cats.map(function (v) { return '<option value="' + esc(v) + '">' + esc(v) + '</option>'; }).join('');
+
+  // 細分：用 I 欄實際值，按「食品 / 糧油雜貨」嘅前半歸組
+  var zseen = {}, groups = {}, gorder = [];
+  for (var j = 0; j < allData.length; j++) {
+    var z = String(allData[j].category_zh || '').trim();
+    if (!z || zseen[z]) continue;
+    zseen[z] = true;
+    var pre = z.split('/')[0].trim() || '其他';
+    if (!groups[pre]) { groups[pre] = []; gorder.push(pre); }
+    groups[pre].push(z);
+  }
+  gorder.sort();
+  $('cmSubcat').innerHTML = '<option value="">— 留空 —</option>' +
+    gorder.map(function (pre) {
+      var opts = groups[pre].sort().map(function (z) {
+        return '<option value="' + esc(z) + '">' + esc(z) + '</option>';
+      }).join('');
+      return '<optgroup label="' + esc(pre) + '">' + opts + '</optgroup>';
+    }).join('');
+}
+
+async function saveCatFix() {
+  if (!catFixId) return;
+  var id = catFixId;
+  var ce = $('cmCategory').value;
+  var cz = $('cmSubcat').value;
+
+  var btn = $('btnCatFixSave');
+  btn.disabled = true;
+  try {
+    // 只送兩個欄位 —— 後端 updateProductInternal 會由現有行讀起，
+    // 只覆蓋有提供嘅欄，所以唔會清走條碼／位置等其他資料。
+    var res = await apiPost({ action: 'update', id: id, data: { category_en: ce, category_zh: cz } });
+    if (res.error) { toast('❌ ' + res.error, 3000); return; }
+
+    var idx = allData.findIndex(function (d) { return String(d.id) === String(id); });
+    if (idx >= 0) {
+      allData[idx].category_en = ce;
+      allData[idx].category_zh = cz;
+      allData[idx]._last_modified = new Date().toISOString();
+      allData[idx]._last_source = 'user';
+    }
+
+    closeCatModal();
+    clearLocalCache();
+    invalidateCatSuspect(null);
+    render();
+    updateCatSuspectButton();
+    toast('✅ 已改為 ' + (cz || ce || '未分類'));
+  } catch (e) {
+    toast('❌ ' + e.message, 3000);
+  } finally {
+    btn.disabled = false;
+  }
+}
 
 function closeModal() { $('modal').classList.remove('show'); }
 
