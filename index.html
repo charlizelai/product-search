@@ -768,7 +768,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .oos-action-chip:active { background: #c8e6c9; }
 .oos-action-chip.none { border-color: #d2d2d7; background: #f5f5f7; color: #86868b; font-weight: 600; }
 #oosActionModal .modal-content { border-radius: 24px; margin: 12px; padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); }
-#oosActionList { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+#oeActionGroup, #oeSlotGroup, #oeTypeGroup { margin-bottom: 2px; }
 #oosLogModal .modal-content, #prodHistoryModal .modal-content {
   border-radius: 24px; margin: 12px; max-height: 92vh;
   padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
@@ -1292,15 +1292,56 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   </div>
 </div>
 
-<!-- #53 事後修改某一筆缺貨記錄嘅跟進動作 -->
+<!-- #54 修改某一筆缺貨記錄：日期／單號／時段／類型／件數／跟進動作 -->
 <div class="modal" id="oosActionModal" style="align-items:center;">
   <div class="modal-content">
-    <h2 style="margin:0 0 6px; font-size:20px;">🎯 跟進動作</h2>
-    <div id="oosActionDesc" style="font-size:13px; color:#86868b; line-height:1.5;"></div>
-    <div id="oosActionList"></div>
-    <div class="modal-actions" style="flex-wrap:wrap;">
+    <h2 style="margin:0 0 6px; font-size:20px;">✏️ 修改缺貨記錄</h2>
+    <div id="oosActionDesc" style="font-size:13px; color:#86868b; line-height:1.5; margin-bottom:14px;"></div>
+
+    <div class="field">
+      <label>單日期（YYYYMMDD）</label>
+      <input id="oeDate" type="text" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="20261018">
+    </div>
+
+    <div class="field">
+      <label>單號尾 4 位</label>
+      <input id="oeTail" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1234">
+    </div>
+
+    <div class="field">
+      <label>派送時段 <span style="font-size:12px;color:#86868b;font-weight:500;">再撳一次可取消</span></label>
+      <div class="chip-group" id="oeSlotGroup">
+        <button type="button" class="chip-btn slot-early" data-value="早" onclick="oeSelectChip(this,'oeSlotGroup')">早 10-14</button>
+        <button type="button" class="chip-btn slot-mid"   data-value="中" onclick="oeSelectChip(this,'oeSlotGroup')">中 14-18</button>
+        <button type="button" class="chip-btn slot-late"  data-value="晚" onclick="oeSelectChip(this,'oeSlotGroup')">晚 18-21</button>
+        <button type="button" class="chip-btn slot-holiday" data-value="放假" onclick="oeSelectChip(this,'oeSlotGroup')">放假</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>單類型</label>
+      <div class="chip-group" id="oeTypeGroup">
+        <button type="button" class="chip-btn" data-value="O2O" onclick="oeSelectChip(this,'oeTypeGroup')">O2O</button>
+        <button type="button" class="chip-btn" data-value="CNC" onclick="oeSelectChip(this,'oeTypeGroup')">CNC</button>
+        <button type="button" class="chip-btn" data-value="B2B" onclick="oeSelectChip(this,'oeTypeGroup')">B2B</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>缺貨件數</label>
+      <input id="oeQty" type="text" inputmode="numeric" maxlength="4" autocomplete="off">
+    </div>
+
+    <div class="field" style="margin-bottom:6px;">
+      <label>跟進動作 <span style="font-size:12px;color:#86868b;font-weight:500;">再撳一次可取消</span></label>
+      <div class="chip-group" id="oeActionGroup"></div>
+    </div>
+
+    <div id="oeErr" style="color:#d93025; font-size:13px; min-height:18px; margin-top:8px;"></div>
+
+    <div class="modal-actions">
       <button class="btn-cancel" onclick="closeOOSActionPicker()">取消</button>
-      <button class="btn-cancel" style="background:#fdecea;color:#c62828;" onclick="applyOOSAction('')">清除</button>
+      <button class="btn-save" id="btnOOSEditSave" onclick="saveOOSRecordEditor()">✅ 儲存</button>
     </div>
   </div>
 </div>
@@ -2841,29 +2882,70 @@ function oosActionLabel(actionValue) {
   return v;
 }
 
-/** #53 事後改某一筆記錄嘅跟進動作 */
+/** #54 修改某一筆缺貨記錄（日期／單號／時段／類型／件數／跟進動作） */
 var oosActionTarget = null;
 
+function oeSelectChip(btn, groupId) {
+  var g = $(groupId);
+  if (!g) return;
+  var was = btn.classList.contains('selected');
+  g.querySelectorAll('.chip-btn').forEach(function (b) { b.classList.remove('selected'); });
+  if (!was) btn.classList.add('selected');
+}
+
+function oeGetChip(groupId) {
+  var g = $(groupId);
+  if (!g) return '';
+  var b = g.querySelector('.chip-btn.selected');
+  return b ? String(b.getAttribute('data-value') || '') : '';
+}
+
+function oeSetChip(groupId, value) {
+  var g = $(groupId);
+  if (!g) return;
+  var v = String(value || '').trim();
+  g.querySelectorAll('.chip-btn').forEach(function (b) {
+    if (v && String(b.getAttribute('data-value') || '') === v) b.classList.add('selected');
+    else b.classList.remove('selected');
+  });
+}
+
 function openOOSActionPicker(productId, at, row, current, desc) {
-  oosActionTarget = { productId: String(productId || ''), at: String(at || ''),
-                      row: parseInt(row, 10) || 0 };
-  var d = $('oosActionDesc');
-  if (d) d.textContent = desc || '';
+  oosActionTarget = {
+    productId: String(productId || ''), at: String(at || ''),
+    row: parseInt(row, 10) || 0
+  };
+  // 由已載入嘅記錄搵返呢一筆，用嚟預先填好日期／時段等
+  var r = null;
+  for (var i = 0; i < allOOSReports.length; i++) {
+    var x = allOOSReports[i];
+    if (String(x.productId || '').trim() === oosActionTarget.productId &&
+        String(x.at || '').trim() === oosActionTarget.at) { r = x; break; }
+  }
+  r = r || {};
 
-  var list = OPTIONS.oos_action || [];
-  var cur = String(current || '').trim();
-  $('oosActionList').innerHTML = list.length
-    ? list.map(function (it) {
-        var v = String(it.value || '').trim();
-        var l = String(it.label || v).trim();
-        if (!v) return '';
-        return '<button type="button" class="quick-reason' + (v === cur ? ' selected' : '') + '" ' +
-               'onclick="applyOOSAction(\'' + escAttr(v) + '\')">' + esc(l) + '</button>';
-      }).join('')
-    : '<div style="font-size:13px;color:#86868b;line-height:1.6;">' +
-      '（未設定跟進動作選項。請喺 Google Sheet 嘅 <b>_OOSActions</b> 工作表新增，' +
-      '再喺 App 撳「選項管理 → 重新載入」。）</div>';
+  $('oosActionDesc').textContent = desc || '';
 
+  $('oeDate').value = prettyYMD(r.orderDate || '');
+  $('oeTail').value = String(r.orderTail || '').trim();
+  $('oeQty').value  = String(r.qty || 1);
+  oeSetChip('oeSlotGroup', r.timeSlot || '');
+  oeSetChip('oeTypeGroup', r.orderType || '');
+
+  // 跟進動作 chips（讀 _OOSActions；未載入時用後備）
+  var list = (OPTIONS.oos_action && OPTIONS.oos_action.length)
+    ? OPTIONS.oos_action
+    : [{value:'要搵',label:'🔍 要搵'},{value:'等補貨',label:'⏳ 等補貨'},{value:'要問runner',label:'❓ 要問 runner'}];
+  $('oeActionGroup').innerHTML = list.map(function (it) {
+    var v = String(it.value || '').trim();
+    var l = String(it.label || v).trim();
+    if (!v) return '';
+    return '<button type="button" class="chip-btn" data-value="' + escAttr(v) + '" ' +
+           'onclick="oeSelectChip(this,\'oeActionGroup\')">' + esc(l) + '</button>';
+  }).join('');
+  oeSetChip('oeActionGroup', current || '');
+
+  $('oeErr').textContent = '';
   $('oosActionModal').classList.add('show');
 }
 
@@ -2872,6 +2954,55 @@ function closeOOSActionPicker() {
   oosActionTarget = null;
 }
 
+function saveOOSRecordEditor() {
+  var t = oosActionTarget;
+  if (!t) { closeOOSActionPicker(); return; }
+
+  var date = String($('oeDate').value || '').replace(/[^0-9]/g, '');
+  var tail = String($('oeTail').value || '').replace(/[^0-9]/g, '');
+  var qty  = parseInt(String($('oeQty').value || '').replace(/[^0-9]/g, ''), 10);
+
+  if (date && date.length !== 8) { $('oeErr').textContent = '❌ 日期要 8 位（YYYYMMDD）'; return; }
+  if (tail && tail.length > 4)   { $('oeErr').textContent = '❌ 單號尾最多 4 位'; return; }
+  if (isNaN(qty) || qty < 1)     { $('oeErr').textContent = '❌ 件數要 1 或以上'; return; }
+
+  var fields = {
+    orderDate: date,
+    orderTail: tail,
+    timeSlot:  oeGetChip('oeSlotGroup'),
+    orderType: oeGetChip('oeTypeGroup'),
+    qty:       qty,
+    action:    oeGetChip('oeActionGroup')
+  };
+
+  var btn = $('btnOOSEditSave');
+  btn.disabled = true; btn.textContent = '儲存中...';
+
+  apiPost({ action: 'updateOOSRecord', productId: t.productId, at: t.at, row: t.row, fields: fields })
+    .then(function (res) {
+      if (res && res.error) { $('oeErr').textContent = '❌ ' + res.error; return; }
+
+      for (var i = 0; i < allOOSReports.length; i++) {
+        var r = allOOSReports[i];
+        if (String(r.productId || '').trim() === t.productId &&
+            String(r.at || '').trim() === t.at) {
+          r.orderDate = fields.orderDate;
+          r.orderTail = fields.orderTail;
+          r.timeSlot  = fields.timeSlot;
+          r.orderType = fields.orderType;
+          r.qty       = fields.qty;
+          r.action    = fields.action;
+        }
+      }
+      closeOOSActionPicker();
+      if ($('oosLogModal').classList.contains('show')) renderOOSLog();
+      toast('✅ 已修改缺貨記錄');
+    })
+    .catch(function (e) { $('oeErr').textContent = '❌ ' + e.message; })
+    .then(function () { btn.disabled = false; btn.textContent = '✅ 儲存'; });
+}
+
+/** #53 兼容：只改跟進動作 */
 async function applyOOSAction(action) {
   var t = oosActionTarget;
   if (!t) return;
@@ -2881,20 +3012,15 @@ async function applyOOSAction(action) {
       productId: t.productId, at: t.at, row: t.row, action: String(action || '')
     });
     if (res && res.error) { toast('❌ ' + res.error, 3000); return; }
-
     for (var i = 0; i < allOOSReports.length; i++) {
       var r = allOOSReports[i];
       if (String(r.productId || '').trim() === t.productId &&
-          String(r.at || '').trim() === t.at) {
-        r.action = String(action || '');
-      }
+          String(r.at || '').trim() === t.at) r.action = String(action || '');
     }
     closeOOSActionPicker();
     if ($('oosLogModal').classList.contains('show')) renderOOSLog();
     toast(action ? ('✅ 跟進動作：' + oosActionLabel(action)) : '已清除跟進動作');
-  } catch (e) {
-    toast('❌ ' + e.message, 3000);
-  }
+  } catch (e) { toast('❌ ' + e.message, 3000); }
 }
 
 /** 回報缺貨彈窗嘅跟進動作按鈕 */
@@ -3156,7 +3282,7 @@ function oosLogItemHtml(r, showDate) {
     'onclick="event.stopPropagation();openOOSActionPicker(\'' + escAttr(r.productId) + '\',\'' +
       escAttr(r.at) + '\',' + (r.row || 0) + ',\'' + escAttr(act) + '\',\'' +
       escAttr(r.productName || '') + '\')">' +
-    (act ? ('🎯 ' + esc(oosActionLabel(act))) : '➕ 跟進動作') +
+    '✏️ ' + (act ? ('🎯 ' + esc(oosActionLabel(act))) : '修改 / 加跟進動作') +
   '</button>';
 
   return '<div class="ooslog-item">' +
