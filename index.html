@@ -1247,6 +1247,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     <div id="oosLogScope" style="font-size:13px; color:#6e6e73; margin-bottom:8px; line-height:1.5;"></div>
     <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
       <button type="button" class="tool-btn" id="btnOOSLogStatus" onclick="toggleOOSLogStatus()">📄 只顯示缺貨中</button>
+      <button type="button" class="tool-btn" id="btnOOSLogGroupBy" onclick="toggleOOSLogGroupBy()">📦 按訂單分組</button>
       <span id="oosLogSummary" style="font-size:13px; font-weight:700; color:#c62828;"></span>
     </div>
     <div id="oosLogBody" style="max-height:50vh; overflow-y:auto; -webkit-overflow-scrolling:touch;"></div>
@@ -2719,8 +2720,9 @@ function buildOOSDateMatch() {
   oosDateMatch = {};
   var orders = {};
   var totalQty = 0, entries = 0;
+  var unspecifiedQty = 0, unspecifiedN = 0;   // 行架巡查（冇單號／時段／類型）
 
-  if (!oosFilterActive()) return { orders: [], totalQty: 0, entries: 0 };
+  if (!oosFilterActive()) return { orders: [], unspecified: { qty: 0, n: 0 }, totalQty: 0, entries: 0 };
 
   allOOSReports.forEach(function(r) {
     if (String(r.status || '').trim() !== 'active') return;
@@ -2744,6 +2746,16 @@ function buildOOSDateMatch() {
     oosDateMatch[pid].timeSlot  = slot;
     oosDateMatch[pid].orderType = type;
 
+    // 冇單號、冇時段、冇類型 → 呢啲係「行架巡查」嘅庫存提示，
+    // 唔係某一張單，所以唔可以當成一張單計。
+    if (!tail && !slot && !type) {
+      unspecifiedQty += q;
+      unspecifiedN   += 1;
+      totalQty += q;
+      entries++;
+      return;
+    }
+
     // 沒有單號時改用 時段＋類型 當識別，否則全部會擠進「(無單號)」同一組
     var key = tail ? ('#' + tail)
                    : ('(' + (slot || '無時段') + '|' + (type || '無類型') + ')');
@@ -2757,7 +2769,8 @@ function buildOOSDateMatch() {
 
   var list = Object.keys(orders).map(function(k) { return orders[k]; });
   list.sort(function(a, b) { return (a.tail || '').localeCompare(b.tail || ''); });
-  return { orders: list, totalQty: totalQty, entries: entries };
+  return { orders: list, unspecified: { qty: unspecifiedQty, n: unspecifiedN },
+           totalQty: totalQty, entries: entries };
 }
 
 // ============================================================
@@ -2770,7 +2783,44 @@ function buildOOSDateMatch() {
 var _oosReportsPromise = null;
 var oosLogIncludeRestocked = false;
 var oosLogTail = '';          // #49：用單號查「呢張單缺咩貨」
+var oosLogGroupBy = 'order';  // #50：'order' = 按訂單分組；'action' = 按跟進動作分組
 var prodHistoryId = null;
+
+/** #50：缺貨原因 → 跟進動作（讀 _OOSReasons 嘅 D 欄，自由文字） */
+function oosReasonAction(reasonValue) {
+  var v = String(reasonValue || '').trim();
+  if (!v) return '';
+  var list = OPTIONS.oos_reason || [];
+  for (var i = 0; i < list.length; i++) {
+    var it = list[i];
+    if (!it) continue;
+    // 儲存值可能係「其他: 請註明」，所以支援前綴比對
+    var val = String(it.value || '').trim();
+    if (val === v || (val && v.indexOf(val) === 0)) {
+      return String(it.action || '').trim();
+    }
+  }
+  return '';
+}
+
+/** 原因顯示名（有 label 用 label） */
+function oosReasonLabel(reasonValue) {
+  var v = String(reasonValue || '').trim();
+  if (!v) return '';
+  var list = OPTIONS.oos_reason || [];
+  for (var i = 0; i < list.length; i++) {
+    var it = list[i];
+    if (!it) continue;
+    var val = String(it.value || '').trim();
+    if (val === v || (val && v.indexOf(val) === 0)) return String(it.label || val).trim();
+  }
+  return v;
+}
+
+function toggleOOSLogGroupBy() {
+  oosLogGroupBy = (oosLogGroupBy === 'order') ? 'action' : 'order';
+  renderOOSLog();
+}
 
 /** 一次性拉齊 _OOS 逐筆記錄（同時只會有一個請求在飛） */
 async function ensureOOSReports() {
@@ -2865,6 +2915,9 @@ function renderOOSLog() {
   var btn = $('btnOOSLogStatus');
   if (btn) btn.textContent = oosLogIncludeRestocked ? '📄 包括已補貨' : '📄 只顯示缺貨中';
 
+  var gbBtn = $('btnOOSLogGroupBy');
+  if (gbBtn) gbBtn.textContent = (oosLogGroupBy === 'action') ? '🎯 按跟進動作' : '📦 按訂單分組';
+
   var recs = allOOSReports.filter(function (r) {
     if (!oosLogMatch(r)) return false;
     if (!oosLogIncludeRestocked && String(r.status || '').trim() !== 'active') return false;
@@ -2885,13 +2938,28 @@ function renderOOSLog() {
   var truncated = recs.length > CAP;
   if (truncated) recs = recs.slice(0, CAP);
 
-  // 按「訂單」分組：有單號用單號，冇單號用「時段＋類型」
+  // #50：按跟進動作分組（睇 _OOSReasons D 欄）
+  if (oosLogGroupBy === 'action') { renderOOSLogByAction(recs, truncated, CAP); return; }
+
+  // 分三種：
+  //   1. 有單號            → 一張單
+  //   2. 冇單號但有時段／類型 → 以「時段＋類型」當一張單
+  //   3. 三樣都冇          → 行架巡查（庫存提示），唔係某一張單，另外列出
   var groups = {}, order = [];
+  var loose = [], looseQty = 0;
+
   recs.forEach(function (r) {
     var tail = String(r.orderTail || '').trim();
     var slot = String(r.timeSlot || '').trim();
     var type = String(r.orderType || '').trim();
     var date = String(r.orderDate || '').trim();
+    var q = parseInt(r.qty, 10); if (isNaN(q) || q < 1) q = 1;
+
+    if (!tail && !slot && !type) {
+      loose.push(r); looseQty += q;
+      return;
+    }
+
     // 單號尾只係後 4 位，唔同日嘅兩張單可能撞尾號 —— 所以「日期」要計入 group key，
     // 否則兩張唔同嘅單會被合併成「1 張單」。
     var base = tail ? ('#' + tail) : ('(' + (slot || '無時段') + '|' + (type || '無類型') + ')');
@@ -2900,17 +2968,20 @@ function renderOOSLog() {
       groups[key] = { key: key, tail: tail, slot: slot, type: type, date: date, items: [], qty: 0 };
       order.push(key);
     }
-    var q = parseInt(r.qty, 10); if (isNaN(q) || q < 1) q = 1;
     groups[key].items.push(r);
     groups[key].qty += q;
   });
 
-  var totalQty = 0, totalEntries = recs.length;
+  var totalQty = looseQty, totalEntries = recs.length;
   order.forEach(function (k) { totalQty += groups[k].qty; });
 
-  $('oosLogSummary').textContent =
-    order.length + ' 張單 · ' + totalEntries + ' 筆 · ' + totalQty + ' 件' +
-    (truncated ? '（只顯示最近 ' + CAP + ' 筆）' : '');
+  var summaryText = order.length + ' 張單';
+  if (loose.length) summaryText += ' · ' + loose.length + ' 筆行架巡查';
+  summaryText += ' · ' + totalEntries + ' 筆 · ' + totalQty + ' 件';
+  if (truncated) summaryText += '（只顯示最近 ' + CAP + ' 筆）';
+  $('oosLogSummary').textContent = summaryText;
+
+
 
   var html = order.map(function (k) {
     var g = groups[k];
@@ -2920,30 +2991,96 @@ function renderOOSLog() {
 
     var dateStr = g.date ? prettyYMD(g.date) : '';
 
-    var items = g.items.map(function (r) {
-      var st = oosStatusLabel(r);
-      var q = parseInt(r.qty, 10); if (isNaN(q) || q < 1) q = 1;
-      var meta = [];
-      if (r.at) meta.push(fmtDateTime(r.at));
-      if (r.reporter) meta.push('👤 ' + r.reporter);
-      if (r.reason) meta.push('原因：' + r.reason);
-      meta.push(st.text);
-      return '<div class="ooslog-item">' +
-        '<div class="oi-main">' +
-          '<div class="oi-name" onclick="jumpToProduct(\'' + escAttr(r.productId) + '\')">' +
-            esc(r.productName || r.productId || '（無名）') +
-          '</div>' +
-          '<span class="oi-meta ' + st.cls + '">' + esc(meta.join(' · ')) + '</span>' +
-        '</div>' +
-        '<div class="oi-qty ' + st.cls + '">×' + q + '</div>' +
-      '</div>';
-    }).join('');
+    var items = g.items.map(function (r) { return oosLogItemHtml(r, false); }).join('');
 
     return '<div class="ooslog-group">' +
       '<div class="ooslog-head">' + head +
         (dateStr ? '<span class="lg-sum">📅 ' + esc(dateStr) + '</span>' : '') +
         '<span class="lg-sum">' + g.items.length + ' 筆 · ' + g.qty + ' 件</span>' +
       '</div>' + items +
+    '</div>';
+  }).join('');
+
+  // 行架巡查（冇單號／冇時段／冇類型）—— 獨立一段，唔會被誤當成一張單
+  if (loose.length) {
+    html += '<div class="ooslog-group">' +
+      '<div class="ooslog-head" style="color:#b25000; border-bottom-color:#fff6e5;">' +
+        '📝 行架巡查（未指定訂單）' +
+        '<span class="lg-sum">' + loose.length + ' 筆 · ' + looseQty + ' 件</span>' +
+      '</div>' +
+      loose.map(function (r) { return oosLogItemHtml(r, true); }).join('') +
+    '</div>';
+  }
+
+  $('oosLogBody').innerHTML = html;
+}
+
+/** 單筆缺貨紀錄嘅 HTML（單號檢視、巡查段、跟進動作檢視共用） */
+function oosLogItemHtml(r, showDate) {
+  var st = oosStatusLabel(r);
+  var q = parseInt(r.qty, 10); if (isNaN(q) || q < 1) q = 1;
+  var meta = [];
+  if (showDate) { var dd = prettyYMD(r.orderDate); if (dd) meta.push('📅 ' + dd); }
+  if (r.at) meta.push(fmtDateTime(r.at));
+  if (r.reporter) meta.push('👤 ' + r.reporter);
+  if (r.reason) meta.push('原因：' + oosReasonLabel(r.reason));   // #50：用顯示名稱（有 emoji）
+  meta.push(st.text);
+  return '<div class="ooslog-item">' +
+    '<div class="oi-main">' +
+      '<div class="oi-name" onclick="jumpToProduct(\'' + escAttr(r.productId) + '\')">' +
+        esc(r.productName || r.productId || '（無名）') +
+      '</div>' +
+      '<span class="oi-meta ' + st.cls + '">' + esc(meta.join(' · ')) + '</span>' +
+    '</div>' +
+    '<div class="oi-qty ' + st.cls + '">×' + q + '</div>' +
+  '</div>';
+}
+
+/** #50：按跟進動作（_OOSReasons D 欄）分組 */
+function renderOOSLogByAction(recs, truncated, CAP) {
+  var groups = {}, order = [];
+  var UN = '未設定跟進動作';
+
+  recs.forEach(function (r) {
+    var act = oosReasonAction(r.reason) || UN;
+    if (!groups[act]) { groups[act] = { action: act, items: [], qty: 0 }; order.push(act); }
+    var q = parseInt(r.qty, 10); if (isNaN(q) || q < 1) q = 1;
+    groups[act].items.push(r);
+    groups[act].qty += q;
+  });
+
+  // 件數多嘅排前；「未設定」永遠最後
+  order.sort(function (a, b) {
+    var aU = (a === UN), bU = (b === UN);
+    if (aU !== bU) return aU ? 1 : -1;
+    return groups[b].items.length - groups[a].items.length;
+  });
+
+  var totalQty = 0;
+  order.forEach(function (k) { totalQty += groups[k].qty; });
+
+  var summaryText = order.length + ' 個跟進動作 · ' + recs.length + ' 筆 · ' + totalQty + ' 件';
+  if (truncated) summaryText += '（只顯示最近 ' + CAP + ' 筆）';
+  $('oosLogSummary').textContent = summaryText;
+
+  var html = '';
+  if (order.length === 1 && order[0] === UN) {
+    html += '<div style="background:#fff3cd; color:#856404; border-radius:10px; padding:10px 12px; ' +
+            'font-size:12px; line-height:1.6; margin-bottom:12px;">' +
+            '⚠️ 全部原因都未設定跟進動作。去 Google Sheet 嘅 <b>_OOSReasons</b> 工作表，' +
+            '喺 <b>D 欄（跟進動作）</b>填返（例如：要搵 / 等補貨 / 要問runner），' +
+            '再喺 App 撳「選項管理 → 重新載入」。</div>';
+  }
+
+  html += order.map(function (k) {
+    var g = groups[k];
+    var isUn = (k === UN);
+    return '<div class="ooslog-group">' +
+      '<div class="ooslog-head"' + (isUn ? ' style="color:#86868b; border-bottom-color:#e5e5e7;"' : '') + '>' +
+        esc(k) +
+        '<span class="lg-sum">' + g.items.length + ' 筆 · ' + g.qty + ' 件</span>' +
+      '</div>' +
+      g.items.map(function (r) { return oosLogItemHtml(r, true); }).join('') +
     '</div>';
   }).join('');
 
@@ -3961,13 +4098,16 @@ function render() {
                label + ' ×' + o.n + ' 筆 · ' + o.qty + ' 件</span>';
       }).join('');
 
+      var un = dateAgg.unspecified || { n: 0, qty: 0 };
+      var headCount = '共 ' + dateAgg.orders.length + ' 張單';
+      if (un.n > 0) headCount += ' · ' + un.n + ' 筆行架巡查';
       sumEl.innerHTML =
         '<div style="font-weight:800; font-size:14px;">' + scopeParts.join('　') +
-          '　共 ' + dateAgg.orders.length + ' 張單 · ' + dateAgg.entries + ' 筆缺貨 · ' +
+          '　' + headCount + ' · ' + dateAgg.entries + ' 筆缺貨 · ' +
           dateAgg.totalQty + ' 件</div>' +
         (chips ? '<div style="margin-top:5px;">' + chips + '</div>' : '') +
         '<div style="margin-top:6px; font-size:12px; opacity:.85;">' +
-          '只計「缺貨中」的記錄；已補貨的不會列出。沒有填單號的，以「派送時段＋單類型」當作一張單。' +
+          '只計「缺貨中」的記錄；已補貨的不會列出。冇填單號但有揀時段／類型嘅，以「時段＋類型」當作一張單。' +
         '</div>' +
         '<button onclick="openOOSLog()" style="margin-top:8px; width:100%; padding:9px; border:none; border-radius:8px; background:#c62828; color:#fff; font-size:13px; font-weight:700; cursor:pointer;">📋 睇逐筆缺貨紀錄</button>';
       sumEl.style.display = 'block';
