@@ -741,6 +741,27 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   .tool-btn { padding: 6px 10px; font-size: 13px; }
   .list { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
 }
+
+/* #47 缺貨紀錄 / 貨品缺貨歷史 */
+.ooslog-group { margin-bottom: 14px; }
+.ooslog-head {
+  font-size: 14px; font-weight: 800; color: #c62828;
+  padding: 6px 0; border-bottom: 2px solid #fdecea; margin-bottom: 6px;
+}
+.ooslog-head .lg-sum { font-weight: 600; font-size: 12px; color: #86868b; margin-left: 6px; }
+.ooslog-item { display: flex; gap: 8px; padding: 8px 0; border-bottom: 1px solid #f2f2f7; font-size: 13px; line-height: 1.45; }
+.ooslog-item:last-child { border-bottom: none; }
+.ooslog-item .oi-main { flex: 1; min-width: 0; }
+.ooslog-item .oi-name { color: #1d1d1f; font-weight: 700; word-break: break-word; cursor: pointer; }
+.ooslog-item .oi-name:active { color: #0071e3; }
+.ooslog-item .oi-meta { display: block; font-size: 11px; color: #86868b; font-weight: 500; margin-top: 2px; }
+.ooslog-item .oi-qty { flex-shrink: 0; font-weight: 800; color: #c62828; font-size: 15px; align-self: flex-start; }
+.ooslog-ok { color: #2e7d32 !important; }
+.ooslog-empty { text-align: center; color: #86868b; padding: 34px 10px; font-size: 14px; line-height: 1.6; }
+#oosLogModal .modal-content, #prodHistoryModal .modal-content {
+  border-radius: 24px; margin: 12px; max-height: 92vh;
+  padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+}
 </style>
 </head>
 <body>
@@ -842,6 +863,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
         <option value="放假">放假</option>
       </select>
       <button type="button" id="btnOOSDateClear" class="tool-btn" onclick="clearOOSDateFilter()" style="display:none; margin-left:8px;">✕ 清除</button>
+      <button type="button" class="tool-btn" onclick="openOOSLog()" style="margin-left:8px;">📋 缺貨紀錄</button>
     </div>
   </header>
 
@@ -1205,6 +1227,35 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   </div>
 </div>
 
+<!-- #47 缺貨紀錄（指定日期／時段嘅逐筆記錄） -->
+<div class="modal" id="oosLogModal" style="align-items:center;">
+  <div class="modal-content">
+    <h2 style="margin:0 0 8px; font-size:20px;">📋 缺貨紀錄</h2>
+    <div id="oosLogScope" style="font-size:13px; color:#6e6e73; margin-bottom:8px; line-height:1.5;"></div>
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
+      <button type="button" class="tool-btn" id="btnOOSLogStatus" onclick="toggleOOSLogStatus()">📄 只顯示缺貨中</button>
+      <span id="oosLogSummary" style="font-size:13px; font-weight:700; color:#c62828;"></span>
+    </div>
+    <div id="oosLogBody" style="max-height:50vh; overflow-y:auto; -webkit-overflow-scrolling:touch;"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeOOSLog()">關閉</button>
+    </div>
+  </div>
+</div>
+
+<!-- #47 單件貨品嘅缺貨歷史 -->
+<div class="modal" id="prodHistoryModal" style="align-items:center;">
+  <div class="modal-content">
+    <h2 style="margin:0 0 4px; font-size:20px;">📜 缺貨歷史</h2>
+    <div id="prodHistoryName" style="font-size:14px; font-weight:700; color:#1d1d1f; line-height:1.45; margin-bottom:10px;"></div>
+    <div id="prodHistoryBody" style="max-height:54vh; overflow-y:auto; -webkit-overflow-scrolling:touch;"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeProductHistory()">關閉</button>
+      <button class="btn-save" id="btnProdHistoryJump" onclick="jumpToProductFromHistory()">🔎 睇這件貨</button>
+    </div>
+  </div>
+</div>
+
 <input type="file" id="imageSearchInput" accept="image/*" style="display:none">
 <input type="file" id="ocrImageInput" accept="image/*" capture="environment" style="display:none">
 <button id="debugBtn" onclick="showDebug()">DEBUG</button>
@@ -1374,6 +1425,17 @@ function timeAgo(dateStr) {
   var mo = Math.floor(day / 30);
   if (mo < 12) return mo + ' 個月前';
   return Math.floor(mo / 12) + ' 年前';
+}
+
+/** ISO 時間 → '2026-10-18 14:05'（本機時間）；#47 缺貨紀錄用 */
+function fmtDateTime(s) {
+  var t = String(s || '').trim();
+  if (!t) return '';
+  var dt = new Date(t);
+  if (isNaN(dt.getTime())) return t;
+  function p2(n) { return n < 10 ? '0' + n : '' + n; }
+  return dt.getFullYear() + '-' + p2(dt.getMonth() + 1) + '-' + p2(dt.getDate()) +
+         ' ' + p2(dt.getHours()) + ':' + p2(dt.getMinutes());
 }
 
 
@@ -2685,6 +2747,256 @@ function buildOOSDateMatch() {
   return { orders: list, totalQty: totalQty, entries: entries };
 }
 
+// ============================================================
+// #47 缺貨紀錄檢視（指定日期）＋ 單件貨品缺貨歷史
+//
+//   兩者都用同一份「逐筆記錄」allOOSReports（一次過拉晒，之後純前端篩）。
+//   紀錄包含「已補貨」嘅歷史，所以貨品缺貨歷史唔會被補貨後消失。
+// ============================================================
+
+var _oosReportsPromise = null;
+var oosLogIncludeRestocked = false;
+var prodHistoryId = null;
+
+/** 一次性拉齊 _OOS 逐筆記錄（同時只會有一個請求在飛） */
+async function ensureOOSReports() {
+  if (allOOSReports.length > 0) return allOOSReports;
+  if (_oosReportsPromise) return _oosReportsPromise;
+  _oosReportsPromise = (async function () {
+    try {
+      toast('📋 載入缺貨紀錄...', 1500);
+      var res = await apiGet('oosReports');
+      if (res && !res.error && Array.isArray(res.reports)) allOOSReports = res.reports;
+    } catch (e) {
+      console.warn('ensureOOSReports 失敗：', e);
+      toast('❌ 載入缺貨紀錄失敗', 3000);
+    } finally {
+      _oosReportsPromise = null;
+    }
+    return allOOSReports;
+  })();
+  return _oosReportsPromise;
+}
+
+function oosStatusLabel(r) {
+  var st = String(r.status || '').trim();
+  if (st === 'active') return { text: '🔴 缺貨中', cls: '' };
+  if (st === 'restocked') return { text: '✅ 已補貨', cls: 'ooslog-ok' };
+  return { text: '· ' + (st || '未知'), cls: '' };
+}
+
+function prettyYMD(s) {
+  var t = String(s || '').trim();
+  return /^\d{8}$/.test(t) ? t.substring(0,4) + '-' + t.substring(4,6) + '-' + t.substring(6,8) : t;
+}
+
+function oosLogMatch(r) {
+  if (oosDateFilter && String(r.orderDate || '').trim() !== oosDateFilter) return false;
+  if (oosSlotFilter && String(r.timeSlot || '').trim() !== oosSlotFilter) return false;
+  return true;
+}
+
+// ---------- 缺貨紀錄（指定日期）----------
+async function openOOSLog() {
+  $('oosLogModal').classList.add('show');
+  $('oosLogBody').innerHTML = '<div class="ooslog-empty">載入中…</div>';
+  $('oosLogSummary').textContent = '';
+  await ensureOOSReports();
+  renderOOSLog();
+}
+
+function closeOOSLog() { $('oosLogModal').classList.remove('show'); }
+
+function toggleOOSLogStatus() {
+  oosLogIncludeRestocked = !oosLogIncludeRestocked;
+  renderOOSLog();
+}
+
+function renderOOSLog() {
+  var scope = [];
+  if (oosDateFilter) scope.push('📅 ' + prettyYMD(oosDateFilter));
+  if (oosSlotFilter) scope.push('🚚 ' + oosSlotFilter);
+  $('oosLogScope').textContent = scope.length ? scope.join('　') : '全部日期（最近 500 筆）';
+
+  var btn = $('btnOOSLogStatus');
+  if (btn) btn.textContent = oosLogIncludeRestocked ? '📄 包括已補貨' : '📄 只顯示缺貨中';
+
+  var recs = allOOSReports.filter(function (r) {
+    if (!oosLogMatch(r)) return false;
+    if (!oosLogIncludeRestocked && String(r.status || '').trim() !== 'active') return false;
+    return true;
+  });
+
+  if (!recs.length) {
+    $('oosLogSummary').textContent = '';
+    $('oosLogBody').innerHTML = '<div class="ooslog-empty">呢個範圍冇缺貨紀錄。</div>';
+    return;
+  }
+
+  // 超出上限就只取最近 500 筆（allOOSReports 本身已由新到舊）
+  var CAP = 500;
+  var truncated = recs.length > CAP;
+  if (truncated) recs = recs.slice(0, CAP);
+
+  // 按「訂單」分組：有單號用單號，冇單號用「時段＋類型」
+  var groups = {}, order = [];
+  recs.forEach(function (r) {
+    var tail = String(r.orderTail || '').trim();
+    var slot = String(r.timeSlot || '').trim();
+    var type = String(r.orderType || '').trim();
+    var key = tail ? ('#' + tail) : ('(' + (slot || '無時段') + '|' + (type || '無類型') + ')');
+    if (!groups[key]) {
+      groups[key] = { key: key, tail: tail, slot: slot, type: type, items: [], qty: 0 };
+      order.push(key);
+    }
+    var q = parseInt(r.qty, 10); if (isNaN(q) || q < 1) q = 1;
+    groups[key].items.push(r);
+    groups[key].qty += q;
+  });
+
+  var totalQty = 0, totalEntries = recs.length;
+  order.forEach(function (k) { totalQty += groups[k].qty; });
+
+  $('oosLogSummary').textContent =
+    order.length + ' 張單 · ' + totalEntries + ' 筆 · ' + totalQty + ' 件' +
+    (truncated ? '（只顯示最近 ' + CAP + ' 筆）' : '');
+
+  var html = order.map(function (k) {
+    var g = groups[k];
+    var head = g.tail
+      ? ('單號尾 ' + esc(g.tail))
+      : ('無單號（' + esc(g.slot || '無時段') + ' ' + esc(g.type || '無類型') + '）');
+
+    // 同一張單有幾日？顯示日期方便分辨
+    var dates = {};
+    g.items.forEach(function (r) { var d = prettyYMD(r.orderDate); if (d) dates[d] = true; });
+    var dateStr = Object.keys(dates).sort().join('、');
+
+    var items = g.items.map(function (r) {
+      var st = oosStatusLabel(r);
+      var q = parseInt(r.qty, 10); if (isNaN(q) || q < 1) q = 1;
+      var meta = [];
+      if (r.at) meta.push(fmtDateTime(r.at));
+      if (r.reporter) meta.push('👤 ' + r.reporter);
+      if (r.reason) meta.push('原因：' + r.reason);
+      meta.push(st.text);
+      return '<div class="ooslog-item">' +
+        '<div class="oi-main">' +
+          '<div class="oi-name" onclick="jumpToProduct(\'' + escAttr(r.productId) + '\')">' +
+            esc(r.productName || r.productId || '（無名）') +
+          '</div>' +
+          '<span class="oi-meta ' + st.cls + '">' + esc(meta.join(' · ')) + '</span>' +
+        '</div>' +
+        '<div class="oi-qty ' + st.cls + '">×' + q + '</div>' +
+      '</div>';
+    }).join('');
+
+    return '<div class="ooslog-group">' +
+      '<div class="ooslog-head">' + head +
+        (dateStr ? '<span class="lg-sum">📅 ' + esc(dateStr) + '</span>' : '') +
+        '<span class="lg-sum">' + g.items.length + ' 筆 · ' + g.qty + ' 件</span>' +
+      '</div>' + items +
+    '</div>';
+  }).join('');
+
+  $('oosLogBody').innerHTML = html;
+}
+
+// ---------- 單件貨品缺貨歷史 ----------
+async function openProductHistory(id) {
+  var key = String(id || '').trim();
+  if (!key) return;
+  prodHistoryId = key;
+
+  var p = null;
+  for (var i = 0; i < allData.length; i++) {
+    if (String(allData[i].id || '').trim() === key) { p = allData[i]; break; }
+  }
+  $('prodHistoryName').textContent = p
+    ? ((p.name_zh || p.name || '') + '　ID ' + key)
+    : ('ID ' + key);
+
+  $('prodHistoryModal').classList.add('show');
+  $('prodHistoryBody').innerHTML = '<div class="ooslog-empty">載入中…</div>';
+  await ensureOOSReports();
+  renderProductHistory();
+}
+
+function closeProductHistory() {
+  $('prodHistoryModal').classList.remove('show');
+  prodHistoryId = null;
+}
+
+function jumpToProductFromHistory() {
+  if (prodHistoryId) jumpToProduct(prodHistoryId);
+}
+
+function renderProductHistory() {
+  var key = prodHistoryId;
+  var recs = allOOSReports.filter(function (r) {
+    return String(r.productId || '').trim() === key;
+  });
+
+  if (!recs.length) {
+    $('prodHistoryBody').innerHTML =
+      '<div class="ooslog-empty">📭 呢件貨冇缺貨記錄。<br><span style="font-size:12px;">' +
+      '只有喺 App 用 ❌ 回報過嘅缺貨先會出現。</span></div>';
+    return;
+  }
+
+  var activeN = 0, totalQty = 0;
+  var body = recs.map(function (r) {
+    var st = oosStatusLabel(r);
+    if (String(r.status || '').trim() === 'active') activeN++;
+    var q = parseInt(r.qty, 10); if (isNaN(q) || q < 1) q = 1;
+    totalQty += q;
+
+    var d = prettyYMD(r.orderDate);
+    var bits = [];
+    if (d) bits.push('📅 ' + d);
+    if (r.timeSlot) bits.push('🕐 ' + r.timeSlot);
+    if (r.orderTail) bits.push('#…' + r.orderTail);
+    if (r.orderType) bits.push('📦 ' + r.orderType);
+    if (r.reason) bits.push('原因：' + r.reason);
+    if (r.at) bits.push(fmtDateTime(r.at));
+    if (r.reporter) bits.push('👤 ' + r.reporter);
+
+    return '<div class="ooslog-item">' +
+      '<div class="oi-main">' +
+        '<div class="oi-name">' + st.text + '</div>' +
+        '<span class="oi-meta">' + esc(bits.join(' · ')) + '</span>' +
+      '</div>' +
+      '<div class="oi-qty ' + st.cls + '">×' + q + '</div>' +
+    '</div>';
+  }).join('');
+
+  $('prodHistoryBody').innerHTML =
+    '<div class="ooslog-head" style="border-bottom:2px solid #fdecea;">共 ' + recs.length +
+      ' 次缺貨記錄' +
+      (activeN ? '　<span style="color:#c62828;">現時缺貨中（' + activeN + ' 筆未補）</span>'
+               : '　<span class="ooslog-ok">✅ 現時無未補記錄</span>') +
+      '<span class="lg-sum">合共 ' + totalQty + ' 件</span>' +
+    '</div>' + body;
+}
+
+/** 由紀錄跳去睇嗰件貨 */
+function jumpToProduct(id) {
+  closeOOSLog();
+  closeProductHistory();
+
+  barcodeOnly = false;
+  skuOnly = false;
+  if (typeof updateBarcodeButton === 'function') updateBarcodeButton();
+  if (typeof updateSkuButton === 'function') updateSkuButton();
+  if (typeof applyInputMode === 'function') applyInputMode();
+  searchMode = 'text';
+
+  $('q').value = String(id || '');
+  $('btnClear').style.display = 'flex';
+  render();
+  window.scrollTo(0, 0);
+}
+
 function toggleOOSFilter() {
   oosFilterOnly = !oosFilterOnly;
   try { localStorage.setItem(OOS_FILTER_KEY, oosFilterOnly ? '1' : '0'); } catch (e) {}
@@ -3606,9 +3918,10 @@ function render() {
           '　共 ' + dateAgg.orders.length + ' 張單 · ' + dateAgg.entries + ' 筆缺貨 · ' +
           dateAgg.totalQty + ' 件</div>' +
         (chips ? '<div style="margin-top:5px;">' + chips + '</div>' : '') +
-        '<div style="margin-top:5px; font-size:12px; opacity:.85;">' +
+        '<div style="margin-top:6px; font-size:12px; opacity:.85;">' +
           '只計「缺貨中」的記錄；已補貨的不會列出。沒有填單號的，以「派送時段＋單類型」當作一張單。' +
-        '</div>';
+        '</div>' +
+        '<button onclick="openOOSLog()" style="margin-top:8px; width:100%; padding:9px; border:none; border-radius:8px; background:#c62828; color:#fff; font-size:13px; font-weight:700; cursor:pointer;">📋 睇逐筆缺貨紀錄</button>';
       sumEl.style.display = 'block';
     } else {
       sumEl.style.display = 'none';
@@ -3832,6 +4145,7 @@ function renderCard(d) {
     '<div class="card-actions">' +
       '<button class="btn-edit" onclick="openEdit(\'' + safeId + '\')">✏️ 編輯</button>' +
       '<button class="btn-icon" onclick="copyId(\'' + safeId + '\')" title="複製 ID">📋</button>' +
+      '<button class="btn-icon" onclick="openProductHistory(\'' + safeId + '\')" title="缺貨歷史">📜</button>' +
       oosButton +
       (isAdmin ? '<button class="btn-del" onclick="confirmDelete(\'' + safeId + '\')" title="刪除">🗑️</button>' : '') +
     '</div>' +
