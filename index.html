@@ -25,10 +25,12 @@ header {
   background: rgba(255,255,255,.96);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
-  padding: 16px 14px 14px;
+  /* #46：左右讓開 iPhone 打橫嘅劉海（直度時 safe-area 為 0，所以唔影響） */
+  padding: 16px calc(14px + env(safe-area-inset-right)) 14px calc(14px + env(safe-area-inset-left));
   border-bottom: 2px solid #e5e5e7;
   z-index: 100;
 }
+
 h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .search-box { position: relative; }
 .search-box input {
@@ -717,6 +719,27 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   appearance: none;
   z-index: 10;
   background: transparent;
+}
+/* #46 iPhone 打橫修復 ----------------------------------------------------
+   header 累積咗 標題 + 搜尋框 + 項數 + 工具列 5 個掣 + 分類下拉 +
+   品牌/細分下拉 + 日期/時段，直度大約 400px 高。
+   iPhone 打橫螢幕只有約 346px，而 header 係 position:sticky（永遠釘住），
+   結果 header 高過螢幕 → 下面嘅貨品清單完全睇唔到，滾動都冇用。
+   修法：打橫（矮螢幕）時限制 header 高度並容許 header 自己滾動，
+        咁清單就永遠佔最少一半螢幕。 */
+@media (orientation: landscape) and (max-height: 500px) {
+  header {
+    max-height: 46vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-top: 8px;
+  }
+  h1 { display: none; }                 /* 省返 50px */
+  .stats { margin-top: 6px; font-size: 14px; }
+  .toolbar { margin-top: 6px; gap: 6px; }
+  .tool-btn { padding: 6px 10px; font-size: 13px; }
+  .list { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
 }
 </style>
 </head>
