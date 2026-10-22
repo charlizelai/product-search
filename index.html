@@ -1266,6 +1266,15 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       </div>
     </div>
 
+    <!-- #55 派送時段篩選 -->
+    <div class="chip-group" id="oosLogSlotGroup" style="margin-bottom:10px;">
+      <button type="button" class="chip-btn" data-value="" onclick="onOOSLogSlot(this)">全部時段</button>
+      <button type="button" class="chip-btn slot-early"   data-value="早"   onclick="onOOSLogSlot(this)">早 10-14</button>
+      <button type="button" class="chip-btn slot-mid"     data-value="中"   onclick="onOOSLogSlot(this)">中 14-18</button>
+      <button type="button" class="chip-btn slot-late"    data-value="晚"   onclick="onOOSLogSlot(this)">晚 18-21</button>
+      <button type="button" class="chip-btn slot-holiday" data-value="放假" onclick="onOOSLogSlot(this)">放假</button>
+    </div>
+
     <div id="oosLogScope" style="font-size:13px; color:#6e6e73; margin-bottom:8px; line-height:1.5;"></div>
     <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
       <button type="button" class="tool-btn" id="btnOOSLogStatus" onclick="toggleOOSLogStatus()">📄 只顯示缺貨中</button>
@@ -2862,6 +2871,7 @@ function buildOOSDateMatch() {
 var _oosReportsPromise = null;
 var oosLogIncludeRestocked = false;
 var oosLogTail = '';          // #49：用單號查「呢張單缺咩貨」
+var oosLogSlot = '';          // #55：彈窗內嘅派送時段篩選（早/中/晚/放假）
 var oosLogGroupBy = 'order';  // #50：'order' = 按訂單分組；'action' = 按跟進動作分組
 var prodHistoryId = null;
 
@@ -3106,14 +3116,34 @@ function prettyYMD(s) {
 }
 
 function oosLogMatch(r) {
-  // #49：有輸入單號 → 以單號為準，唔再套用日期／時段。
-  //      因為用戶搵單號時，多數唔記得係邊一日。
+  // #55：時段篩選永遠生效（彈窗自己揀），同單號／日期互不干擾
+  if (oosLogSlot && String(r.timeSlot || '').trim() !== oosLogSlot) return false;
+
+  // #49：有輸入單號 → 以單號為準，唔再套用日期
+  //      （搵單號時多數唔記得係邊一日；但時段上面已經另外篩咗）
   if (oosLogTail) {
     return String(r.orderTail || '').trim().indexOf(oosLogTail) >= 0;
   }
+
   if (oosDateFilter && String(r.orderDate || '').trim() !== oosDateFilter) return false;
-  if (oosSlotFilter && String(r.timeSlot || '').trim() !== oosSlotFilter) return false;
   return true;
+}
+
+/** #55：彈窗內揀時段 */
+function onOOSLogSlot(btn) {
+  if (!btn) return;
+  oosLogSlot = String(btn.getAttribute('data-value') || '').trim();
+  syncOOSLogSlotChips();
+  renderOOSLog();
+}
+
+function syncOOSLogSlotChips() {
+  var g = $('oosLogSlotGroup');
+  if (!g) return;
+  g.querySelectorAll('.chip-btn').forEach(function (b) {
+    if (String(b.getAttribute('data-value') || '') === oosLogSlot) b.classList.add('selected');
+    else b.classList.remove('selected');
+  });
 }
 
 /** #49：單號輸入 —— 只留英數字，即時過濾 */
@@ -3142,6 +3172,9 @@ async function openOOSLog() {
   $('oosLogSummary').textContent = '';
   var el = $('oosLogTail'); if (el) el.value = oosLogTail;
   var clr = $('btnOOSLogTailClear'); if (clr) clr.style.display = oosLogTail ? 'block' : 'none';
+  // 第一次開（或者 header 有篩時段）就沿用 header 嘅時段
+  if (!oosLogSlot && oosSlotFilter) oosLogSlot = oosSlotFilter;
+  syncOOSLogSlotChips();
   await ensureOOSReports();
   renderOOSLog();
 }
@@ -3156,11 +3189,11 @@ function toggleOOSLogStatus() {
 function renderOOSLog() {
   var scope = [];
   if (oosLogTail) {
-    scope.push('🔎 單號「' + oosLogTail + '」（已忽略日期／時段）');
-  } else {
-    if (oosDateFilter) scope.push('📅 ' + prettyYMD(oosDateFilter));
-    if (oosSlotFilter) scope.push('🚚 ' + oosSlotFilter);
+    scope.push('🔎 單號「' + oosLogTail + '」（已忽略日期）');
+  } else if (oosDateFilter) {
+    scope.push('📅 ' + prettyYMD(oosDateFilter));
   }
+  if (oosLogSlot) scope.push('🕐 ' + oosLogSlot + ' 時段');
   $('oosLogScope').textContent = scope.length ? scope.join('　') : '全部日期（最近 500 筆）';
 
   var btn = $('btnOOSLogStatus');
@@ -3272,6 +3305,15 @@ function oosLogItemHtml(r, showDate) {
   var q = parseInt(r.qty, 10); if (isNaN(q) || q < 1) q = 1;
   var meta = [];
   if (showDate) { var dd = prettyYMD(r.orderDate); if (dd) meta.push('📅 ' + dd); }
+  // #55：送貨時段／單類型一直顯示（唔好淨係靠分組標題）
+  var sl = String(r.timeSlot || '').trim();
+  if (sl) {
+    var slLabel = sl === '早' ? '早 10-14' : sl === '中' ? '中 14-18'
+                : sl === '晚' ? '晚 18-21' : sl;
+    meta.push('🕐 ' + slLabel);
+  }
+  var ot = String(r.orderType || '').trim();
+  if (ot) meta.push('📦 ' + ot);
   if (r.at) meta.push(fmtDateTime(r.at));
   if (r.reporter) meta.push('👤 ' + r.reporter);
   if (r.reason) meta.push('原因：' + oosReasonLabel(r.reason));   // #50：用顯示名稱（有 emoji）
