@@ -4636,41 +4636,12 @@ function closeBarcodeModal() { $('bcModal').classList.remove('show'); }
 // ============================================================
 // #45 分類待修（快速糾錯）
 //
-//   背景：13,679 件貨入面，有幾類「分類一定錯」嘅情況：
-//     1. B 欄空 → 完全冇分類
-//     2. category_en = "Case Deal" → 惠康嘅「原箱優惠」係促銷分類，
-//        唔係商品分類，所以 621 件原箱貨嘅真分類被蓋走
-//     3. 品名有強烈關鍵字（啤酒／紅酒／貓糧／尿片…）但分類唔對
+//   唯一判定標準：【完全冇填分類】。
+//   ⚠️ Case Deal（原箱）係真分類，唔會列入。
+//   ⚠️ 唔會用品名關鍵字去猜「分類錯」—— 實測誤判太多，已放棄。
 //
-//   呢個模式只會列出上面三類，你逐件撳「🧩 改分類」改，
-//   唔需要喺 13,679 件貨入面撈。
+//   另外每張卡都有「🧩 改分類」掣，任何一件貨都可以即場改。
 // ============================================================
-
-// 只在「幾乎冇歧義」嘅關鍵字先標記，避免噪音。
-// okAlso = 如果現時分類係呢啲，就算合理，唔標記。
-var CAT_FIX_RULES = [
-  { target: 'Beer, Wines & Spirits',
-    kw: ['啤酒','紅酒','白酒','威士忌','清酒','梅酒','燒酎','伏特加','香檳','汽泡酒',
-         'beer','wine','whisky','whiskey','vodka'],
-    // 香薰／香檳味／雪糕／朱古力 呢類唔係酒
-    exclude: ['香薰','香檳味','香檳色','味','雪糕','雪條','糖果','朱古力','蛋糕','沐浴','香水','護膚'],
-    okAlso: ['Kitchen & Dining', 'Case Deal'] },   // 酒杯／開瓶器／原箱都由 B 類處理
-  { target: 'Cat',  kw: ['貓糧','貓罐','貓砂','貓零食','貓濕糧'], exclude: [], okAlso: [] },
-  { target: 'Dog',  kw: ['狗糧','狗罐','狗零食','狗濕糧'],       exclude: [], okAlso: [] },
-  { target: 'Mother & Baby',
-    kw: ['紙尿片','尿片','奶瓶','奶嘴','嬰兒'],
-    exclude: ['狗','貓'],                // 寵物尿墊唔關 BB 事
-    okAlso: [] },
-  { target: 'Snacks & Confectionery',
-    // 只留高精確度：薯條喺急凍、高蛋白薯片喺 Fitness 都係正常，所以全部排除
-    kw: ['薯片','蝦片','粟米片','香口膠','爆谷','蛋卷','威化'],
-    exclude: ['嬰兒','雪糕','杯','玩具','蛋白'],
-    okAlso: ['Breakfast & Bakery','Frozen Food','Fitness & Wellness','Case Deal'] },
-  { target: 'Rice, Oil & Noodles',
-    kw: ['白米','香米','泰國米','花生油','意大利粉','通粉','即食麵','杯麵'],
-    exclude: ['味'],
-    okAlso: ['Condiment & Sauce','Mother & Baby','Case Deal'] }
-];
 
 // #45 建議分類：比偵測規則寬鬆好多 —— 因為呢個只係「預先幫你揀好」，
 //      你仍然要撳「儲存」確認，揀錯可以即刻改。順序 = 優先次序，
@@ -4730,33 +4701,16 @@ function catSuspectReason(d) {
   var ce = String(d.category_en || '').trim();
   if (!ce) return '冇填分類';
 
-  // 惠康「原箱優惠」係促銷分類，唔係商品分類
-  if (/^case deal$/i.test(ce)) return '「Case Deal」係促銷分類，唔係商品分類';
-
-  var nm = String(d.name_zh || d.name || '');
-  if (!nm) return '';
-  var low = nm.toLowerCase();
-
-  for (var i = 0; i < CAT_FIX_RULES.length; i++) {
-    var r = CAT_FIX_RULES[i];
-    if (ce === r.target) continue;
-    if (r.okAlso.indexOf(ce) >= 0) continue;
-
-    // 有「排除字」就當係另一個意思，唔標記（減少誤判）
-    var skip = false;
-    for (var x = 0; x < r.exclude.length; x++) {
-      var ex = r.exclude[x];
-      if ((ex.charCodeAt(0) > 127) ? nm.indexOf(ex) >= 0 : low.indexOf(ex) >= 0) { skip = true; break; }
-    }
-    if (skip) continue;
-
-    for (var j = 0; j < r.kw.length; j++) {
-      var k = r.kw[j];
-      // 中文關鍵字用原名比對；英文統一細楷
-      var hit = (k.charCodeAt(0) > 127) ? nm.indexOf(k) >= 0 : low.indexOf(k) >= 0;
-      if (hit) return '品名有「' + k + '」，應該係「' + r.target + '」';
-    }
-  }
+  // ⚠️ 只有【完全冇分類】才算待修。
+  //
+  // 之前試過用品名關鍵字推斷「呢件貨分類錯」，實測誤判太多，已全部移除：
+  //   • 成人紙尿片喺 Health Care 係正常分類（唔關 Mother & Baby 事）
+  //   • 紅酒醋、白酒汁燴牛尾、香檳杯 → 唔係酒
+  //   • 朱古力奶、朱古力咖啡 → 唔係零食
+  //   • 急凍薯條、高蛋白薯片 → 分類本身合理
+  //
+  // 而「Case Deal / 原箱」更加係【真分類】——實務上原箱係掛喺貨品類別之下，
+  // 用嚟辨識大客買大量貨，所以絕對唔可以當錯、更加唔可以改走。
   return '';
 }
 
@@ -4836,10 +4790,10 @@ function openCatFix(id) {
   var cur = String(p.category_en || '').trim();
   if (cur && !selectHasValue_('cmCategory', cur)) addSelectOption_('cmCategory', cur);
 
-  // #45：冇分類或者係「Case Deal」促銷分類 → 由品名估一個，預先幫你揀好。
-  //      只係預選，唔會自動儲存，你仍然要撳「✅ 儲存」確認。
+  // #45：只有【完全冇分類】先用品名估一個預先揀好。
+  //      Case Deal（原箱）係真分類，絕對唔會自動建議改走。
   var sug = '';
-  if (!cur || /^case deal$/i.test(cur)) sug = suggestCategory(p.name_zh || p.name);
+  if (!cur) sug = suggestCategory(p.name_zh || p.name);
   if (sug && !selectHasValue_('cmCategory', sug)) addSelectOption_('cmCategory', sug);
 
   $('cmCategory').value = sug || cur;
@@ -4974,7 +4928,7 @@ function catSuggestList() {
     var id = String(d.id || '').trim();
     if (!id || !sm[id]) continue;                    // 唔係待修嘅貨，跳過
     var cur = String(d.category_en || '').trim();
-    if (cur && !/^case deal$/i.test(cur)) continue;  // 已經有真分類，唔碰
+    if (cur) continue;                               // 有任何分類（包括 Case Deal）都唔碰
     var sug = suggestCategory(d.name_zh || d.name);
     if (!sug) continue;                              // 推測唔到就唔亂改
     list.push({ id: id, category_en: sug, name: d.name_zh || d.name || '' });
@@ -5017,7 +4971,7 @@ function openBulkCatModal() {
   $('bulkCatPreview').innerHTML = prev;
 
   $('bulkCatNote').innerHTML =
-    '🛡️ 只會改「Case Deal」同空白分類嘅貨 —— 你已經手動改好嘅分類一定唔會被覆蓋。<br>' +
+    '🛡️ 只會改【完全冇分類】嘅貨 —— 任何已有分類（包括 Case Deal／原箱）一定唔會被覆蓋。<br>' +
     '細分（I 欄）會留空，之後可以逐件補。';
 
   $('bulkCatModal').classList.add('show');
@@ -5035,7 +4989,10 @@ async function confirmBulkCat() {
   try {
     var res = await apiPost({
       action: 'bulkFixCategory',
-      items: list.map(function (it) { return { id: it.id, category_en: it.category_en, category_zh: '' }; })
+      items: list.map(function (it) {
+        // expect = 我哋以為 H 欄而家係咩值。空字串 = 只寫入完全冇分類嘅行。
+        return { id: it.id, category_en: it.category_en, category_zh: '', expect: '' };
+      })
     });
     if (res.error) { toast('❌ ' + res.error, 4000); return; }
 
