@@ -1266,6 +1266,20 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       </div>
     </div>
 
+    <!-- #56 單日期篩選 -->
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+      <div style="flex:1; display:flex; align-items:center; gap:8px;">
+        <span style="font-size:15px; color:#6e6e73; white-space:nowrap;">📅 單日期</span>
+        <input type="date" id="oosLogDate" onchange="onOOSLogDate()"
+               style="flex:1; max-width:190px; padding:9px 12px; font-size:16px;
+                      border:2px solid #d2d2d7; border-radius:10px; background:#fff;
+                      -webkit-appearance:none; font-family:inherit; outline:none;">
+      </div>
+      <button type="button" id="btnOOSLogDateClear" onclick="clearOOSLogDate()"
+              style="display:none; padding:9px 12px; border:2px solid #d2d2d7; border-radius:10px;
+                     background:#fff; font-size:14px; font-weight:600; color:#1d1d1f; cursor:pointer;">全部日期</button>
+    </div>
+
     <!-- #55 派送時段篩選 -->
     <div class="chip-group" id="oosLogSlotGroup" style="margin-bottom:10px;">
       <button type="button" class="chip-btn" data-value="" onclick="onOOSLogSlot(this)">全部時段</button>
@@ -2741,6 +2755,13 @@ function dateInputToYMD(v) {
   return String(v || '').replace(/[^0-9]/g, '').slice(0, 8);
 }
 
+/** YYYYMMDD → <input type="date"> 要嘅 YYYY-MM-DD */
+function ymdToDateInput(ymd) {
+  var s = String(ymd || '').replace(/[^0-9]/g, '');
+  if (s.length !== 8) return '';
+  return s.substring(0, 4) + '-' + s.substring(4, 6) + '-' + s.substring(6, 8);
+}
+
 /** 拉全部 _OOS 逐筆記錄（供日期／訂單統計用） */
 async function loadOOSReports() {
   try {
@@ -2872,6 +2893,7 @@ var _oosReportsPromise = null;
 var oosLogIncludeRestocked = false;
 var oosLogTail = '';          // #49：用單號查「呢張單缺咩貨」
 var oosLogSlot = '';          // #55：彈窗內嘅派送時段篩選（早/中/晚/放假）
+var oosLogDate = '';          // #56：彈窗內嘅單日期篩選（YYYYMMDD）
 var oosLogGroupBy = 'order';  // #50：'order' = 按訂單分組；'action' = 按跟進動作分組
 var prodHistoryId = null;
 
@@ -3019,7 +3041,8 @@ async function applyOOSAction(action) {
   try {
     var res = await apiPost({
       action: 'setOOSAction',
-      productId: t.productId, at: t.at, row: t.row, action: String(action || '')
+      productId: t.productId, at: t.at, row: t.row,
+      actionValue: String(action || '')     // ⚠️ 唔可以叫 action，會同派發用嘅 action 撞車
     });
     if (res && res.error) { toast('❌ ' + res.error, 3000); return; }
     for (var i = 0; i < allOOSReports.length; i++) {
@@ -3116,17 +3139,27 @@ function prettyYMD(s) {
 }
 
 function oosLogMatch(r) {
-  // #55：時段篩選永遠生效（彈窗自己揀），同單號／日期互不干擾
+  // #55 / #56：三個篩選互相獨立，全部同時生效
+  if (oosLogDate && String(r.orderDate || '').trim() !== oosLogDate) return false;
   if (oosLogSlot && String(r.timeSlot || '').trim() !== oosLogSlot) return false;
-
-  // #49：有輸入單號 → 以單號為準，唔再套用日期
-  //      （搵單號時多數唔記得係邊一日；但時段上面已經另外篩咗）
-  if (oosLogTail) {
-    return String(r.orderTail || '').trim().indexOf(oosLogTail) >= 0;
-  }
-
-  if (oosDateFilter && String(r.orderDate || '').trim() !== oosDateFilter) return false;
+  if (oosLogTail && String(r.orderTail || '').trim().indexOf(oosLogTail) < 0) return false;
   return true;
+}
+
+/** #56：彈窗內揀日期 */
+function onOOSLogDate() {
+  var el = $('oosLogDate');
+  oosLogDate = dateInputToYMD(el ? el.value : '');
+  var c = $('btnOOSLogDateClear');
+  if (c) c.style.display = oosLogDate ? 'inline-block' : 'none';
+  renderOOSLog();
+}
+
+function clearOOSLogDate() {
+  oosLogDate = '';
+  var el = $('oosLogDate'); if (el) el.value = '';
+  var c = $('btnOOSLogDateClear'); if (c) c.style.display = 'none';
+  renderOOSLog();
 }
 
 /** #55：彈窗內揀時段 */
@@ -3172,8 +3205,15 @@ async function openOOSLog() {
   $('oosLogSummary').textContent = '';
   var el = $('oosLogTail'); if (el) el.value = oosLogTail;
   var clr = $('btnOOSLogTailClear'); if (clr) clr.style.display = oosLogTail ? 'block' : 'none';
-  // 第一次開（或者 header 有篩時段）就沿用 header 嘅時段
+  // 第一次開就沿用頂部篩選列嘅日期／時段，之後彈窗自己記住自己嘅選擇
+  if (!oosLogDate && oosDateFilter) oosLogDate = oosDateFilter;
   if (!oosLogSlot && oosSlotFilter) oosLogSlot = oosSlotFilter;
+
+  var dEl = $('oosLogDate');
+  if (dEl) dEl.value = ymdToDateInput(oosLogDate);
+  var dClr = $('btnOOSLogDateClear');
+  if (dClr) dClr.style.display = oosLogDate ? 'inline-block' : 'none';
+
   syncOOSLogSlotChips();
   await ensureOOSReports();
   renderOOSLog();
@@ -3188,12 +3228,9 @@ function toggleOOSLogStatus() {
 
 function renderOOSLog() {
   var scope = [];
-  if (oosLogTail) {
-    scope.push('🔎 單號「' + oosLogTail + '」（已忽略日期）');
-  } else if (oosDateFilter) {
-    scope.push('📅 ' + prettyYMD(oosDateFilter));
-  }
+  if (oosLogDate) scope.push('📅 ' + prettyYMD(oosLogDate));
   if (oosLogSlot) scope.push('🕐 ' + oosLogSlot + ' 時段');
+  if (oosLogTail) scope.push('🔎 單號「' + oosLogTail + '」');
   $('oosLogScope').textContent = scope.length ? scope.join('　') : '全部日期（最近 500 筆）';
 
   var btn = $('btnOOSLogStatus');
