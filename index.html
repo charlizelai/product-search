@@ -758,6 +758,17 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .ooslog-item .oi-qty { flex-shrink: 0; font-weight: 800; color: #c62828; font-size: 15px; align-self: flex-start; }
 .ooslog-ok { color: #2e7d32 !important; }
 .ooslog-empty { text-align: center; color: #86868b; padding: 34px 10px; font-size: 14px; line-height: 1.6; }
+
+/* #53 跟進動作（每筆記錄自己一個） */
+.oos-action-chip {
+  display: inline-block; margin-top: 4px; padding: 3px 10px; border-radius: 999px;
+  border: 1.5px solid #c8e6c9; background: #e6f4ea; color: #1b5e20;
+  font-size: 12px; font-weight: 700; cursor: pointer; line-height: 1.4;
+}
+.oos-action-chip:active { background: #c8e6c9; }
+.oos-action-chip.none { border-color: #d2d2d7; background: #f5f5f7; color: #86868b; font-weight: 600; }
+#oosActionModal .modal-content { border-radius: 24px; margin: 12px; padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); }
+#oosActionList { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
 #oosLogModal .modal-content, #prodHistoryModal .modal-content {
   border-radius: 24px; margin: 12px; max-height: 92vh;
   padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
@@ -1035,6 +1046,17 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     <textarea id="oosReason" placeholder="選填：如需補充額外原因，可在此輸入（上方按鈕可多選）"></textarea>
     <div class="quick-reasons" id="quickReasonsContainer"></div>
 
+    <!-- #53 跟進動作：每次情況唔同，所以逐次揀（可以留空） -->
+    <div style="margin-top:16px;">
+      <label style="display:block; font-size:16px; font-weight:700; margin-bottom:8px;">
+        🎯 跟進動作 <span style="font-size:12px; color:#86868b; font-weight:500;">選填</span>
+      </label>
+      <div class="quick-reasons" id="quickActionsContainer"></div>
+      <div style="font-size:12px; color:#86868b; margin-top:6px; line-height:1.5;">
+        今次要點跟進？同一個原因每次都可以唔同。選項喺 _OOSActions 工作表維護。
+      </div>
+    </div>
+
     <div style="margin-top:16px;">
       <label for="oosQty" style="display:block; font-size:16px; font-weight:700; margin-bottom:8px;">
         📦 缺貨件數
@@ -1270,6 +1292,19 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   </div>
 </div>
 
+<!-- #53 事後修改某一筆缺貨記錄嘅跟進動作 -->
+<div class="modal" id="oosActionModal" style="align-items:center;">
+  <div class="modal-content">
+    <h2 style="margin:0 0 6px; font-size:20px;">🎯 跟進動作</h2>
+    <div id="oosActionDesc" style="font-size:13px; color:#86868b; line-height:1.5;"></div>
+    <div id="oosActionList"></div>
+    <div class="modal-actions" style="flex-wrap:wrap;">
+      <button class="btn-cancel" onclick="closeOOSActionPicker()">取消</button>
+      <button class="btn-cancel" style="background:#fdecea;color:#c62828;" onclick="applyOOSAction('')">清除</button>
+    </div>
+  </div>
+</div>
+
 <input type="file" id="imageSearchInput" accept="image/*" style="display:none">
 <input type="file" id="ocrImageInput" accept="image/*" capture="environment" style="display:none">
 <button id="debugBtn" onclick="showDebug()">DEBUG</button>
@@ -1387,7 +1422,8 @@ let oosSubmitting = false;
 let OPTIONS = {
   warehouse: [], aisle: [], crosslane: [], floor: [],
   combine: [], category_en: [],
-  oos_reason: []
+  oos_reason: [],
+  oos_action: []          // #53：跟進動作
 };
 let optionsLoaded = false;
 let editingOptions = null;
@@ -2019,6 +2055,7 @@ function reportOOS(id) {
   oosTargetId = id;
   oosSubmitting = false;
   renderQuickReasons();
+  renderQuickActions();      // #53：跟進動作按鈕（每次重新渲染，等於清空上次選擇）
   resetOrderInfo();
   loadOOSHistory(id);
   var info = $('oosProductInfo');
@@ -2397,7 +2434,8 @@ async function submitOOSReport() {
       orderTail: orderTail,
       timeSlot: timeSlot,
       orderType: orderType,
-      qty: qty
+      qty: qty,
+      action: getSelectedAction()          // #53：跟進動作（可留空）
     });
 
     if (result.error) {
@@ -2786,21 +2824,108 @@ var oosLogTail = '';          // #49：用單號查「呢張單缺咩貨」
 var oosLogGroupBy = 'order';  // #50：'order' = 按訂單分組；'action' = 按跟進動作分組
 var prodHistoryId = null;
 
-/** #50：缺貨原因 → 跟進動作（讀 _OOSReasons 嘅 D 欄，自由文字） */
-function oosReasonAction(reasonValue) {
-  var v = String(reasonValue || '').trim();
+/**
+ * #53 跟進動作顯示名。
+ * ⚠️ 動作係【每一筆缺貨記錄】自己一個，唔再係由原因推導出嚟
+ *    （同一個原因今日要搵、聽日等補貨，不可一概而論）。
+ */
+function oosActionLabel(actionValue) {
+  var v = String(actionValue || '').trim();
   if (!v) return '';
-  var list = OPTIONS.oos_reason || [];
+  var list = OPTIONS.oos_action || [];
   for (var i = 0; i < list.length; i++) {
     var it = list[i];
     if (!it) continue;
-    // 儲存值可能係「其他: 請註明」，所以支援前綴比對
-    var val = String(it.value || '').trim();
-    if (val === v || (val && v.indexOf(val) === 0)) {
-      return String(it.action || '').trim();
-    }
+    if (String(it.value || '').trim() === v) return String(it.label || v).trim();
   }
-  return '';
+  return v;
+}
+
+/** #53 事後改某一筆記錄嘅跟進動作 */
+var oosActionTarget = null;
+
+function openOOSActionPicker(productId, at, row, current, desc) {
+  oosActionTarget = { productId: String(productId || ''), at: String(at || ''),
+                      row: parseInt(row, 10) || 0 };
+  var d = $('oosActionDesc');
+  if (d) d.textContent = desc || '';
+
+  var list = OPTIONS.oos_action || [];
+  var cur = String(current || '').trim();
+  $('oosActionList').innerHTML = list.length
+    ? list.map(function (it) {
+        var v = String(it.value || '').trim();
+        var l = String(it.label || v).trim();
+        if (!v) return '';
+        return '<button type="button" class="quick-reason' + (v === cur ? ' selected' : '') + '" ' +
+               'onclick="applyOOSAction(\'' + escAttr(v) + '\')">' + esc(l) + '</button>';
+      }).join('')
+    : '<div style="font-size:13px;color:#86868b;line-height:1.6;">' +
+      '（未設定跟進動作選項。請喺 Google Sheet 嘅 <b>_OOSActions</b> 工作表新增，' +
+      '再喺 App 撳「選項管理 → 重新載入」。）</div>';
+
+  $('oosActionModal').classList.add('show');
+}
+
+function closeOOSActionPicker() {
+  $('oosActionModal').classList.remove('show');
+  oosActionTarget = null;
+}
+
+async function applyOOSAction(action) {
+  var t = oosActionTarget;
+  if (!t) return;
+  try {
+    var res = await apiPost({
+      action: 'setOOSAction',
+      productId: t.productId, at: t.at, row: t.row, action: String(action || '')
+    });
+    if (res && res.error) { toast('❌ ' + res.error, 3000); return; }
+
+    for (var i = 0; i < allOOSReports.length; i++) {
+      var r = allOOSReports[i];
+      if (String(r.productId || '').trim() === t.productId &&
+          String(r.at || '').trim() === t.at) {
+        r.action = String(action || '');
+      }
+    }
+    closeOOSActionPicker();
+    if ($('oosLogModal').classList.contains('show')) renderOOSLog();
+    toast(action ? ('✅ 跟進動作：' + oosActionLabel(action)) : '已清除跟進動作');
+  } catch (e) {
+    toast('❌ ' + e.message, 3000);
+  }
+}
+
+/** 回報缺貨彈窗嘅跟進動作按鈕 */
+function renderQuickActions() {
+  var c = $('quickActionsContainer');
+  if (!c) return;
+  var list = OPTIONS.oos_action || [];
+  if (!list.length) {
+    c.innerHTML = '<div style="color:#86868b;font-size:13px;padding:4px;">（未設定跟進動作，可留空）</div>';
+    return;
+  }
+  c.innerHTML = list.map(function (opt) {
+    var val = String(opt.value || '').trim();
+    var lbl = String(opt.label || val).trim();
+    if (!val) return '';
+    return '<button type="button" class="quick-reason" data-value="' + escAttr(val) + '" ' +
+           'onclick="toggleQuickAction(this)">' + esc(lbl) + '</button>';
+  }).join('');
+}
+
+function toggleQuickAction(btn) {
+  if (!btn) return;
+  btn.classList.toggle('selected');
+}
+
+function getSelectedAction() {
+  var c = $('quickActionsContainer');
+  if (!c) return '';
+  var sel = c.querySelectorAll('.quick-reason.selected');
+  if (!sel.length) return '';
+  return String(sel[0].getAttribute('data-value') || '').trim();
 }
 
 /** 原因顯示名（有 label 用 label） */
@@ -3025,12 +3150,22 @@ function oosLogItemHtml(r, showDate) {
   if (r.reporter) meta.push('👤 ' + r.reporter);
   if (r.reason) meta.push('原因：' + oosReasonLabel(r.reason));   // #50：用顯示名稱（有 emoji）
   meta.push(st.text);
+
+  var act = String(r.action || '').trim();
+  var actChip = '<button type="button" class="oos-action-chip' + (act ? '' : ' none') + '" ' +
+    'onclick="event.stopPropagation();openOOSActionPicker(\'' + escAttr(r.productId) + '\',\'' +
+      escAttr(r.at) + '\',' + (r.row || 0) + ',\'' + escAttr(act) + '\',\'' +
+      escAttr(r.productName || '') + '\')">' +
+    (act ? ('🎯 ' + esc(oosActionLabel(act))) : '➕ 跟進動作') +
+  '</button>';
+
   return '<div class="ooslog-item">' +
     '<div class="oi-main">' +
       '<div class="oi-name" onclick="jumpToProduct(\'' + escAttr(r.productId) + '\')">' +
         esc(r.productName || r.productId || '（無名）') +
       '</div>' +
       '<span class="oi-meta ' + st.cls + '">' + esc(meta.join(' · ')) + '</span>' +
+      '<div>' + actChip + '</div>' +
     '</div>' +
     '<div class="oi-qty ' + st.cls + '">×' + q + '</div>' +
   '</div>';
@@ -3042,7 +3177,8 @@ function renderOOSLogByAction(recs, truncated, CAP) {
   var UN = '未設定跟進動作';
 
   recs.forEach(function (r) {
-    var act = oosReasonAction(r.reason) || UN;
+    // #53：動作係每筆記錄自己嘅欄位，唔再由原因推導
+    var act = String(r.action || '').trim() || UN;
     if (!groups[act]) { groups[act] = { action: act, items: [], qty: 0 }; order.push(act); }
     var q = parseInt(r.qty, 10); if (isNaN(q) || q < 1) q = 1;
     groups[act].items.push(r);
@@ -3067,9 +3203,8 @@ function renderOOSLogByAction(recs, truncated, CAP) {
   if (order.length === 1 && order[0] === UN) {
     html += '<div style="background:#fff3cd; color:#856404; border-radius:10px; padding:10px 12px; ' +
             'font-size:12px; line-height:1.6; margin-bottom:12px;">' +
-            '⚠️ 全部原因都未設定跟進動作。去 Google Sheet 嘅 <b>_OOSReasons</b> 工作表，' +
-            '喺 <b>D 欄（跟進動作）</b>填返（例如：要搵 / 等補貨 / 要問runner），' +
-            '再喺 App 撳「選項管理 → 重新載入」。</div>';
+            '💡 呢批記錄未填跟進動作。撳任何一筆下面嘅「➕ 跟進動作」就可以即場加上。' +
+            '選項喺 <b>_OOSActions</b> 工作表維護。</div>';
   }
 
   html += order.map(function (k) {
@@ -3602,6 +3737,7 @@ async function loadOptions() {
     if (!hasData) { useDefaultOptions(); return; }
     OPTIONS = result;
     if (!Array.isArray(OPTIONS.oos_reason)) OPTIONS.oos_reason = [];
+    if (!Array.isArray(OPTIONS.oos_action)) OPTIONS.oos_action = [];   // #53
     optionsLoaded = true;
     populateSelects();
     renderCombineCheckboxes();
@@ -3613,9 +3749,10 @@ async function reloadOptionsFromServer() {
   try {
     toast('🔄 重新載入選項...');
     optionsLoaded = false;
-    OPTIONS = { warehouse: [], aisle: [], crosslane: [], floor: [], combine: [], category_en: [], oos_reason: [] };
+    OPTIONS = { warehouse: [], aisle: [], crosslane: [], floor: [], combine: [], category_en: [], oos_reason: [], oos_action: [] };
     await loadOptions();
-    toast('✅ 選項已更新（缺貨原因 ' + (OPTIONS.oos_reason || []).length + ' 個）', 2500);
+    toast('✅ 選項已更新（缺貨原因 ' + (OPTIONS.oos_reason || []).length +
+          ' 個、跟進動作 ' + (OPTIONS.oos_action || []).length + ' 個）', 2500);
   } catch (e) {
     toast('❌ ' + e.message, 3000);
   }
@@ -3660,6 +3797,11 @@ function useDefaultOptions() {
       {value:'找不到貨', label:'🔍 找不到貨'},
       {value:'貨物損壞', label:'💔 貨物損壞'},
       {value:'過期',     label:'📅 過期'}
+    ],
+    oos_action: [            // #53：跟進動作（離線／API 失敗時嘅後備）
+      {value:'要搵',       label:'🔍 要搵（搬咗去地堆／唔知擺邊）'},
+      {value:'等補貨',     label:'⏳ 等補貨（真係賣晒）'},
+      {value:'要問runner', label:'❓ 要問 runner（DDC 網購預留）'}
     ]
   };
   optionsLoaded = true;
@@ -3818,6 +3960,7 @@ async function saveOptionsToServer() {
     if (result.error) { toast('❌ ' + result.error, 3000); return; }
     OPTIONS = JSON.parse(JSON.stringify(editingOptions));
     if (!Array.isArray(OPTIONS.oos_reason)) OPTIONS.oos_reason = [];
+    if (!Array.isArray(OPTIONS.oos_action)) OPTIONS.oos_action = [];   // #53
     optionsLoaded = true;
     populateSelects();
     renderCombineCheckboxes();
