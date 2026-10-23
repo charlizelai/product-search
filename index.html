@@ -1084,7 +1084,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 
       <div class="order-field-row">
         <span class="order-field-label">單日期</span>
-        <input id="oosOrderDate" class="order-input" type="text" inputmode="numeric" maxlength="8" placeholder="YYYYMMDD">
+        <input id="oosOrderDate" class="order-input" type="text" inputmode="numeric" maxlength="8" placeholder="YYYYMMDD" onchange="ootLookupCurrentOrder()">
         <div class="date-picker-wrap">
           <button type="button" class="order-today-btn">📅</button>
           <input type="date" id="oosOrderDatePicker" class="date-picker-overlay">
@@ -1093,7 +1093,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 
       <div class="order-field-row">
         <span class="order-field-label">單號尾4</span>
-        <input id="oosOrderTail" class="order-input" type="text" inputmode="numeric" maxlength="4" placeholder="1234">
+        <input id="oosOrderTail" class="order-input" type="text" inputmode="numeric" maxlength="4" placeholder="1234" onchange="ootLookupCurrentOrder()">
       </div>
 
       <div class="order-field-row">
@@ -1113,6 +1113,50 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
           <button type="button" class="chip-btn" data-value="B2B" onclick="selectOrderType(this)">B2B</button>
         </div>
       </div>
+    </div>
+
+    <!-- #58 訂單件數：跟住呢張缺貨單一齊入，方便同事記得之前執咗幾多件 -->
+    <div class="order-info-section" style="margin-top:14px;">
+      <div class="order-info-title">
+        <span>📦 呢張單件數</span>
+        <span class="optional-tag">選填</span>
+      </div>
+      <div style="font-size:12px; color:#86868b; line-height:1.5; margin-bottom:10px;">
+        跟住上面嘅單日期／單號尾／時段／類型。同一張單再回報會自動帶入，唔使重打。
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+        <div>
+          <label style="display:block;font-size:13px;font-weight:700;margin-bottom:4px;">干貨</label>
+          <input id="oot_dry" class="oot-num order-input" type="text" inputmode="numeric"
+                 maxlength="4" value="0" style="width:100%;" oninput="ootSum()">
+        </div>
+        <div>
+          <label style="display:block;font-size:13px;font-weight:700;margin-bottom:4px;">旦貨</label>
+          <input id="oot_egg" class="oot-num order-input" type="text" inputmode="numeric"
+                 maxlength="4" value="0" style="width:100%;" oninput="ootSum()">
+        </div>
+        <div>
+          <label style="display:block;font-size:13px;font-weight:700;margin-bottom:4px;">風貨（0-4度）</label>
+          <input id="oot_chill" class="oot-num order-input" type="text" inputmode="numeric"
+                 maxlength="4" value="0" style="width:100%;" oninput="ootSum()">
+        </div>
+        <div>
+          <label style="display:block;font-size:13px;font-weight:700;margin-bottom:4px;">凍貨（-18度）</label>
+          <input id="oot_frozen" class="oot-num order-input" type="text" inputmode="numeric"
+                 maxlength="4" value="0" style="width:100%;" oninput="ootSum()">
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label style="display:block;font-size:13px;font-weight:700;margin-bottom:4px;">大件（sim卡／禮券）</label>
+          <input id="oot_bulky" class="oot-num order-input" type="text" inputmode="numeric"
+                 maxlength="4" value="0" style="width:100%;" oninput="ootSum()">
+        </div>
+      </div>
+
+      <div id="ootTotalLine" style="font-size:14px; font-weight:800; color:#0071e3; margin-top:8px;">
+        總共 0 件
+      </div>
+      <div id="ootHint" style="font-size:12px; color:#86868b; margin-top:4px; line-height:1.5; min-height:16px;"></div>
     </div>
 
     <div id="oosErrMsg" class="oos-err-msg"></div>
@@ -2207,6 +2251,7 @@ function reportOOS(id) {
   renderQuickReasons();
   renderQuickActions();      // #53：跟進動作按鈕（每次重新渲染，等於清空上次選擇）
   resetOrderInfo();
+  ootReset();                // #58：訂單件數每次由 0 開始，填單號後會自動帶入舊記錄
   loadOOSHistory(id);
   var info = $('oosProductInfo');
   info.innerHTML =
@@ -2362,6 +2407,7 @@ function selectSlot(btn) {
     b.classList.remove('selected');
   });
   if (!wasSelected) btn.classList.add('selected');
+  if (typeof ootLookupCurrentOrder === 'function') ootLookupCurrentOrder();
 }
 
 function selectOrderType(btn) {
@@ -2372,6 +2418,7 @@ function selectOrderType(btn) {
     b.classList.remove('selected');
   });
   if (!wasSelected) btn.classList.add('selected');
+  if (typeof ootLookupCurrentOrder === 'function') ootLookupCurrentOrder();
 }
 
 function getSelectedChipValue(groupId) {
@@ -2615,6 +2662,15 @@ async function submitOOSReport() {
       target._oos_reports = (result.reports != null)
         ? result.reports
         : ((parseInt(target._oos_reports, 10) || 0) + 1);
+    }
+
+    // #58：順手把呢張單嘅件數寫入（有填過或者之前已有記錄先寫）
+    try {
+      var otRes = await ootSaveForCurrentOrder();
+      if (otRes && otRes.error) toast('⚠️ 缺貨已記錄，但訂單件數儲存失敗：' + otRes.error, 4000);
+    } catch (eOt) {
+      console.warn('ootSaveForCurrentOrder 失敗：', eOt);
+      toast('⚠️ 缺貨已記錄，但訂單件數儲存失敗', 4000);
     }
 
     oosSubmitting = false;
@@ -3000,6 +3056,147 @@ function oosActionLabel(actionValue) {
     if (String(it.value || '').trim() === v) return String(it.label || v).trim();
   }
   return v;
+}
+
+// ============================================================
+//  #57 訂單件數（干貨／旦貨／風貨／凍貨／大件）
+// ============================================================
+// ---- #58 回報缺貨彈窗內嘅件數（跟住同一張單）----
+var ootDirty = false;
+
+function ootGetNum(key) {
+  var el = $('oot_' + key);
+  var n = parseInt(String(el ? el.value : '').replace(/[^0-9]/g, ''), 10);
+  return isNaN(n) || n < 0 ? 0 : n;
+}
+
+function ootSetNums(counts) {
+  var c = counts || {};
+  OT_KINDS.forEach(function (k) {
+    var el = $('oot_' + k.key);
+    if (el) el.value = String(parseInt(c[k.key], 10) || 0);
+  });
+  ootSum();
+}
+
+function ootSum() {
+  var total = 0;
+  OT_KINDS.forEach(function (k) {
+    var el = $('oot_' + k.key);
+    if (!el) return;
+    var clean = String(el.value || '').replace(/[^0-9]/g, '');
+    if (el.value !== clean) el.value = clean;
+    total += parseInt(clean || '0', 10) || 0;
+  });
+  var line = $('ootTotalLine');
+  if (line) line.textContent = '總共 ' + total + ' 件';
+  ootDirty = true;
+  return total;
+}
+
+function ootReset() {
+  OT_KINDS.forEach(function (k) {
+    var el = $('oot_' + k.key);
+    if (el) el.value = '0';
+  });
+  ootDirty = false;
+  var line = $('ootTotalLine');
+  if (line) line.textContent = '總共 0 件';
+  var h = $('ootHint'); if (h) h.textContent = '';
+}
+
+function ootOrderKeyNow() {
+  return otOrderKey(
+    dateInputToYMD(($('oosOrderDate') || {}).value || ''),
+    String(($('oosOrderTail') || {}).value || '').replace(/[^0-9]/g, '').slice(0, 4),
+    getSelectedChipValue('oosTimeSlotGroup'),
+    getSelectedChipValue('oosOrderTypeGroup')
+  );
+}
+
+/** 單日期／單號尾／時段／類型一改 → 睇下同一張單有冇舊記錄，有就帶入 */
+async function ootLookupCurrentOrder() {
+  var h = $('ootHint');
+  var date = dateInputToYMD(($('oosOrderDate') || {}).value || '');
+  if (!date) { if (h) h.textContent = ''; return; }
+
+  if (!allOrderTotals.length) await loadOrderTotals();
+
+  var key = ootOrderKeyNow();
+  var found = null;
+  for (var i = 0; i < allOrderTotals.length; i++) {
+    var t = allOrderTotals[i];
+    if (otOrderKey(t.orderDate, t.orderTail, t.timeSlot, t.orderType) === key) { found = t; break; }
+  }
+
+  if (!found) { if (h) h.textContent = ''; return; }
+
+  var desc = OT_KINDS.map(function (k) {
+    return k.label.replace(/（.*?）/g, '') + ' ' + (found[k.key] || 0);
+  }).join('　');
+
+  if (!ootDirty) {
+    ootSetNums(found);
+    ootDirty = false;                 // 帶入唔算用戶改過
+    if (h) h.textContent = '✅ 已帶入呢張單之前記錄：' + desc + '（共 ' + found.total + ' 件）';
+  } else {
+    if (h) h.textContent = '💡 呢張單之前記錄：' + desc + '（共 ' + found.total +
+                           ' 件）—— 你而家改過數字，儲存時會覆蓋舊記錄。';
+  }
+}
+
+/** 回報缺貨成功之後，順手把件數寫入該單（有填過先寫） */
+async function ootSaveForCurrentOrder() {
+  var date = dateInputToYMD(($('oosOrderDate') || {}).value || '');
+  if (!date) return null;
+
+  var counts = {};
+  var any = 0;
+  OT_KINDS.forEach(function (k) { counts[k.key] = ootGetNum(k.key); any += counts[k.key]; });
+
+  var key = ootOrderKeyNow();
+  var exists = false;
+  for (var i = 0; i < allOrderTotals.length; i++) {
+    var t = allOrderTotals[i];
+    if (otOrderKey(t.orderDate, t.orderTail, t.timeSlot, t.orderType) === key) { exists = true; break; }
+  }
+  if (any === 0 && !exists) return null;      // 乜都冇填又冇舊記錄 → 唔建立空記錄
+
+  // 冇單號、冇時段、冇類型 → 冇「單」可以跟，唔建立記錄（避免一堆無主記錄）
+  var tailNow = String(($('oosOrderTail') || {}).value || '').replace(/[^0-9]/g, '').slice(0, 4);
+  var slotNow = getSelectedChipValue('oosTimeSlotGroup');
+  var typeNow = getSelectedChipValue('oosOrderTypeGroup');
+  if (!exists && !tailNow && !slotNow && !typeNow) return null;
+
+  var res = await apiPost({
+    action: 'saveOrderTotals',
+    orderDate: date,
+    orderTail: String(($('oosOrderTail') || {}).value || '').replace(/[^0-9]/g, '').slice(0, 4),
+    timeSlot:  getSelectedChipValue('oosTimeSlotGroup'),
+    orderType: getSelectedChipValue('oosOrderTypeGroup'),
+    counts: counts,
+    by: authUser ? (authUser.display || authUser.name || '') : ''
+  });
+  if (res && !res.error) {
+    var found = false;
+    for (var j = 0; j < allOrderTotals.length; j++) {
+      var t2 = allOrderTotals[j];
+      if (otOrderKey(t2.orderDate, t2.orderTail, t2.timeSlot, t2.orderType) === key) {
+        OT_KINDS.forEach(function (k) { t2[k.key] = counts[k.key]; });
+        t2.total = res.total; found = true; break;
+      }
+    }
+    if (!found) {
+      allOrderTotals.unshift(Object.assign({
+        orderDate: date,
+        orderTail: String(($('oosOrderTail') || {}).value || '').replace(/[^0-9]/g, '').slice(0, 4),
+        timeSlot:  getSelectedChipValue('oosTimeSlotGroup'),
+        orderType: getSelectedChipValue('oosOrderTypeGroup'),
+        at: new Date().toISOString()
+      }, counts, { total: res.total }));
+    }
+  }
+  return res;
 }
 
 // ============================================================
