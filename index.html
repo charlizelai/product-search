@@ -2499,7 +2499,9 @@ async function submitOOSReport() {
       timeSlot: timeSlot,
       orderType: orderType,
       qty: qty,
-      action: getSelectedAction()          // #53：跟進動作（可留空）
+      // ⚠️ 唔可以用 action 呢個 key！上面已經有 action: 'reportOOS' 做派發，
+      //    同名會蓋走派發值，變成 "Unknown action: 要搵"。
+      oosAction: getSelectedAction()       // #53：跟進動作（可留空）
     });
 
     if (result.error) {
