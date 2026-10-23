@@ -839,6 +839,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       <button id="btnOOSFilter" class="tool-btn" onclick="toggleOOSFilter()">⚠️ 只看缺貨</button>
       <button id="btnCatSuspect" class="tool-btn" onclick="toggleCatSuspect()">🧩 分類待修</button>
       <button id="btnSortToggle" class="tool-btn" onclick="toggleSort()">📍 位置排序</button>
+      <button id="btnOrderTotals" class="tool-btn" onclick="openOrderTotals()">📦 訂單件數</button>
       <button id="btnRefreshAPI" class="tool-btn" onclick="refreshFromAPIManual()">🔄 用 API 刷新</button>
     </div>
     <div class="category-filter-row">
@@ -1365,6 +1366,91 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeOOSActionPicker()">取消</button>
       <button class="btn-save" id="btnOOSEditSave" onclick="saveOOSRecordEditor()">✅ 儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- #57 訂單件數：一張單有幾多件，按貨類分 -->
+<div class="modal" id="ordTotalsModal" style="align-items:center;">
+  <div class="modal-content">
+    <h2 style="margin:0 0 10px; font-size:20px;">📦 訂單件數</h2>
+
+    <div class="field">
+      <label>單日期</label>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input type="date" id="otDate" onchange="onOrdTotalsFieldChange()"
+               style="flex:1; padding:12px; font-size:17px; border:2px solid #d2d2d7; border-radius:12px;
+                      background:#fff; -webkit-appearance:none; font-family:inherit; outline:none;">
+        <button type="button" onclick="lookupOrderTotals()"
+                style="padding:12px 14px; border:2px solid #0071e3; border-radius:12px; background:#fff;
+                       color:#0071e3; font-size:14px; font-weight:700; cursor:pointer; white-space:nowrap;">🔍 查返</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>單號尾 4 位</label>
+      <input id="otTail" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1234"
+             onchange="onOrdTotalsFieldChange()"
+             style="width:100%; padding:12px; font-size:17px; border:2px solid #d2d2d7; border-radius:12px;
+                    background:#fff; -webkit-appearance:none; font-family:inherit; outline:none;">
+    </div>
+
+    <div class="field">
+      <label>派送時段 <span style="font-size:12px;color:#86868b;font-weight:500;">再撳一次可取消</span></label>
+      <div class="chip-group" id="otSlotGroup">
+        <button type="button" class="chip-btn slot-early"   data-value="早"   onclick="otSelectChip(this,'otSlotGroup')">早 10-14</button>
+        <button type="button" class="chip-btn slot-mid"     data-value="中"   onclick="otSelectChip(this,'otSlotGroup')">中 14-18</button>
+        <button type="button" class="chip-btn slot-late"    data-value="晚"   onclick="otSelectChip(this,'otSlotGroup')">晚 18-21</button>
+        <button type="button" class="chip-btn slot-holiday" data-value="放假" onclick="otSelectChip(this,'otSlotGroup')">放假</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>單類型</label>
+      <div class="chip-group" id="otTypeGroup">
+        <button type="button" class="chip-btn" data-value="O2O" onclick="otSelectChip(this,'otTypeGroup')">O2O</button>
+        <button type="button" class="chip-btn" data-value="CNC" onclick="otSelectChip(this,'otTypeGroup')">CNC</button>
+        <button type="button" class="chip-btn" data-value="B2B" onclick="otSelectChip(this,'otTypeGroup')">B2B</button>
+      </div>
+    </div>
+
+    <div class="section-title">件數</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+      <div>
+        <label style="display:block;font-size:14px;font-weight:700;margin-bottom:6px;">干貨</label>
+        <input id="ot_dry" class="ot-num" type="text" inputmode="numeric" maxlength="4" value="0"
+               oninput="ordTotalsSum()">
+      </div>
+      <div>
+        <label style="display:block;font-size:14px;font-weight:700;margin-bottom:6px;">旦貨</label>
+        <input id="ot_egg" class="ot-num" type="text" inputmode="numeric" maxlength="4" value="0"
+               oninput="ordTotalsSum()">
+      </div>
+      <div>
+        <label style="display:block;font-size:14px;font-weight:700;margin-bottom:6px;">風貨（0-4度）</label>
+        <input id="ot_chill" class="ot-num" type="text" inputmode="numeric" maxlength="4" value="0"
+               oninput="ordTotalsSum()">
+      </div>
+      <div>
+        <label style="display:block;font-size:14px;font-weight:700;margin-bottom:6px;">凍貨（-18度）</label>
+        <input id="ot_frozen" class="ot-num" type="text" inputmode="numeric" maxlength="4" value="0"
+               oninput="ordTotalsSum()">
+      </div>
+      <div style="grid-column: 1 / -1;">
+        <label style="display:block;font-size:14px;font-weight:700;margin-bottom:6px;">大件（sim卡／禮券）</label>
+        <input id="ot_bulky" class="ot-num" type="text" inputmode="numeric" maxlength="4" value="0"
+               oninput="ordTotalsSum()">
+      </div>
+    </div>
+
+    <div id="otTotalLine" style="font-size:17px; font-weight:800; color:#0071e3; text-align:center; margin-bottom:6px;">
+      總共 0 件
+    </div>
+    <div id="otHint" style="font-size:12px; color:#86868b; text-align:center; line-height:1.5; min-height:18px; margin-bottom:6px;"></div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeOrderTotals()">取消</button>
+      <button class="btn-save" id="btnOrdTotalsSave" onclick="saveOrderTotalsForm()">✅ 儲存</button>
     </div>
   </div>
 </div>
@@ -2914,6 +3000,198 @@ function oosActionLabel(actionValue) {
     if (String(it.value || '').trim() === v) return String(it.label || v).trim();
   }
   return v;
+}
+
+// ============================================================
+//  #57 訂單件數（干貨／旦貨／風貨／凍貨／大件）
+// ============================================================
+var allOrderTotals = [];
+var OT_KINDS = [
+  { key: 'dry',    label: '干貨' },
+  { key: 'egg',    label: '旦貨' },
+  { key: 'chill',  label: '風貨（0-4度）' },
+  { key: 'frozen', label: '凍貨（-18度）' },
+  { key: 'bulky',  label: '大件（sim卡／禮券）' }
+];
+
+function otSelectChip(btn, groupId) {
+  var g = $(groupId);
+  if (!g) return;
+  var was = btn.classList.contains('selected');
+  g.querySelectorAll('.chip-btn').forEach(function (b) { b.classList.remove('selected'); });
+  if (!was) btn.classList.add('selected');
+}
+
+function otGetChip(groupId) {
+  var g = $(groupId);
+  if (!g) return '';
+  var b = g.querySelector('.chip-btn.selected');
+  return b ? String(b.getAttribute('data-value') || '') : '';
+}
+
+function otSetChip(groupId, value) {
+  var g = $(groupId);
+  if (!g) return;
+  var v = String(value || '').trim();
+  g.querySelectorAll('.chip-btn').forEach(function (b) {
+    if (v && String(b.getAttribute('data-value') || '') === v) b.classList.add('selected');
+    else b.classList.remove('selected');
+  });
+}
+
+function otGetNum(key) {
+  var el = $('ot_' + key);
+  var n = parseInt(String(el ? el.value : '').replace(/[^0-9]/g, ''), 10);
+  return isNaN(n) || n < 0 ? 0 : n;
+}
+
+function otSetNums(counts) {
+  var c = counts || {};
+  OT_KINDS.forEach(function (k) {
+    var el = $('ot_' + k.key);
+    if (el) el.value = String(parseInt(c[k.key], 10) || 0);
+  });
+  ordTotalsSum();
+}
+
+function ordTotalsSum() {
+  var total = 0;
+  OT_KINDS.forEach(function (k) {
+    var el = $('ot_' + k.key);
+    if (el) {
+      var clean = String(el.value || '').replace(/[^0-9]/g, '');
+      if (el.value !== clean) el.value = clean;
+      total += parseInt(clean || '0', 10) || 0;
+    }
+  });
+  var line = $('otTotalLine');
+  if (line) line.textContent = '總共 ' + total + ' 件';
+  return total;
+}
+
+function otOrderKey(date, tail, slot, type) {
+  return String(date || '').trim() + '|' + String(tail || '').trim() + '|' +
+         String(slot || '').trim() + '|' + String(type || '').trim();
+}
+
+function otCurrentOrder() {
+  var el = $('otDate');
+  return {
+    orderDate: dateInputToYMD(el ? el.value : ''),
+    orderTail: String(($('otTail') || {}).value || '').replace(/[^0-9]/g, '').slice(0, 4),
+    timeSlot:  otGetChip('otSlotGroup'),
+    orderType: otGetChip('otTypeGroup')
+  };
+}
+
+function onOrdTotalsFieldChange() {
+  var h = $('otHint');
+  if (h) h.textContent = '';
+}
+
+function openOrderTotals() {
+  var el = $('otDate');
+  if (el) el.value = ymdToDateInput(getTodayYMD());
+  var t = $('otTail'); if (t) t.value = '';
+  otSetChip('otSlotGroup', '');
+  otSetChip('otTypeGroup', '');
+  otSetNums({});
+  var h = $('otHint'); if (h) h.textContent = '';
+  $('ordTotalsModal').classList.add('show');
+  loadOrderTotals();
+}
+
+function closeOrderTotals() {
+  $('ordTotalsModal').classList.remove('show');
+}
+
+async function loadOrderTotals() {
+  try {
+    var res = await apiGet('orderTotals');
+    if (res && !res.error && Array.isArray(res.totals)) allOrderTotals = res.totals;
+  } catch (e) { console.warn('loadOrderTotals 失敗：', e); }
+  return allOrderTotals;
+}
+
+function findOrderTotal() {
+  var o = otCurrentOrder();
+  if (!o.orderDate) return null;
+  var key = otOrderKey(o.orderDate, o.orderTail, o.timeSlot, o.orderType);
+  for (var i = 0; i < allOrderTotals.length; i++) {
+    var t = allOrderTotals[i];
+    if (otOrderKey(t.orderDate, t.orderTail, t.timeSlot, t.orderType) === key) return t;
+  }
+  return null;
+}
+
+async function lookupOrderTotals() {
+  var o = otCurrentOrder();
+  var h = $('otHint');
+  if (!o.orderDate) { if (h) h.textContent = '請先揀單日期'; return; }
+
+  if (!allOrderTotals.length) await loadOrderTotals();
+  var t = findOrderTotal();
+  if (!t) {
+    if (h) h.textContent = '呢個組合（日期＋單號尾＋時段＋類型）暫時冇記錄，直接填就得。';
+    return;
+  }
+  otSetNums(t);
+  if (h) h.textContent = '✅ 已載入現有記錄（' + (t.at ? fmtDateTime(t.at) : '') +
+                         (t.by ? ' · ' + t.by : '') + '），改完撳儲存就會覆蓋更新。';
+}
+
+async function saveOrderTotalsForm() {
+  var o = otCurrentOrder();
+  if (!o.orderDate) { $('otHint').textContent = '❌ 請揀單日期'; return; }
+  if (o.orderTail && o.orderTail.length > 4) { $('otHint').textContent = '❌ 單號尾最多 4 位'; return; }
+
+  var counts = {};
+  OT_KINDS.forEach(function (k) { counts[k.key] = otGetNum(k.key); });
+
+  var btn = $('btnOrdTotalsSave');
+  btn.disabled = true; btn.textContent = '儲存中...';
+  try {
+    var res = await apiPost({
+      action: 'saveOrderTotals',
+      orderDate: o.orderDate,
+      orderTail: o.orderTail,
+      timeSlot:  o.timeSlot,
+      orderType: o.orderType,
+      counts: counts,
+      by: authUser ? (authUser.display || authUser.name || '') : ''
+    });
+    if (res && res.error) { $('otHint').textContent = '❌ ' + res.error; return; }
+
+    // 更新本地快取
+    var key = otOrderKey(o.orderDate, o.orderTail, o.timeSlot, o.orderType);
+    var found = false;
+    for (var i = 0; i < allOrderTotals.length; i++) {
+      if (otOrderKey(allOrderTotals[i].orderDate, allOrderTotals[i].orderTail,
+                     allOrderTotals[i].timeSlot, allOrderTotals[i].orderType) === key) {
+        allOrderTotals[i] = Object.assign({}, allOrderTotals[i], {
+          dry: counts.dry, egg: counts.egg, chill: counts.chill,
+          frozen: counts.frozen, bulky: counts.bulky, total: res.total
+        });
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      allOrderTotals.unshift({
+        orderDate: o.orderDate, orderTail: o.orderTail,
+        timeSlot: o.timeSlot, orderType: o.orderType,
+        dry: counts.dry, egg: counts.egg, chill: counts.chill,
+        frozen: counts.frozen, bulky: counts.bulky, total: res.total, at: new Date().toISOString()
+      });
+    }
+
+    $('otHint').textContent = '✅ 已' + (res.updated ? '更新' : '儲存') + '：總共 ' + res.total + ' 件';
+    toast('✅ 訂單件數已儲存（共 ' + res.total + ' 件）');
+  } catch (e) {
+    $('otHint').textContent = '❌ ' + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = '✅ 儲存';
+  }
 }
 
 /** #54 修改某一筆缺貨記錄（日期／單號／時段／類型／件數／跟進動作） */
