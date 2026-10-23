@@ -1157,27 +1157,27 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
         <div>
           <label style="display:block;font-size:13px;font-weight:700;margin-bottom:4px;">干貨</label>
           <input id="oot_dry" class="oot-num order-input" type="text" inputmode="numeric"
-                 maxlength="4" value="0" style="width:100%;" oninput="ootSum()">
+                 maxlength="4" value="" placeholder="0" style="width:100%;" oninput="ootSum()">
         </div>
         <div>
           <label style="display:block;font-size:13px;font-weight:700;margin-bottom:4px;">旦貨</label>
           <input id="oot_egg" class="oot-num order-input" type="text" inputmode="numeric"
-                 maxlength="4" value="0" style="width:100%;" oninput="ootSum()">
+                 maxlength="4" value="" placeholder="0" style="width:100%;" oninput="ootSum()">
         </div>
         <div>
           <label style="display:block;font-size:13px;font-weight:700;margin-bottom:4px;">風貨（0-4度）</label>
           <input id="oot_chill" class="oot-num order-input" type="text" inputmode="numeric"
-                 maxlength="4" value="0" style="width:100%;" oninput="ootSum()">
+                 maxlength="4" value="" placeholder="0" style="width:100%;" oninput="ootSum()">
         </div>
         <div>
           <label style="display:block;font-size:13px;font-weight:700;margin-bottom:4px;">凍貨（-18度）</label>
           <input id="oot_frozen" class="oot-num order-input" type="text" inputmode="numeric"
-                 maxlength="4" value="0" style="width:100%;" oninput="ootSum()">
+                 maxlength="4" value="" placeholder="0" style="width:100%;" oninput="ootSum()">
         </div>
         <div style="grid-column: 1 / -1;">
           <label style="display:block;font-size:13px;font-weight:700;margin-bottom:4px;">大件（sim卡／禮券）</label>
           <input id="oot_bulky" class="oot-num order-input" type="text" inputmode="numeric"
-                 maxlength="4" value="0" style="width:100%;" oninput="ootSum()">
+                 maxlength="4" value="" placeholder="0" style="width:100%;" oninput="ootSum()">
         </div>
       </div>
 
@@ -1483,28 +1483,28 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
       <div>
         <label style="display:block;font-size:14px;font-weight:700;margin-bottom:6px;">干貨</label>
-        <input id="ot_dry" class="ot-num" type="text" inputmode="numeric" maxlength="4" value="0"
-               oninput="ordTotalsSum()">
+        <input id="ot_dry" class="ot-num" type="text" inputmode="numeric" maxlength="4" value=""
+               placeholder="0" oninput="ordTotalsSum()">
       </div>
       <div>
         <label style="display:block;font-size:14px;font-weight:700;margin-bottom:6px;">旦貨</label>
-        <input id="ot_egg" class="ot-num" type="text" inputmode="numeric" maxlength="4" value="0"
-               oninput="ordTotalsSum()">
+        <input id="ot_egg" class="ot-num" type="text" inputmode="numeric" maxlength="4" value=""
+               placeholder="0" oninput="ordTotalsSum()">
       </div>
       <div>
         <label style="display:block;font-size:14px;font-weight:700;margin-bottom:6px;">風貨（0-4度）</label>
-        <input id="ot_chill" class="ot-num" type="text" inputmode="numeric" maxlength="4" value="0"
-               oninput="ordTotalsSum()">
+        <input id="ot_chill" class="ot-num" type="text" inputmode="numeric" maxlength="4" value=""
+               placeholder="0" oninput="ordTotalsSum()">
       </div>
       <div>
         <label style="display:block;font-size:14px;font-weight:700;margin-bottom:6px;">凍貨（-18度）</label>
-        <input id="ot_frozen" class="ot-num" type="text" inputmode="numeric" maxlength="4" value="0"
-               oninput="ordTotalsSum()">
+        <input id="ot_frozen" class="ot-num" type="text" inputmode="numeric" maxlength="4" value=""
+               placeholder="0" oninput="ordTotalsSum()">
       </div>
       <div style="grid-column: 1 / -1;">
         <label style="display:block;font-size:14px;font-weight:700;margin-bottom:6px;">大件（sim卡／禮券）</label>
-        <input id="ot_bulky" class="ot-num" type="text" inputmode="numeric" maxlength="4" value="0"
-               oninput="ordTotalsSum()">
+        <input id="ot_bulky" class="ot-num" type="text" inputmode="numeric" maxlength="4" value=""
+               placeholder="0" oninput="ordTotalsSum()">
       </div>
     </div>
 
@@ -3095,7 +3095,7 @@ function ootSetNums(counts) {
   var c = counts || {};
   OT_KINDS.forEach(function (k) {
     var el = $('oot_' + k.key);
-    if (el) el.value = String(parseInt(c[k.key], 10) || 0);
+    if (el) { var n = parseInt(c[k.key], 10) || 0; el.value = n ? String(n) : ''; }
   });
   ootSum();
 }
@@ -3118,7 +3118,7 @@ function ootSum() {
 function ootReset() {
   OT_KINDS.forEach(function (k) {
     var el = $('oot_' + k.key);
-    if (el) el.value = '0';
+    if (el) el.value = '';
   });
   ootDirty = false;
   var line = $('ootTotalLine');
@@ -3263,7 +3263,7 @@ function otSetNums(counts) {
   var c = counts || {};
   OT_KINDS.forEach(function (k) {
     var el = $('ot_' + k.key);
-    if (el) el.value = String(parseInt(c[k.key], 10) || 0);
+    if (el) { var n = parseInt(c[k.key], 10) || 0; el.value = n ? String(n) : ''; }
   });
   ordTotalsSum();
 }
@@ -4004,7 +4004,7 @@ function oosLogGroupTotalsHtml(g, gi) {
   var cells = OTG_SHORT.map(function (k) {
     return '<label class="otg-cell">' + k.short +
       '<input id="otg' + gi + '_' + k.key + '" type="text" inputmode="numeric" maxlength="4"' +
-      ' value="' + (parseInt(v[k.key], 10) || 0) + '"' +
+      ' value="' + (parseInt(v[k.key], 10) ? parseInt(v[k.key], 10) : '') + '" placeholder="0"' +
       ' onchange="saveGroupTotals(' + gi + ')"></label>';
   }).join('');
 
@@ -4028,7 +4028,7 @@ async function saveGroupTotals(gi) {
     if (isNaN(n) || n < 0) n = 0;
     if (n > 9999) n = 9999;
     counts[k.key] = n;
-    if (el) el.value = String(n);
+    if (el) el.value = n ? String(n) : '';
     total += n;
   });
 
