@@ -759,6 +759,18 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .ooslog-ok { color: #2e7d32 !important; }
 .ooslog-empty { text-align: center; color: #86868b; padding: 34px 10px; font-size: 14px; line-height: 1.6; }
 
+/* #58 缺貨紀錄：每張單下面直接填件數 */
+.otg-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 0 8px; border-bottom: 1px solid #f2f2f7; background: #fbfdff; border-radius: 8px; }
+.otg-cell { display: flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 700; color: #1d1d1f; }
+.otg-cell input {
+  width: 44px; padding: 5px 3px; font-size: 14px; text-align: center;
+  border: 1.5px solid #d2d2d7; border-radius: 8px; background: #fff;
+  -webkit-appearance: none; font-family: inherit; outline: none;
+}
+.otg-cell input:focus { border-color: #0071e3; }
+.otg-total { font-size: 12px; font-weight: 800; color: #0071e3; margin-left: auto; padding-right: 4px; }
+.otg-none { font-size: 12px; color: #86868b; padding: 6px 0; border-bottom: 1px solid #f2f2f7; }
+
 /* #53 跟進動作（每筆記錄自己一個） */
 .oos-action-chip {
   display: inline-block; margin-top: 4px; padding: 3px 10px; border-radius: 999px;
@@ -3108,9 +3120,7 @@ function ootReset() {
 function ootOrderKeyNow() {
   return otOrderKey(
     dateInputToYMD(($('oosOrderDate') || {}).value || ''),
-    String(($('oosOrderTail') || {}).value || '').replace(/[^0-9]/g, '').slice(0, 4),
-    getSelectedChipValue('oosTimeSlotGroup'),
-    getSelectedChipValue('oosOrderTypeGroup')
+    String(($('oosOrderTail') || {}).value || '').replace(/[^0-9]/g, '').slice(0, 4)
   );
 }
 
@@ -3126,7 +3136,7 @@ async function ootLookupCurrentOrder() {
   var found = null;
   for (var i = 0; i < allOrderTotals.length; i++) {
     var t = allOrderTotals[i];
-    if (otOrderKey(t.orderDate, t.orderTail, t.timeSlot, t.orderType) === key) { found = t; break; }
+    if (otOrderKey(t.orderDate, t.orderTail) === key) { found = t; break; }
   }
 
   if (!found) { if (h) h.textContent = ''; return; }
@@ -3158,15 +3168,13 @@ async function ootSaveForCurrentOrder() {
   var exists = false;
   for (var i = 0; i < allOrderTotals.length; i++) {
     var t = allOrderTotals[i];
-    if (otOrderKey(t.orderDate, t.orderTail, t.timeSlot, t.orderType) === key) { exists = true; break; }
+    if (otOrderKey(t.orderDate, t.orderTail) === key) { exists = true; break; }
   }
   if (any === 0 && !exists) return null;      // 乜都冇填又冇舊記錄 → 唔建立空記錄
 
-  // 冇單號、冇時段、冇類型 → 冇「單」可以跟，唔建立記錄（避免一堆無主記錄）
+  // #58：件數係跟單號走，冇單號尾就唔儲存
   var tailNow = String(($('oosOrderTail') || {}).value || '').replace(/[^0-9]/g, '').slice(0, 4);
-  var slotNow = getSelectedChipValue('oosTimeSlotGroup');
-  var typeNow = getSelectedChipValue('oosOrderTypeGroup');
-  if (!exists && !tailNow && !slotNow && !typeNow) return null;
+  if (!tailNow) return null;
 
   var res = await apiPost({
     action: 'saveOrderTotals',
@@ -3181,7 +3189,7 @@ async function ootSaveForCurrentOrder() {
     var found = false;
     for (var j = 0; j < allOrderTotals.length; j++) {
       var t2 = allOrderTotals[j];
-      if (otOrderKey(t2.orderDate, t2.orderTail, t2.timeSlot, t2.orderType) === key) {
+      if (otOrderKey(t2.orderDate, t2.orderTail) === key) {
         OT_KINDS.forEach(function (k) { t2[k.key] = counts[k.key]; });
         t2.total = res.total; found = true; break;
       }
@@ -3266,9 +3274,9 @@ function ordTotalsSum() {
   return total;
 }
 
-function otOrderKey(date, tail, slot, type) {
-  return String(date || '').trim() + '|' + String(tail || '').trim() + '|' +
-         String(slot || '').trim() + '|' + String(type || '').trim();
+/** #58 訂單件數身分 = 單日期 ＋ 單號尾4（時段／類型只係附加資料，唔計入 key） */
+function otOrderKey(date, tail) {
+  return String(date || '').trim() + '|' + String(tail || '').trim();
 }
 
 function otCurrentOrder() {
@@ -3313,10 +3321,10 @@ async function loadOrderTotals() {
 function findOrderTotal() {
   var o = otCurrentOrder();
   if (!o.orderDate) return null;
-  var key = otOrderKey(o.orderDate, o.orderTail, o.timeSlot, o.orderType);
+  var key = otOrderKey(o.orderDate, o.orderTail);
   for (var i = 0; i < allOrderTotals.length; i++) {
     var t = allOrderTotals[i];
-    if (otOrderKey(t.orderDate, t.orderTail, t.timeSlot, t.orderType) === key) return t;
+    if (otOrderKey(t.orderDate, t.orderTail) === key) return t;
   }
   return null;
 }
@@ -3360,11 +3368,10 @@ async function saveOrderTotalsForm() {
     if (res && res.error) { $('otHint').textContent = '❌ ' + res.error; return; }
 
     // 更新本地快取
-    var key = otOrderKey(o.orderDate, o.orderTail, o.timeSlot, o.orderType);
+    var key = otOrderKey(o.orderDate, o.orderTail);
     var found = false;
     for (var i = 0; i < allOrderTotals.length; i++) {
-      if (otOrderKey(allOrderTotals[i].orderDate, allOrderTotals[i].orderTail,
-                     allOrderTotals[i].timeSlot, allOrderTotals[i].orderType) === key) {
+      if (otOrderKey(allOrderTotals[i].orderDate, allOrderTotals[i].orderTail) === key) {
         allOrderTotals[i] = Object.assign({}, allOrderTotals[i], {
           dry: counts.dry, egg: counts.egg, chill: counts.chill,
           frozen: counts.frozen, bulky: counts.bulky, total: res.total
@@ -3693,6 +3700,7 @@ async function openOOSLog() {
 
   syncOOSLogSlotChips();
   await ensureOOSReports();
+  if (!allOrderTotals.length) { try { await loadOrderTotals(); } catch (e) {} }
   renderOOSLog();
 }
 
@@ -3781,7 +3789,10 @@ function renderOOSLog() {
 
 
 
-  var html = order.map(function (k) {
+  // 俾 saveGroupTotals() 用
+  _oosLogGroups = order.map(function (k) { return groups[k]; });
+
+  var html = order.map(function (k, gi) {
     var g = groups[k];
     var head = g.tail
       ? ('單號尾 ' + esc(g.tail))
@@ -3795,7 +3806,8 @@ function renderOOSLog() {
       '<div class="ooslog-head">' + head +
         (dateStr ? '<span class="lg-sum">📅 ' + esc(dateStr) + '</span>' : '') +
         '<span class="lg-sum">' + g.items.length + ' 筆 · ' + g.qty + ' 件</span>' +
-      '</div>' + items +
+      '</div>' +
+      oosLogGroupTotalsHtml(g, gi) + items +
     '</div>';
   }).join('');
 
@@ -3811,6 +3823,114 @@ function renderOOSLog() {
   }
 
   $('oosLogBody').innerHTML = html;
+}
+
+// ============================================================
+//  #58 缺貨紀錄：每張單下面直接填件數（干／旦／風／凍／大）
+// ============================================================
+var _oosLogGroups = [];
+var OTG_SHORT = [
+  { key: 'dry',    short: '干' },
+  { key: 'egg',    short: '旦' },
+  { key: 'chill',  short: '風' },
+  { key: 'frozen', short: '凍' },
+  { key: 'bulky',  short: '大' }
+];
+
+/** 搵某張單（日期＋單號尾）嘅件數記錄 */
+function findOrderTotalByKey(date, tail) {
+  var key = otOrderKey(date, tail);
+  for (var i = 0; i < allOrderTotals.length; i++) {
+    var t = allOrderTotals[i];
+    if (otOrderKey(t.orderDate, t.orderTail) === key) return t;
+  }
+  return null;
+}
+
+/** 每張單下面嗰排格仔 */
+function oosLogGroupTotalsHtml(g, gi) {
+  if (!g.tail) {
+    return '<div class="otg-none">📦 冇單號 → 唔可以填件數（件數係跟單號走）</div>';
+  }
+  var t = findOrderTotalByKey(g.date, g.tail);
+  var v = t || { dry: 0, egg: 0, chill: 0, frozen: 0, bulky: 0, total: 0 };
+
+  var cells = OTG_SHORT.map(function (k) {
+    return '<label class="otg-cell">' + k.short +
+      '<input id="otg' + gi + '_' + k.key + '" type="text" inputmode="numeric" maxlength="4"' +
+      ' value="' + (parseInt(v[k.key], 10) || 0) + '"' +
+      ' onchange="saveGroupTotals(' + gi + ')"></label>';
+  }).join('');
+
+  return '<div class="otg-row">' +
+    '<span class="otg-cell" style="font-weight:800; color:#0071e3;">📦</span>' +
+    cells +
+    '<span class="otg-total" id="otgTotal' + gi + '">共 ' + (parseInt(v.total, 10) || 0) + ' 件</span>' +
+  '</div>';
+}
+
+/** 改咗任何一格就即刻儲存（一張單一組數字） */
+async function saveGroupTotals(gi) {
+  var g = _oosLogGroups[gi];
+  if (!g || !g.tail) return;
+
+  var counts = {};
+  var total = 0;
+  OTG_SHORT.forEach(function (k) {
+    var el = $('otg' + gi + '_' + k.key);
+    var n = parseInt(String(el ? el.value : '').replace(/[^0-9]/g, ''), 10);
+    if (isNaN(n) || n < 0) n = 0;
+    if (n > 9999) n = 9999;
+    counts[k.key] = n;
+    if (el) el.value = String(n);
+    total += n;
+  });
+
+  var totEl = $('otgTotal' + gi);
+  if (totEl) totEl.textContent = '儲存中…';
+
+  try {
+    var res = await apiPost({
+      action: 'saveOrderTotals',
+      orderDate: g.date,
+      orderTail: g.tail,
+      timeSlot:  g.slot || '',
+      orderType: g.type || '',
+      counts: counts,
+      by: authUser ? (authUser.display || authUser.name || '') : ''
+    });
+    if (res && res.error) {
+      if (totEl) totEl.textContent = '共 ' + total + ' 件';
+      toast('❌ ' + res.error, 3000);
+      return;
+    }
+
+    // 更新本地快取（同一張單只有一組）
+    var key = otOrderKey(g.date, g.tail);
+    var found = false;
+    for (var i = 0; i < allOrderTotals.length; i++) {
+      if (otOrderKey(allOrderTotals[i].orderDate, allOrderTotals[i].orderTail) === key) {
+        Object.assign(allOrderTotals[i], counts, {
+          total: res.total, timeSlot: g.slot || '', orderType: g.type || ''
+        });
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      allOrderTotals.unshift(Object.assign({
+        orderDate: g.date, orderTail: g.tail,
+        timeSlot: g.slot || '', orderType: g.type || '',
+        at: new Date().toISOString()
+      }, counts, { total: res.total }));
+    }
+
+    if (totEl) totEl.textContent = '共 ' + res.total + ' 件';
+    toast('✅ 單號 ' + g.tail + ' 件數已儲存（共 ' + res.total + ' 件）', 2000);
+  } catch (e) {
+    if (totEl) totEl.textContent = '共 ' + total + ' 件';
+    toast('❌ ' + e.message, 3000);
+  }
 }
 
 /** 單筆缺貨紀錄嘅 HTML（單號檢視、巡查段、跟進動作檢視共用） */
