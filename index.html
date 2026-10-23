@@ -771,6 +771,22 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .otg-total { font-size: 12px; font-weight: 800; color: #0071e3; margin-left: auto; padding-right: 4px; }
 .otg-none { font-size: 12px; color: #86868b; padding: 6px 0; border-bottom: 1px solid #f2f2f7; }
 
+/* #59 訂單件數：嗰日有缺貨嘅單列表 */
+.ot-order-item {
+  display: flex; align-items: center; gap: 8px; padding: 10px 8px;
+  border-radius: 8px; cursor: pointer; border-bottom: 1px solid #f2f2f7;
+}
+.ot-order-item:last-child { border-bottom: none; }
+.ot-order-item:active { background: #f0f7ff; }
+.ot-order-item.active { background: #e8f0fe; border-left: 4px solid #0071e3; padding-left: 4px; }
+.ot-order-item .oti-tail { font-size: 15px; font-weight: 800; color: #1d1d1f; white-space: nowrap; }
+.ot-order-item .oti-meta { font-size: 11px; color: #86868b; flex: 1; min-width: 0; }
+.ot-order-item .oti-state {
+  font-size: 11px; font-weight: 700; color: #b25000; background: #fff6e5;
+  padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+}
+.ot-order-item .oti-state.done { color: #1b5e20; background: #e6f4ea; }
+
 /* #53 跟進動作（每筆記錄自己一個） */
 .oos-action-chip {
   display: inline-block; margin-top: 4px; padding: 3px 10px; border-radius: 999px;
@@ -1434,7 +1450,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     <div class="field">
       <label>單日期</label>
       <div style="display:flex; gap:8px; align-items:center;">
-        <input type="date" id="otDate" onchange="onOrdTotalsFieldChange()"
+        <input type="date" id="otDate" onchange="onOrdTotalsDateChange()"
                style="flex:1; padding:12px; font-size:17px; border:2px solid #d2d2d7; border-radius:12px;
                       background:#fff; -webkit-appearance:none; font-family:inherit; outline:none;">
         <button type="button" onclick="lookupOrderTotals()"
@@ -1443,31 +1459,24 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       </div>
     </div>
 
-    <div class="field">
-      <label>單號尾 4 位</label>
+    <!-- 嗰日有缺貨嘅單（撳一下揀） -->
+    <div class="section-title">嗰日有缺貨嘅單（撳一下揀）</div>
+    <div id="otOrderList" style="max-height:34vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
+                                 border:1px solid #e5e5e7; border-radius:10px; padding:6px 8px; margin-bottom:14px;">
+      <div style="text-align:center; color:#86868b; font-size:13px; padding:14px;">載入中…</div>
+    </div>
+
+    <!-- 手動輸入（該日冇缺貨記錄嘅單都可以填） -->
+    <div class="field" style="margin-bottom:12px;">
+      <label>或者手動輸入單號尾 4 位</label>
       <input id="otTail" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1234"
-             onchange="onOrdTotalsFieldChange()"
+             onchange="onManualTailChange()"
              style="width:100%; padding:12px; font-size:17px; border:2px solid #d2d2d7; border-radius:12px;
                     background:#fff; -webkit-appearance:none; font-family:inherit; outline:none;">
     </div>
 
-    <div class="field">
-      <label>派送時段 <span style="font-size:12px;color:#86868b;font-weight:500;">再撳一次可取消</span></label>
-      <div class="chip-group" id="otSlotGroup">
-        <button type="button" class="chip-btn slot-early"   data-value="早"   onclick="otSelectChip(this,'otSlotGroup')">早 10-14</button>
-        <button type="button" class="chip-btn slot-mid"     data-value="中"   onclick="otSelectChip(this,'otSlotGroup')">中 14-18</button>
-        <button type="button" class="chip-btn slot-late"    data-value="晚"   onclick="otSelectChip(this,'otSlotGroup')">晚 18-21</button>
-        <button type="button" class="chip-btn slot-holiday" data-value="放假" onclick="otSelectChip(this,'otSlotGroup')">放假</button>
-      </div>
-    </div>
-
-    <div class="field">
-      <label>單類型</label>
-      <div class="chip-group" id="otTypeGroup">
-        <button type="button" class="chip-btn" data-value="O2O" onclick="otSelectChip(this,'otTypeGroup')">O2O</button>
-        <button type="button" class="chip-btn" data-value="CNC" onclick="otSelectChip(this,'otTypeGroup')">CNC</button>
-        <button type="button" class="chip-btn" data-value="B2B" onclick="otSelectChip(this,'otTypeGroup')">B2B</button>
-      </div>
+    <div style="background:#f0f7ff; border-radius:10px; padding:10px 12px; margin-bottom:12px; font-size:13px; color:#0071e3; line-height:1.5;">
+      而家填緊：<b id="otSelectedLabel">（未揀單）</b>
     </div>
 
     <div class="section-title">件數</div>
@@ -3275,17 +3284,149 @@ function ordTotalsSum() {
 }
 
 /** #58 訂單件數身分 = 單日期 ＋ 單號尾4（時段／類型只係附加資料，唔計入 key） */
+/** #59 訂單件數彈窗：列出嗰日有缺貨嘅單俾人揀 */
+var otSelected = { orderDate: '', orderTail: '', timeSlot: '', orderType: '' };
+
+/** 由缺貨記錄抽出「嗰日有缺貨嘅單」，按單號尾分組 */
+function otOrdersOfDay(ymd) {
+  var map = {}, order = [];
+  var looseN = 0;
+  (allOOSReports || []).forEach(function (r) {
+    if (String(r.orderDate || '').trim() !== ymd) return;
+    var tail = String(r.orderTail || '').trim();
+    if (!tail) { looseN++; return; }
+
+    if (!map[tail]) {
+      map[tail] = { tail: tail, slots: {}, types: {}, n: 0, qty: 0 };
+      order.push(tail);
+    }
+    var o = map[tail];
+    o.n += 1;
+    o.qty += (parseInt(r.qty, 10) || 1);
+    var sl = String(r.timeSlot || '').trim(); if (sl) o.slots[sl] = true;
+    var ty = String(r.orderType || '').trim(); if (ty) o.types[ty] = true;
+  });
+  var list = order.map(function (t) {
+    var o = map[t];
+    return {
+      tail: t,
+      slot: Object.keys(o.slots).join('/'),
+      type: Object.keys(o.types).join('/'),
+      n: o.n, qty: o.qty
+    };
+  });
+  // 已填過件數嘅排前，之後按單號
+  list.sort(function (a, b) {
+    var ta = !!findOrderTotalByKey(ymd, a.tail), tb = !!findOrderTotalByKey(ymd, b.tail);
+    if (ta !== tb) return ta ? -1 : 1;
+    return a.tail.localeCompare(b.tail);
+  });
+  return { orders: list, looseN: looseN };
+}
+
+function renderOTOrderList() {
+  var box = $('otOrderList');
+  if (!box) return;
+  var ymd = dateInputToYMD(($('otDate') || {}).value || '');
+  if (!ymd) { box.innerHTML = '<div style="text-align:center;color:#86868b;font-size:13px;padding:14px;">請先揀日期</div>'; return; }
+
+  var res = otOrdersOfDay(ymd);
+  if (!res.orders.length) {
+    box.innerHTML = '<div style="text-align:center;color:#86868b;font-size:13px;padding:14px;line-height:1.6;">' +
+      prettyYMD(ymd) + ' 冇「有單號」嘅缺貨記錄。<br>' +
+      '<span style="font-size:12px;">可以用下面手動輸入單號。</span></div>';
+    return;
+  }
+
+  box.innerHTML = res.orders.map(function (o) {
+    var t = findOrderTotalByKey(ymd, o.tail);
+    var filled = t ? ('已填 ' + (parseInt(t.total, 10) || 0) + ' 件') : '未填';
+    var active = (otSelected.orderDate === ymd && otSelected.orderTail === o.tail);
+    return '<div class="ot-order-item' + (active ? ' active' : '') + '" data-tail="' + escAttr(o.tail) + '"' +
+      ' onclick="pickOTOrder(\'' + escAttr(o.tail) + '\',' + o.n + ')">' +
+      '<span class="oti-tail">單號尾 ' + esc(o.tail) + '</span>' +
+      '<span class="oti-meta">' + (o.slot ? '🕐' + esc(o.slot) + ' ' : '') +
+        (o.type ? '📦' + esc(o.type) + ' ' : '') + o.n + '筆 · ' + o.qty + '件</span>' +
+      '<span class="oti-state' + (t ? ' done' : '') + '">' + esc(filled) + '</span>' +
+    '</div>';
+  }).join('') +
+  (res.looseN ? '<div style="font-size:11px;color:#86868b;padding:6px 2px;border-top:1px solid #f2f2f7;margin-top:4px;">' +
+    '另外有 ' + res.looseN + ' 筆冇填單號嘅缺貨（件數要跟單號，所以唔會列出）</div>' : '');
+}
+
+/** 揀咗一張單 → 載入佢嘅件數 */
+function pickOTOrder(tail, n) {
+  var ymd = dateInputToYMD(($('otDate') || {}).value || '');
+  if (!ymd) return;
+
+  var res = otOrdersOfDay(ymd);
+  var found = null;
+  for (var i = 0; i < res.orders.length; i++) {
+    if (res.orders[i].tail === tail) { found = res.orders[i]; break; }
+  }
+
+  otSelected = {
+    orderDate: ymd,
+    orderTail: String(tail),
+    timeSlot: found ? String(found.slot || '').split('/')[0] : '',
+    orderType: found ? String(found.type || '').split('/')[0] : ''
+  };
+
+  var el = $('otTail'); if (el) el.value = String(tail);
+  var lbl = $('otSelectedLabel');
+  if (lbl) {
+    lbl.textContent = '單號尾 ' + tail + '（' + prettyYMD(ymd) + '）' +
+      (otSelected.timeSlot ? '　🕐' + otSelected.timeSlot : '') +
+      (otSelected.orderType ? '　📦' + otSelected.orderType : '');
+  }
+
+  var t = findOrderTotalByKey(ymd, tail);
+  otSetNums(t || {});
+  var h = $('otHint');
+  if (h) h.textContent = t ? ('✅ 已載入現有件數（共 ' + (parseInt(t.total, 10) || 0) + ' 件）') : '';
+
+  renderOTOrderList();
+}
+
+/** 手動打單號（該日冇缺貨記錄嘅單） */
+function onManualTailChange() {
+  var ymd = dateInputToYMD(($('otDate') || {}).value || '');
+  var tail = String(($('otTail') || {}).value || '').replace(/[^0-9]/g, '').slice(0, 4);
+  var el = $('otTail'); if (el) el.value = tail;
+  if (!tail || !ymd) return;
+
+  otSelected = { orderDate: ymd, orderTail: tail, timeSlot: '', orderType: '' };
+  var lbl = $('otSelectedLabel');
+  if (lbl) lbl.textContent = '單號尾 ' + tail + '（' + prettyYMD(ymd) + '）';
+
+  var t = findOrderTotalByKey(ymd, tail);
+  otSetNums(t || {});
+  var h = $('otHint');
+  if (h) h.textContent = t ? ('✅ 已載入現有件數') : 'ℹ️ 呢張單未有記錄，直接填就得。';
+  renderOTOrderList();
+}
+
+function onOrdTotalsDateChange() {
+  otSelected = { orderDate: '', orderTail: '', timeSlot: '', orderType: '' };
+  var lbl = $('otSelectedLabel'); if (lbl) lbl.textContent = '（未揀單）';
+  var h = $('otHint'); if (h) h.textContent = '';
+  otSetNums({});
+  var el = $('otTail'); if (el) el.value = '';
+  renderOTOrderList();
+}
+
 function otOrderKey(date, tail) {
   return String(date || '').trim() + '|' + String(tail || '').trim();
 }
 
 function otCurrentOrder() {
   var el = $('otDate');
+  var tail = String(($('otTail') || {}).value || '').replace(/[^0-9]/g, '').slice(0, 4);
   return {
     orderDate: dateInputToYMD(el ? el.value : ''),
-    orderTail: String(($('otTail') || {}).value || '').replace(/[^0-9]/g, '').slice(0, 4),
-    timeSlot:  otGetChip('otSlotGroup'),
-    orderType: otGetChip('otTypeGroup')
+    orderTail: tail || otSelected.orderTail || '',
+    timeSlot:  otSelected.timeSlot || '',
+    orderType: otSelected.orderType || ''
   };
 }
 
@@ -3294,16 +3435,20 @@ function onOrdTotalsFieldChange() {
   if (h) h.textContent = '';
 }
 
-function openOrderTotals() {
+async function openOrderTotals() {
   var el = $('otDate');
   if (el) el.value = ymdToDateInput(getTodayYMD());
   var t = $('otTail'); if (t) t.value = '';
-  otSetChip('otSlotGroup', '');
-  otSetChip('otTypeGroup', '');
-  otSetNums({});
+  otSelected = { orderDate: '', orderTail: '', timeSlot: '', orderType: '' };
+  var lbl = $('otSelectedLabel'); if (lbl) lbl.textContent = '（未揀單）';
   var h = $('otHint'); if (h) h.textContent = '';
+  otSetNums({});
   $('ordTotalsModal').classList.add('show');
-  loadOrderTotals();
+  $('otOrderList').innerHTML = '<div style="text-align:center;color:#86868b;font-size:13px;padding:14px;">載入中…</div>';
+
+  try { await loadOrderTotals(); } catch (e) {}
+  try { if (!allOOSReports.length) await ensureOOSReports(); } catch (e) {}
+  renderOTOrderList();
 }
 
 function closeOrderTotals() {
@@ -3390,6 +3535,7 @@ async function saveOrderTotalsForm() {
     }
 
     $('otHint').textContent = '✅ 已' + (res.updated ? '更新' : '儲存') + '：總共 ' + res.total + ' 件';
+    renderOTOrderList();
     toast('✅ 訂單件數已儲存（共 ' + res.total + ' 件）');
   } catch (e) {
     $('otHint').textContent = '❌ ' + e.message;
