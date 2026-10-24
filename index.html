@@ -873,6 +873,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       <button id="btnSkuOnly" class="tool-btn" onclick="toggleSkuOnly()">🔖 只搜 SKU</button>
       <button id="btnOOSFilter" class="tool-btn" onclick="toggleOOSFilter()">⚠️ 只看缺貨</button>
       <button id="btnCatSuspect" class="tool-btn" onclick="toggleCatSuspect()">🧩 分類待修</button>
+      <button id="btnNewItem" class="tool-btn" onclick="toggleNewItemOnly()">🆕 我新入嘅貨</button>
       <button id="btnSortToggle" class="tool-btn" onclick="toggleSort()">📍 位置排序</button>
       <button id="btnOrderTotals" class="tool-btn" onclick="openOrderTotals()">📦 訂單件數</button>
       <button id="btnRefreshAPI" class="tool-btn" onclick="refreshFromAPIManual()">🔄 用 API 刷新</button>
@@ -1627,6 +1628,7 @@ const BARCODE_MODE_KEY = 'barcode_mode_v1';
 const SKU_MODE_KEY     = 'sku_mode_v1';   // #32
 const OOS_FILTER_KEY = 'oos_filter_v1';
 const CAT_SUSPECT_KEY = 'cat_suspect_v1';   // #45
+const NEW_ITEM_KEY = 'new_item_v1';        // #66
 const CATEGORY_FILTER_KEY = 'category_filter_v1';
 
 const MIN_SUFFIX_LEN = 6;
@@ -1685,6 +1687,7 @@ let skuFieldAvailable = true;   // #36：資料來源有冇 sku 欄位（決定�
 let authUser = null;            // #38：目前登入者 { name, display, role }
 let oosFilterOnly = false;
 let catSuspectOnly = false;     // #45：只顯示「分類待修」貨品
+let newItemOnly = false;        // #66：只顯示「我手動新入、惠康仲未有」嘅貨
 let categoryFilter = '';
 let brandFilter = '';   // #21：品牌篩選
 let subcatFilter = '';  // #28：細分篩選（讀 I 欄 category_zh）
@@ -1700,6 +1703,7 @@ try {
   if (skuOnly) barcodeOnly = false;          // #32：兩種模式互斥
   oosFilterOnly = localStorage.getItem(OOS_FILTER_KEY) === '1';
   catSuspectOnly = localStorage.getItem(CAT_SUSPECT_KEY) === '1';
+  newItemOnly = localStorage.getItem(NEW_ITEM_KEY) === '1';
   categoryFilter = localStorage.getItem(CATEGORY_FILTER_KEY) || '';
 } catch (e) {}
 
@@ -5414,6 +5418,7 @@ function applyProducts(data) {
   populateSubcatFilter();     // 細分 <- I 欄
   populateBrandFilter();      // 品牌 <- 受上面兩者限制
   updateCatSuspectButton();   // #45：更新「分類待修 (N)」數字
+  updateNewItemButton();      // #66：更新「我新入嘅貨 (N)」數字
 }
 
 function saveLocalCache(data) {
@@ -5498,6 +5503,13 @@ function render() {
     });
   }
 
+  // #66：只顯示「我手動新入、惠康仲未有」嘅貨
+  if (newItemOnly) {
+    filtered = filtered.filter(function(d) {
+      return String(d.new_item || '').trim() === '1';
+    });
+  }
+
   // #45：分類待修（冇分類 / 促銷分類 / 品名對唔上）
   if (catSuspectOnly) {
     var csMap = catSuspectMap();
@@ -5531,6 +5543,7 @@ function render() {
   }
   if (oosFilterOnly) statsText += ' · ⚠️ 只看缺貨';
   if (catSuspectOnly) statsText += ' · 🧩 分類待修';
+  if (newItemOnly) statsText += ' · 🆕 我新入嘅貨';
   if (sortMode === 'location') statsText += ' · 按位置';
   if (categoryFilter) {
     // #30：篩選值本身就係 H 欄嘅實際值，直接顯示，唔再查 _Config（避免名唔對）
@@ -5645,6 +5658,13 @@ function renderCard(d) {
     var color = score >= 80 ? '#2e7d32' : score >= 50 ? '#f57c00' : '#c62828';
     simBadge = '<span class="sim-badge" style="background:' + color + ';">相似 ' + score + '%</span>';
   }
+
+  // #66：手動新入、惠康仲未有 → 卡上顯示標記
+  var newItemBanner = (String(d.new_item || '').trim() === '1')
+    ? '<div style="background:#e8f5e9; color:#1b5e20; border-left:4px solid #2e7d32; border-radius:8px;' +
+      ' padding:7px 10px; font-size:12px; font-weight:700; line-height:1.5; margin-top:8px;">' +
+      '🆕 你手動新入嘅貨 —— 惠康仲未抓到（抓到會自動換真 ID 同正式相）</div>'
+    : '';
 
   // #45：分類列永遠都在 —— 有值可以撳去篩選，冇值提示「未分類」，
   //      旁邊一定有「🧩 改分類」快速入口；分類可疑就順手顯示原因。
@@ -5795,6 +5815,7 @@ function renderCard(d) {
     '</div>' +
     oosBanner +
     tempIdBanner +
+    newItemBanner +
     catChipHtml +
     barcodeHtml +
     '<div class="loc-section">' +
@@ -6407,6 +6428,27 @@ function invalidateCatSuspect(id) {
   var why = d ? catSuspectReason(d) : '';
   if (why) _catSuspectMap[key] = why;
   else delete _catSuspectMap[key];
+}
+
+/** #66：只顯示自己手動新入（惠康仲未抓到）嘅貨 */
+function toggleNewItemOnly() {
+  newItemOnly = !newItemOnly;
+  try { localStorage.setItem(NEW_ITEM_KEY, newItemOnly ? '1' : '0'); } catch (e) {}
+  updateNewItemButton();
+  if (allData.length > 0) render();
+  toast(newItemOnly ? '🆕 只顯示你新入嘅貨' : '顯示全部產品');
+}
+
+function updateNewItemButton() {
+  var btn = $('btnNewItem');
+  if (!btn) return;
+  var n = 0;
+  for (var i = 0; i < allData.length; i++) {
+    if (String(allData[i].new_item || '').trim() === '1') n++;
+  }
+  btn.textContent = '🆕 我新入嘅貨' + (n ? ' (' + n + ')' : '');
+  if (newItemOnly) btn.classList.add('oos-filter-active');
+  else btn.classList.remove('oos-filter-active');
 }
 
 function toggleCatSuspect() {
