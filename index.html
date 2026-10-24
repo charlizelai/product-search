@@ -1185,6 +1185,24 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
         <div id="subChosen" style="display:none; background:#e6f4ea; border-radius:10px; padding:10px 12px;
              font-size:14px; font-weight:700; color:#1b5e20; line-height:1.5;"></div>
       </div>
+
+      <!-- #63 替代件數（可以用幾多件細裝砌成） -->
+      <div id="subQtyWrap" style="display:none; margin-top:12px; background:#f0f7ff; border-radius:10px; padding:10px 12px;">
+        <label style="display:block; font-size:14px; font-weight:700; margin-bottom:6px;">
+          🧮 要用幾多件替代貨品？
+        </label>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <input id="subQty" type="text" inputmode="numeric" maxlength="4" value="" placeholder="0"
+                 oninput="onSubQtyInput()"
+                 style="width:88px; padding:9px 12px; font-size:20px; font-weight:800; text-align:center;
+                        border:2px solid #d2d2d7; border-radius:10px; background:#fff;
+                        -webkit-appearance:none; font-family:inherit; outline:none;">
+          <button type="button" onclick="suggestSubQty(true)"
+                  style="padding:9px 12px; border:2px solid #0071e3; border-radius:10px; background:#fff;
+                         color:#0071e3; font-size:13px; font-weight:700; cursor:pointer;">🧮 自動計</button>
+        </div>
+        <div id="subQtyHint" style="font-size:12px; color:#0071e3; margin-top:6px; line-height:1.55;"></div>
+      </div>
     </div>
 
     <!-- #58 訂單件數：跟住呢張缺貨單一齊入，方便同事記得之前執咗幾多件 -->
@@ -2329,6 +2347,9 @@ function reportOOS(id) {
   ootReset();                // #58：訂單件數每次由 0 開始，填單號後會自動帶入舊記錄
   oosSubstitute = null;      // #61
   var sw = $('subBoxWrap'); if (sw) sw.style.display = 'none';
+  var sq0 = $('subQty'); if (sq0) sq0.value = '';
+  var qw0 = $('subQtyWrap'); if (qw0) qw0.style.display = 'none';
+  var qh0 = $('subQtyHint'); if (qh0) qh0.textContent = '';
   loadSubstitutes();         // 背景載入，揀咗「替代貨品」先會用到
   loadOOSHistory(id);
   var info = $('oosProductInfo');
@@ -2714,7 +2735,11 @@ async function submitOOSReport() {
       qty: qty,
       // ⚠️ 唔可以用 action 呢個 key！上面已經有 action: 'reportOOS' 做派發，
       //    同名會蓋走派發值，變成 "Unknown action: 要搵"。
-      oosAction: getSelectedAction()       // #53：跟進動作（可留空）
+      oosAction: getSelectedAction(),      // #53：跟進動作（可留空）
+      // #63：替代貨品 + 替代件數
+      subProductId:   (oosSubstitute ? oosSubstitute.id : ''),
+      subProductName: (oosSubstitute ? oosSubstitute.name : ''),
+      subQty:         (oosSubstitute ? (parseInt(String(($('subQty') || {}).value || '').replace(/[^0-9]/g, ''), 10) || 0) : 0)
     });
 
     if (result.error) {
@@ -3214,6 +3239,7 @@ function useSavedSubstitute() {
   $('subSavedBanner').style.display = 'none';
   $('subPicker').style.display = 'none';
   renderChosenSubstitute();
+  if (saved.subQty) { var qe = $('subQty'); if (qe) qe.value = String(saved.subQty); }
   toast('✅ 用返：' + (saved.subName || saved.subId));
 }
 
@@ -3228,12 +3254,112 @@ function pickNewSubstitute() {
 function renderChosenSubstitute() {
   var box = $('subChosen');
   if (!box) return;
-  if (!oosSubstitute) { box.style.display = 'none'; return; }
+  if (!oosSubstitute) {
+    box.style.display = 'none';
+    var qw0 = $('subQtyWrap'); if (qw0) qw0.style.display = 'none';
+    return;
+  }
   box.style.display = 'block';
   box.innerHTML = '🎩 替代貨品：' + esc(oosSubstitute.name || oosSubstitute.id) +
     (oosSubstitute.barcode ? '（' + esc(oosSubstitute.barcode) + '）' : '') +
     '　<button type="button" onclick="pickNewSubstitute()" ' +
     'style="border:none;background:none;color:#0071e3;font-size:13px;font-weight:700;cursor:pointer;">改</button>';
+
+  var qw = $('subQtyWrap');
+  if (qw) {
+    qw.style.display = 'block';
+    var qEl = $('subQty');
+    if (qEl && !String(qEl.value || '').trim()) {
+      var saved = findSavedSubstitute(oosTargetId);
+      if (saved && String(saved.subId) === String(oosSubstitute.id) && saved.subQty) {
+        qEl.value = String(saved.subQty);
+      }
+    }
+    suggestSubQty(false);      // 唔覆蓋用戶輸入，只計建議
+  }
+}
+
+/**
+ * #63 由品名拆出「每件有幾多內容」，例如
+ *   「維他檸檬茶 9 X 250ML」→ { count: 9, size: 250, unit: 'ML', volume: 2250 }
+ *   支援 ML / L / G / GM / KG / 克 / 毫升 / 升
+ */
+function parsePackVolume(name) {
+  var s = String(name || '');
+  var m = s.match(/([0-9]+(?:\.[0-9]+)?)\s*[xX×*]\s*([0-9]+(?:\.[0-9]+)?)\s*(ML|L|LT|LTR|G|GM|GR|KG|克|毫升|升)/i);
+  if (m) {
+    var cnt = parseFloat(m[1]), size = parseFloat(m[2]);
+    var unit = String(m[3]).toUpperCase();
+    var mult = 1;
+    if (unit === 'L' || unit === 'LT' || unit === 'LTR' || unit === '升') mult = 1000;
+    else if (unit === 'KG') mult = 1000;
+    return { count: cnt, size: size, unit: unit, volume: cnt * size * mult };
+  }
+  // 淨係單一容量，例如「500ML」
+  var m2 = s.match(/([0-9]+(?:\.[0-9]+)?)\s*(ML|L|LT|LTR|G|GM|GR|KG|克|毫升|升)\b/i);
+  if (m2) {
+    var size2 = parseFloat(m2[1]);
+    var unit2 = String(m2[2]).toUpperCase();
+    var mult2 = 1;
+    if (unit2 === 'L' || unit2 === 'LT' || unit2 === 'LTR' || unit2 === '升') mult2 = 1000;
+    else if (unit2 === 'KG') mult2 = 1000;
+    return { count: 1, size: size2, unit: unit2, volume: size2 * mult2 };
+  }
+  return null;
+}
+
+/** 計建議替代件數：原貨品總量 ÷ 替代貨品每件容量，無條件進位 */
+function calcSubQty() {
+  var p = allData.find(function (d) { return String(d.id) === String(oosTargetId); });
+  if (!p || !oosSubstitute) return null;
+
+  var qty = parseInt(String(($('oosQty') || {}).value || '').replace(/[^0-9]/g, ''), 10);
+  if (isNaN(qty) || qty <= 0) return null;
+
+  var o = parsePackVolume(p.name_zh || p.name);
+  var sb = parsePackVolume(oosSubstitute.name);
+  if (!o || !sb || !sb.volume || !o.volume) return null;
+
+  var need = Math.ceil((qty * o.volume) / sb.volume);
+  return {
+    need: need,
+    origName: p.name_zh || p.name, qty: qty,
+    origVol: o.volume, subVol: sb.volume,
+    totalOrig: qty * o.volume,
+    origDesc: o.count + '×' + o.size + o.unit,
+    subDesc: sb.count + '×' + sb.size + sb.unit
+  };
+}
+
+/** autoFill=true 時直接寫入輸入框；false 時只顯示建議 */
+function suggestSubQty(autoFill) {
+  var hint = $('subQtyHint');
+  var r = calcSubQty();
+  if (!r) {
+    if (hint) {
+      hint.textContent = (parseInt(String(($('oosQty') || {}).value || '').replace(/[^0-9]/g, ''), 10) > 0)
+        ? 'ℹ️ 品名睇唔出容量，請自己填件數。'
+        : 'ℹ️ 先填上面「缺貨件數」，就會自動計。';
+    }
+    return null;
+  }
+  if (hint) {
+    hint.innerHTML = '原貨品每件 <b>' + esc(r.origDesc) + '</b>，總共 <b>' + r.qty + ' 件</b> = ' +
+      r.totalOrig + '；替代貨品每件 <b>' + esc(r.subDesc) + '</b> → 建議 <b>' + r.need + ' 件</b>' +
+      '（' + r.need + '×' + r.subVol + ' = ' + (r.need * r.subVol) + '）';
+  }
+  if (autoFill) {
+    var el = $('subQty');
+    if (el) el.value = String(r.need);
+  }
+  return r;
+}
+
+function onSubQtyInput() {
+  var el = $('subQty');
+  if (!el) return;
+  var clean = String(el.value || '').replace(/[^0-9]/g, '');
+  if (el.value !== clean) el.value = clean;
 }
 
 function onSubSearchInput() {
@@ -3325,7 +3451,8 @@ async function saveSubstituteForCurrent() {
       productName: p ? (p.name_zh || p.name) : '',
       subId: oosSubstitute.id,
       subBarcode: oosSubstitute.barcode,
-      subName: oosSubstitute.name
+      subName: oosSubstitute.name,
+      subQty: parseInt(String(($('subQty') || {}).value || '').replace(/[^0-9]/g, ''), 10) || 0   // #63
     });
   } catch (e) { console.warn('saveSubstitute 失敗：', e); return null; }
 }
@@ -4348,6 +4475,13 @@ function oosLogItemHtml(r, showDate) {
   if (r.reporter) meta.push('👤 ' + r.reporter);
   if (r.reason) meta.push('原因：' + oosReasonLabel(r.reason));   // #50：用顯示名稱（有 emoji）
   meta.push(st.text);
+
+  // #63：替代貨品（例如 2 件 9×250ML 用 3 件 6×250ML 代替）
+  var subTxt = String(r.subProduct || '').trim();
+  if (subTxt) {
+    var sq = parseInt(r.subQty, 10);
+    meta.push('🎩 替代：' + subTxt + (sq > 0 ? ' ×' + sq + ' 件' : ''));
+  }
 
   var act = String(r.action || '').trim();
   var actChip = '<button type="button" class="oos-action-chip' + (act ? '' : ' none') + '" ' +
