@@ -759,6 +759,13 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .ooslog-ok { color: #2e7d32 !important; }
 .ooslog-empty { text-align: center; color: #86868b; padding: 34px 10px; font-size: 14px; line-height: 1.6; }
 
+/* #61 替代貨品搜尋結果 */
+.sub-result { padding: 9px 6px; border-bottom: 1px solid #f2f2f7; cursor: pointer; }
+.sub-result:last-child { border-bottom: none; }
+.sub-result:active { background: #f0f7ff; }
+.sub-result .sr-name { font-size: 14px; font-weight: 700; color: #1d1d1f; }
+.sub-result .sr-meta { font-size: 11px; color: #86868b; margin-top: 2px; }
+
 /* #58 缺貨紀錄：每張單下面直接填件數 */
 .otg-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 0 8px; border-bottom: 1px solid #f2f2f7; background: #fbfdff; border-radius: 8px; }
 .otg-cell { display: flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 700; color: #1d1d1f; }
@@ -1143,6 +1150,43 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       </div>
     </div>
 
+    <!-- #61 替代貨品（只喺揀咗 🎩替代貨品 時出現） -->
+    <div id="subBoxWrap" class="order-info-section" style="display:none; margin-top:14px;">
+      <div class="order-info-title">
+        <span>🎩 用邊件替代？</span>
+        <span class="optional-tag">揀咗「替代貨品」先要填</span>
+      </div>
+      <div id="subSavedBanner" style="display:none; background:#fff8e1; border-left:4px solid #f57c00;
+           border-radius:10px; padding:10px 12px; margin-bottom:10px; font-size:13px; line-height:1.55; color:#5d4037;">
+        <div style="font-weight:700; margin-bottom:6px;">上次你係用呢件貨代替：</div>
+        <div id="subSavedText" style="margin-bottom:8px;"></div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" onclick="useSavedSubstitute()"
+                  style="flex:1; min-width:110px; padding:10px; border:none; border-radius:10px;
+                         background:#2e7d32; color:#fff; font-size:14px; font-weight:700; cursor:pointer;">✅ 是，用返呢件</button>
+          <button type="button" onclick="pickNewSubstitute()"
+                  style="flex:1; min-width:110px; padding:10px; border:none; border-radius:10px;
+                         background:#fff; border:2px solid #d2d2d7; color:#1d1d1f; font-size:14px; font-weight:700; cursor:pointer;">🔄 否，重新揀</button>
+        </div>
+      </div>
+
+      <div id="subPicker">
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+          <input id="subSearch" type="text" autocomplete="off" placeholder="輸入品名／SKU／條碼尾，或者撳右邊掃碼"
+                 oninput="onSubSearchInput()"
+                 style="flex:1; padding:11px 12px; font-size:16px; border:2px solid #d2d2d7; border-radius:10px;
+                        background:#fff; -webkit-appearance:none; font-family:inherit; outline:none;">
+          <button type="button" onclick="scanSubstitute()"
+                  style="padding:11px 14px; border:none; border-radius:10px; background:#0071e3; color:#fff;
+                         font-size:16px; font-weight:700; cursor:pointer; white-space:nowrap;">📷 掃碼</button>
+        </div>
+        <div id="subResults" style="max-height:26vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
+             border:1px solid #e5e5e7; border-radius:10px; padding:4px 8px; display:none;"></div>
+        <div id="subChosen" style="display:none; background:#e6f4ea; border-radius:10px; padding:10px 12px;
+             font-size:14px; font-weight:700; color:#1b5e20; line-height:1.5;"></div>
+      </div>
+    </div>
+
     <!-- #58 訂單件數：跟住呢張缺貨單一齊入，方便同事記得之前執咗幾多件 -->
     <div class="order-info-section" style="margin-top:14px;">
       <div class="order-info-title">
@@ -1174,9 +1218,14 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
           <input id="oot_frozen" class="oot-num order-input" type="text" inputmode="numeric"
                  maxlength="4" value="" placeholder="0" style="width:100%;" oninput="ootSum()">
         </div>
-        <div style="grid-column: 1 / -1;">
+        <div>
           <label style="display:block;font-size:13px;font-weight:700;margin-bottom:4px;">大件（sim卡／禮券）</label>
           <input id="oot_bulky" class="oot-num order-input" type="text" inputmode="numeric"
+                 maxlength="4" value="" placeholder="0" style="width:100%;" oninput="ootSum()">
+        </div>
+        <div>
+          <label style="display:block;font-size:13px;font-weight:700;margin-bottom:4px;">原箱</label>
+          <input id="oot_original" class="oot-num order-input" type="text" inputmode="numeric"
                  maxlength="4" value="" placeholder="0" style="width:100%;" oninput="ootSum()">
         </div>
       </div>
@@ -1501,9 +1550,14 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
         <input id="ot_frozen" class="ot-num" type="text" inputmode="numeric" maxlength="4" value=""
                placeholder="0" oninput="ordTotalsSum()">
       </div>
-      <div style="grid-column: 1 / -1;">
+      <div>
         <label style="display:block;font-size:14px;font-weight:700;margin-bottom:6px;">大件（sim卡／禮券）</label>
         <input id="ot_bulky" class="ot-num" type="text" inputmode="numeric" maxlength="4" value=""
+               placeholder="0" oninput="ordTotalsSum()">
+      </div>
+      <div>
+        <label style="display:block;font-size:14px;font-weight:700;margin-bottom:6px;">原箱</label>
+        <input id="ot_original" class="ot-num" type="text" inputmode="numeric" maxlength="4" value=""
                placeholder="0" oninput="ordTotalsSum()">
       </div>
     </div>
@@ -2259,7 +2313,7 @@ function stepOOSQty(delta) {
   var v = parseInt(String(el.value || '').replace(/[^0-9]/g, ''), 10);
   if (isNaN(v)) v = 1;
   v += delta;
-  if (v < 1) v = 1;
+  if (v < 0) v = 0;                 // #60：可以減到 0（巡查缺貨）
   if (v > 9999) v = 9999;
   el.value = String(v);
 }
@@ -2273,6 +2327,9 @@ function reportOOS(id) {
   renderQuickActions();      // #53：跟進動作按鈕（每次重新渲染，等於清空上次選擇）
   resetOrderInfo();
   ootReset();                // #58：訂單件數每次由 0 開始，填單號後會自動帶入舊記錄
+  oosSubstitute = null;      // #61
+  var sw = $('subBoxWrap'); if (sw) sw.style.display = 'none';
+  loadSubstitutes();         // 背景載入，揀咗「替代貨品」先會用到
   loadOOSHistory(id);
   var info = $('oosProductInfo');
   info.innerHTML =
@@ -2312,6 +2369,7 @@ function toggleQuickReason(btn) {
   $('oosErrMsg').textContent = '';
   var ta = $('oosReason');
   if (ta) ta.classList.remove('invalid');
+  if (typeof updateSubstituteSection === 'function') updateSubstituteSection();   // #61
 }
 
 function getSelectedReasons() {
@@ -2627,8 +2685,9 @@ async function submitOOSReport() {
 
   // 缺貨件數（預設 1）。同一件貨再回報時，後端會把件數累加。
   var qty = parseInt(String($('oosQty').value || '').replace(/[^0-9]/g, ''), 10);
-  if (isNaN(qty) || qty < 1) {
-    $('oosErrMsg').textContent = '❌ 缺貨件數需為 1 或以上';
+  // #60：0 件合法 —— 行架巡查見到缺貨、但未知會缺幾多
+  if (isNaN(qty) || qty < 0) {
+    $('oosErrMsg').textContent = '❌ 缺貨件數需為 0 或以上';
     $('oosQty').focus();
     return;
   }
@@ -2684,6 +2743,10 @@ async function submitOOSReport() {
         ? result.reports
         : ((parseInt(target._oos_reports, 10) || 0) + 1);
     }
+
+    // #61：有揀「替代貨品」就記住
+    try { await saveSubstituteForCurrent(); }
+    catch (eSub) { console.warn('saveSubstituteForCurrent 失敗：', eSub); }
 
     // #58：順手把呢張單嘅件數寫入（有填過或者之前已有記錄先寫）
     try {
@@ -3009,7 +3072,7 @@ function buildOOSDateMatch() {
     var tail = String(r.orderTail || '').trim();
     var type = String(r.orderType || '').trim();
     var q = parseInt(r.qty, 10);
-    if (isNaN(q) || q < 1) q = 1;
+    if (isNaN(q) || q < 0) q = 1;      // #60：0 件合法
 
     if (!oosDateMatch[pid]) {
       oosDateMatch[pid] = { tail: '', timeSlot: '', orderType: '', qty: 0, n: 0 };
@@ -3082,6 +3145,191 @@ function oosActionLabel(actionValue) {
 // ============================================================
 //  #57 訂單件數（干貨／旦貨／風貨／凍貨／大件）
 // ============================================================
+// ============================================================
+//  #61 替代貨品
+// ============================================================
+var allSubstitutes = [];
+var oosSubstitute = null;        // { id, barcode, name }
+var SUB_REASON = '替代貨品';
+
+async function loadSubstitutes() {
+  try {
+    var res = await apiGet('substitutes');
+    if (res && !res.error && Array.isArray(res.subs)) allSubstitutes = res.subs;
+  } catch (e) { console.warn('loadSubstitutes 失敗：', e); }
+  return allSubstitutes;
+}
+
+function findSavedSubstitute(productId) {
+  var id = String(productId || '').trim();
+  for (var i = 0; i < allSubstitutes.length; i++) {
+    if (String(allSubstitutes[i].productId || '').trim() === id) return allSubstitutes[i];
+  }
+  return null;
+}
+
+/** 有冇揀到「替代貨品」呢個原因 */
+function substituteReasonSelected() {
+  var sel = getSelectedReasons() || [];
+  for (var i = 0; i < sel.length; i++) {
+    if (String(sel[i]).trim().indexOf(SUB_REASON) >= 0) return true;
+  }
+  var extra = String(($('oosReason') || {}).value || '');
+  return extra.indexOf(SUB_REASON) >= 0;
+}
+
+/** 原因改變時／開彈窗時叫呢個 */
+function updateSubstituteSection() {
+  var wrap = $('subBoxWrap');
+  if (!wrap) return;
+  if (!oosTargetId || !substituteReasonSelected()) {
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'block';
+
+  if (oosSubstitute) { renderChosenSubstitute(); return; }
+
+  var saved = findSavedSubstitute(oosTargetId);
+  if (saved && saved.subId) {
+    $('subSavedBanner').style.display = 'block';
+    $('subPicker').style.display = 'none';
+    $('subSavedText').innerHTML =
+      '<b>' + esc(saved.subName || saved.subId) + '</b>' +
+      (saved.subBarcode ? '（條碼 ' + esc(saved.subBarcode) + '）' : '') +
+      '<br><span style="font-size:12px;color:#8a6d3b;">用過 ' + (saved.uses || 1) + ' 次</span>';
+  } else {
+    $('subSavedBanner').style.display = 'none';
+    $('subPicker').style.display = 'block';
+    $('subChosen').style.display = 'none';
+    $('subResults').style.display = 'none';
+    var inp = $('subSearch'); if (inp) inp.value = '';
+  }
+}
+
+function useSavedSubstitute() {
+  var saved = findSavedSubstitute(oosTargetId);
+  if (!saved) return;
+  oosSubstitute = { id: saved.subId, barcode: saved.subBarcode, name: saved.subName };
+  $('subSavedBanner').style.display = 'none';
+  $('subPicker').style.display = 'none';
+  renderChosenSubstitute();
+  toast('✅ 用返：' + (saved.subName || saved.subId));
+}
+
+function pickNewSubstitute() {
+  oosSubstitute = null;
+  $('subSavedBanner').style.display = 'none';
+  $('subPicker').style.display = 'block';
+  $('subChosen').style.display = 'none';
+  var inp = $('subSearch'); if (inp) { inp.value = ''; inp.focus(); }
+}
+
+function renderChosenSubstitute() {
+  var box = $('subChosen');
+  if (!box) return;
+  if (!oosSubstitute) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.innerHTML = '🎩 替代貨品：' + esc(oosSubstitute.name || oosSubstitute.id) +
+    (oosSubstitute.barcode ? '（' + esc(oosSubstitute.barcode) + '）' : '') +
+    '　<button type="button" onclick="pickNewSubstitute()" ' +
+    'style="border:none;background:none;color:#0071e3;font-size:13px;font-weight:700;cursor:pointer;">改</button>';
+}
+
+function onSubSearchInput() {
+  var q = String(($('subSearch') || {}).value || '').trim().toLowerCase();
+  var box = $('subResults');
+  if (!box) return;
+  if (!q) { box.style.display = 'none'; box.innerHTML = ''; return; }
+
+  var selfId = String(oosTargetId || '');
+  var hits = allData.filter(function (d) {
+    if (String(d.id) === selfId) return false;          // 唔可以揀自己
+    if (String(d.name_zh || '').toLowerCase().indexOf(q) >= 0) return true;
+    if (String(d.name || '').toLowerCase().indexOf(q) >= 0) return true;
+    if (String(d.sku || '').trim().toLowerCase().indexOf(q) >= 0) return true;
+    if (String(d.brand || '').toLowerCase().indexOf(q) >= 0) return true;
+    return barcodeMatches(d.barcode, q);
+  }).slice(0, 10);
+
+  if (!hits.length) {
+    box.style.display = 'block';
+    box.innerHTML = '<div style="color:#86868b;font-size:13px;padding:10px;text-align:center;">搵唔到，試下打條碼尾或者 SKU</div>';
+    return;
+  }
+  box.style.display = 'block';
+  box.innerHTML = hits.map(function (d) {
+    var bc = String(d.barcode || '').trim();
+    return '<div class="sub-result" onclick="chooseSubstitute(\'' + escAttr(d.id) + '\')">' +
+      '<div class="sr-name">' + esc(d.name_zh || d.name || '（無名）') + '</div>' +
+      '<div class="sr-meta">ID ' + esc(d.id) +
+        (d.sku ? ' · SKU ' + esc(d.sku) : '') +
+        (bc ? ' · ' + esc(bc) : '') + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function chooseSubstitute(id) {
+  var d = allData.find(function (x) { return String(x.id) === String(id); });
+  if (!d) return;
+  oosSubstitute = {
+    id: String(d.id),
+    barcode: String(d.barcode || '').trim(),
+    name: d.name_zh || d.name || ''
+  };
+  $('subResults').style.display = 'none';
+  $('subSearch').value = '';
+  renderChosenSubstitute();
+}
+
+/** 掃碼揀替代貨品 */
+function scanSubstitute() {
+  openScanner('掃描替代貨品條碼', 'substitute');
+}
+
+/** 掃到條碼之後：自動配對貨品 */
+function applyScannedSubstitute(decoded) {
+  var code = String(decoded || '').trim();
+  if (!code) return;
+  var selfId = String(oosTargetId || '');
+  var hits = allData.filter(function (d) {
+    if (String(d.id) === selfId) return false;
+    return String(d.id) === code || barcodeMatches(d.barcode, code) ||
+           String(d.sku || '').trim() === code;
+  });
+  if (hits.length === 1) {
+    chooseSubstitute(hits[0].id);
+    toast('✅ 已揀替代貨品：' + (hits[0].name_zh || hits[0].name), 2500);
+  } else if (hits.length > 1) {
+    $('subResults').style.display = 'block';
+    $('subResults').innerHTML = hits.slice(0, 10).map(function (d) {
+      return '<div class="sub-result" onclick="chooseSubstitute(\'' + escAttr(d.id) + '\')">' +
+        '<div class="sr-name">' + esc(d.name_zh || d.name) + '</div>' +
+        '<div class="sr-meta">ID ' + esc(d.id) + ' · ' + esc(String(d.barcode || '')) + '</div></div>';
+    }).join('');
+    toast('有 ' + hits.length + ' 件吻合，請揀一件', 2500);
+  } else {
+    toast('❌ 搵唔到條碼 ' + code + ' 嘅貨品', 3000);
+  }
+}
+
+/** 提交時儲存替代貨品 */
+async function saveSubstituteForCurrent() {
+  if (!oosTargetId || !oosSubstitute) return null;
+  if (!substituteReasonSelected()) return null;
+  var p = allData.find(function (d) { return String(d.id) === String(oosTargetId); });
+  try {
+    return await apiPost({
+      action: 'saveSubstitute',
+      productId: oosTargetId,
+      productName: p ? (p.name_zh || p.name) : '',
+      subId: oosSubstitute.id,
+      subBarcode: oosSubstitute.barcode,
+      subName: oosSubstitute.name
+    });
+  } catch (e) { console.warn('saveSubstitute 失敗：', e); return null; }
+}
+
 // ---- #58 回報缺貨彈窗內嘅件數（跟住同一張單）----
 var ootDirty = false;
 
@@ -3221,11 +3469,12 @@ async function ootSaveForCurrentOrder() {
 // ============================================================
 var allOrderTotals = [];
 var OT_KINDS = [
-  { key: 'dry',    label: '干貨' },
-  { key: 'egg',    label: '旦貨' },
-  { key: 'chill',  label: '風貨（0-4度）' },
-  { key: 'frozen', label: '凍貨（-18度）' },
-  { key: 'bulky',  label: '大件（sim卡／禮券）' }
+  { key: 'dry',      label: '干貨' },
+  { key: 'egg',      label: '旦貨' },
+  { key: 'chill',    label: '風貨（0-4度）' },
+  { key: 'frozen',   label: '凍貨（-18度）' },
+  { key: 'bulky',    label: '大件（sim卡／禮券）' },
+  { key: 'original', label: '原箱' }
 ];
 
 function otSelectChip(btn, groupId) {
@@ -3626,7 +3875,7 @@ function saveOOSRecordEditor() {
 
   if (date && date.length !== 8) { $('oeErr').textContent = '❌ 日期要 8 位（YYYYMMDD）'; return; }
   if (tail && tail.length > 4)   { $('oeErr').textContent = '❌ 單號尾最多 4 位'; return; }
-  if (isNaN(qty) || qty < 1)     { $('oeErr').textContent = '❌ 件數要 1 或以上'; return; }
+  if (isNaN(qty) || qty < 0)     { $('oeErr').textContent = '❌ 件數要 0 或以上'; return; }
 
   var fields = {
     orderDate: date,
@@ -3905,7 +4154,7 @@ function renderOOSLog() {
     var slot = String(r.timeSlot || '').trim();
     var type = String(r.orderType || '').trim();
     var date = String(r.orderDate || '').trim();
-    var q = parseInt(r.qty, 10); if (isNaN(q) || q < 1) q = 1;
+    var q = parseInt(r.qty, 10); if (isNaN(q) || q < 0) q = 1;      // #60：0 件合法
 
     if (!tail && !slot && !type) {
       loose.push(r); looseQty += q;
@@ -3976,11 +4225,12 @@ function renderOOSLog() {
 // ============================================================
 var _oosLogGroups = [];
 var OTG_SHORT = [
-  { key: 'dry',    short: '干' },
-  { key: 'egg',    short: '旦' },
-  { key: 'chill',  short: '風' },
-  { key: 'frozen', short: '凍' },
-  { key: 'bulky',  short: '大' }
+  { key: 'dry',      short: '干' },
+  { key: 'egg',      short: '旦' },
+  { key: 'chill',    short: '風' },
+  { key: 'frozen',   short: '凍' },
+  { key: 'bulky',    short: '大' },
+  { key: 'original', short: '原' }
 ];
 
 /** 搵某張單（日期＋單號尾）嘅件數記錄 */
@@ -4082,7 +4332,7 @@ async function saveGroupTotals(gi) {
 /** 單筆缺貨紀錄嘅 HTML（單號檢視、巡查段、跟進動作檢視共用） */
 function oosLogItemHtml(r, showDate) {
   var st = oosStatusLabel(r);
-  var q = parseInt(r.qty, 10); if (isNaN(q) || q < 1) q = 1;
+  var q = parseInt(r.qty, 10); if (isNaN(q) || q < 0) q = 1;      // #60：0 件合法
   var meta = [];
   if (showDate) { var dd = prettyYMD(r.orderDate); if (dd) meta.push('📅 ' + dd); }
   // #55：送貨時段／單類型一直顯示（唔好淨係靠分組標題）
@@ -4128,7 +4378,7 @@ function renderOOSLogByAction(recs, truncated, CAP) {
     // #53：動作係每筆記錄自己嘅欄位，唔再由原因推導
     var act = String(r.action || '').trim() || UN;
     if (!groups[act]) { groups[act] = { action: act, items: [], qty: 0 }; order.push(act); }
-    var q = parseInt(r.qty, 10); if (isNaN(q) || q < 1) q = 1;
+    var q = parseInt(r.qty, 10); if (isNaN(q) || q < 0) q = 1;      // #60：0 件合法
     groups[act].items.push(r);
     groups[act].qty += q;
   });
@@ -4216,7 +4466,7 @@ function renderProductHistory() {
   var body = recs.map(function (r) {
     var st = oosStatusLabel(r);
     if (String(r.status || '').trim() === 'active') activeN++;
-    var q = parseInt(r.qty, 10); if (isNaN(q) || q < 1) q = 1;
+    var q = parseInt(r.qty, 10); if (isNaN(q) || q < 0) q = 1;      // #60：0 件合法
     totalQty += q;
 
     var d = prettyYMD(r.orderDate);
@@ -6907,6 +7157,12 @@ function onScanSuccess(decodedText) {
   if (!isScanning) return;
   if (navigator.vibrate) navigator.vibrate(80);
   setScanStatus('✅ 已辨識：' + decodedText, 'ok');
+
+  if (scanMode === 'substitute') {
+    closeScan();
+    setTimeout(function () { applyScannedSubstitute(decodedText); }, 200);
+    return;
+  }
 
   if (scanMode === 'search') {
     // 相機掃描：帶入「完整」條碼（可 > 6 位）。
