@@ -424,6 +424,9 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .login-box button { width: 100%; padding: 18px; background: #0071e3; color: #fff; border: none; border-radius: 14px; font-size: 19px; font-weight: 700; cursor: pointer; }
 .remember-row { display: flex; align-items: center; gap: 10px; margin: -4px 0 18px; font-size: 16px; color: #1d1d1f; cursor: pointer; user-select: none; }
 .remember-row input[type="checkbox"] { width: 22px; height: 22px; accent-color: #0071e3; cursor: pointer; margin: 0; }
+/* #68：掃描器一定要喺最上層（例如由「回報缺貨」彈窗撳 📷 時，
+   回報缺貨彈窗喺 DOM 排得較後、z-index 又一樣，會遮住個鏡頭） */
+#scanModal { z-index: 1500; }
 #scanModal .modal-content { border-radius: 24px; margin: 16px; max-height: 95vh; padding: 24px; align-self: center; }
 #reader { width: 100%; border-radius: 14px; overflow: hidden; background: #000; }
 .scan-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
