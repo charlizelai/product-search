@@ -1012,6 +1012,13 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       <label>品牌</label>
       <input id="f_brand" autocomplete="off" placeholder="例：明治（惠康自動更新時會自動填入）">
     </div>
+    <!-- #71：原箱排數（例：24 支 = 4 排 × 6） -->
+    <div class="field">
+      <label>原箱排數（AA 欄）</label>
+      <input id="f_case_rows" autocomplete="off" inputmode="numeric" placeholder="例：4（24 支 = 4 排 × 6）">
+      <div class="field-note" id="f_case_rows_note" style="display:none;"></div>
+    </div>
+
     <div class="field"><label>描述</label><textarea id="f_description"></textarea></div>
 
     <div class="section-title">📦 倉庫位置 (L ~ S)</div>
@@ -1744,7 +1751,8 @@ let HK_BUSY_DAYS = {};
 
 const $ = function(id) { return document.getElementById(id); };
 const FIELDS = ['id','barcode','name','name_zh','price','original_price','image','category_en','category_zh','description',
-                'brand','sku','temp_location','combine','warehouse','island','aisle','crosslane','shelfnumber','floor'];
+                'brand','sku','temp_location','combine','warehouse','island','aisle','crosslane','shelfnumber','floor',
+                'case_rows'];   // #71：原箱幾多排（AA 欄）
 
 
 // ============================================================
@@ -3312,6 +3320,54 @@ function renderChosenSubstitute() {
  *     所以「500毫升」後面永遠冇邊界 → 舊版正則式會完全匹配失敗。
  *     改用「後面唔可以再係英文字母數字」嘅 lookahead。
  */
+/** #71 「六」「12」→ 數字 */
+function parsePackCountCn(v) {
+  var s = String(v || '').trim();
+  var n = parseInt(s, 10);
+  if (!isNaN(n)) return n;
+  var map = { '一':1,'二':2,'兩':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10 };
+  if (map[s]) return map[s];
+  if (s.length === 2 && s.charAt(0) === '十' && map[s.charAt(1)]) return 10 + map[s.charAt(1)];
+  if (s.length === 2 && s.charAt(1) === '十' && map[s.charAt(0)]) return map[s.charAt(0)] * 10;
+  return 0;
+}
+
+/**
+ * #71 由原箱品名拆出「總件數 / 每件容量 / 排數」。
+ *   4 x 6 x 250ML       → 排 4、每排 6、共 24
+ *   五包裝 6 X 90GM     → 每排 5、共 6（除唔盡就唔用）
+ *   24 X 500ML          → 只有總數 24
+ */
+function parseCasePacking(name) {
+  var s = String(name || '');
+
+  var m3 = s.match(/([0-9]+)\s*[xX×*]\s*([0-9]+)\s*[xX×*]\s*([0-9]+(?:\.[0-9]+)?)\s*([A-Za-z毫升升克]+)/);
+  if (m3) {
+    var a1 = parseInt(m3[1], 10), b1 = parseInt(m3[2], 10);
+    return { rows: a1, perRow: b1, total: a1 * b1, size: parseFloat(m3[3]), source: '三段式' };
+  }
+
+  var packM = s.match(/([0-9一二三四五六七八九十兩]+)\s*包裝/) || s.match(/([0-9]+)\s*包(?!裝)/);
+  var mt = s.match(/([0-9]+)\s*[xX×*]\s*([0-9]+(?:\.[0-9]+)?)\s*([A-Za-z毫升升克]+)/);
+  if (packM && mt) {
+    var perRow = parsePackCountCn(packM[1]);
+    var total = parseInt(mt[1], 10);
+    if (perRow > 0 && total > 0 && total % perRow === 0) {
+      return { rows: total / perRow, perRow: perRow, total: total, size: parseFloat(mt[2]), source: '包裝數' };
+    }
+  }
+  // 「24包 250 ML」（冇 x）
+  var m4 = s.match(/([0-9]+)\s*包\s*([0-9]+(?:\.[0-9]+)?)\s*([A-Za-z毫升升克]+)/);
+  if (m4) {
+    return { rows: 0, perRow: 0, total: parseInt(m4[1], 10), size: parseFloat(m4[2]), source: '包數' };
+  }
+
+  if (mt) {
+    return { rows: 0, perRow: 0, total: parseInt(mt[1], 10), size: parseFloat(mt[2]), source: '總數' };
+  }
+  return null;
+}
+
 var PACK_UNIT_RE = '(毫升|毫升裝|升裝|升|克|千克|公斤|鍵|LTR|LT|ML|KG|GM|GR|L|G)';
 var PACK_UNIT_TAIL = '(?![A-Za-z0-9])';
 
@@ -5741,6 +5797,23 @@ function renderCard(d) {
     simBadge = '<span class="sim-badge" style="background:' + color + ';">相似 ' + score + '%</span>';
   }
 
+  // #71：原箱 → 顯示「一箱幾多支 × 容量 · 幾多排」
+  var caseInfoHtml = '';
+  if (String(d.name_zh || d.name || '').indexOf('原箱') >= 0) {
+    var pk = parseCasePacking((d.name_zh || d.name));
+    var rowsN = parseInt(d.case_rows, 10);
+    if (pk && pk.total) {
+      var perRow = (rowsN > 0) ? Math.round(pk.total / rowsN) : 0;
+      caseInfoHtml = '<div style="margin-top:6px; font-size:12px; font-weight:700; color:#0b5aa6;' +
+        ' background:#eef6ff; border-radius:8px; padding:6px 9px; line-height:1.5;">' +
+        '📦 一箱 ' + pk.total + ' 件' + (pk.size ? (' × ' + pk.size) : '') +
+        (rowsN > 0
+          ? ('　·　' + rowsN + ' 排 × ' + perRow + '（每排 ' + perRow + ' 件）')
+          : '　·　<span style="color:#b25000;">排數未填</span>') +
+        '</div>';
+    }
+  }
+
   // #66：手動新入、惠康仲未有 → 卡上顯示標記
   var newItemBanner = (String(d.new_item || '').trim() === '1')
     ? '<div style="background:#e8f5e9; color:#1b5e20; border-left:4px solid #2e7d32; border-radius:8px;' +
@@ -5898,6 +5971,7 @@ function renderCard(d) {
     oosBanner +
     tempIdBanner +
     newItemBanner +
+    caseInfoHtml +
     catChipHtml +
     barcodeHtml +
     '<div class="loc-section">' +
