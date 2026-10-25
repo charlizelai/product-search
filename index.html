@@ -1104,7 +1104,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <button type="button" onclick="stepOOSQty(-1)"
           style="width:44px; height:44px; border-radius:10px; border:2px solid #d2d2d7; background:#f5f5f7; font-size:22px; font-weight:700; cursor:pointer; line-height:1;">−</button>
-        <input id="oosQty" type="text" inputmode="numeric" maxlength="4" value="1"
+        <input id="oosQty" type="text" inputmode="numeric" maxlength="4" value="1" oninput="onOOSQtyInput()"
           style="width:88px; padding:9px 12px; font-size:20px; font-weight:800; text-align:center;
                  border:2px solid #d2d2d7; border-radius:10px; -webkit-appearance:none; font-family:inherit;">
         <button type="button" onclick="stepOOSQty(1)"
@@ -1205,6 +1205,19 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
                   style="padding:9px 12px; border:2px solid #0071e3; border-radius:10px; background:#fff;
                          color:#0071e3; font-size:13px; font-weight:700; cursor:pointer;">🧮 自動計</button>
         </div>
+        <!-- #69：缺貨件數係 0 時，用「試算數量」計 -->
+        <div id="subTrialWrap" style="display:none; margin-top:10px; padding-top:10px; border-top:1px dashed #b9d6f5;">
+          <label style="display:block; font-size:13px; font-weight:700; margin-bottom:6px; color:#0b5aa6;">
+            🧪 缺貨件數係 0 —— 試算：假設缺幾多件？
+          </label>
+          <input id="subTrialQty" type="text" inputmode="numeric" maxlength="4" value="1"
+                 oninput="onSubTrialInput()"
+                 style="width:88px; padding:8px 12px; font-size:18px; font-weight:800; text-align:center;
+                        border:2px solid #d2d2d7; border-radius:10px; background:#fff;
+                        -webkit-appearance:none; font-family:inherit; outline:none;">
+          <span style="font-size:12px; color:#86868b; margin-left:8px;">件（只係試算，唔會改上面嘅 0）</span>
+        </div>
+
         <div id="subQtyHint" style="font-size:12px; color:#0071e3; margin-top:6px; line-height:1.55;"></div>
       </div>
     </div>
@@ -2355,6 +2368,8 @@ function reportOOS(id) {
   oosSubstitute = null;      // #61
   var sw = $('subBoxWrap'); if (sw) sw.style.display = 'none';
   var sq0 = $('subQty'); if (sq0) sq0.value = '';
+  var st0 = $('subTrialQty'); if (st0) st0.value = '1';
+  var tw0 = $('subTrialWrap'); if (tw0) tw0.style.display = 'none';
   var qw0 = $('subQtyWrap'); if (qw0) qw0.style.display = 'none';
   var qh0 = $('subQtyHint'); if (qh0) qh0.textContent = '';
   loadSubstitutes();         // 背景載入，揀咗「替代貨品」先會用到
@@ -3320,8 +3335,17 @@ function calcSubQty() {
   var p = allData.find(function (d) { return String(d.id) === String(oosTargetId); });
   if (!p || !oosSubstitute) return null;
 
-  var qty = parseInt(String(($('oosQty') || {}).value || '').replace(/[^0-9]/g, ''), 10);
-  if (isNaN(qty) || qty <= 0) return null;
+  var realQty = parseInt(String(($('oosQty') || {}).value || '').replace(/[^0-9]/g, ''), 10);
+  var isTrial = false;
+  var qty = realQty;
+
+  // #69：缺貨件數係 0（行架巡查用 0）→ 用「試算數量」（預設 1）計
+  if (isNaN(qty) || qty <= 0) {
+    var tq = parseInt(String(($('subTrialQty') || {}).value || '').replace(/[^0-9]/g, ''), 10);
+    if (isNaN(tq) || tq <= 0) tq = 1;
+    qty = tq;
+    isTrial = true;
+  }
 
   var o = parsePackVolume(p.name_zh || p.name);
   var sb = parsePackVolume(oosSubstitute.name);
@@ -3329,7 +3353,7 @@ function calcSubQty() {
 
   var need = Math.ceil((qty * o.volume) / sb.volume);
   return {
-    need: need,
+    need: need, isTrial: isTrial, realQty: realQty,
     origName: p.name_zh || p.name, qty: qty,
     origVol: o.volume, subVol: sb.volume,
     totalOrig: qty * o.volume,
@@ -3341,25 +3365,54 @@ function calcSubQty() {
 /** autoFill=true 時直接寫入輸入框；false 時只顯示建議 */
 function suggestSubQty(autoFill) {
   var hint = $('subQtyHint');
+  var realQty = parseInt(String(($('oosQty') || {}).value || '').replace(/[^0-9]/g, ''), 10);
+  var isZero = !(realQty > 0);
+
+  // #69：缺貨 0 件 → 顯示試算輸入框
+  var tw = $('subTrialWrap');
+  if (tw) tw.style.display = isZero ? 'block' : 'none';
+
   var r = calcSubQty();
   if (!r) {
     if (hint) {
-      hint.textContent = (parseInt(String(($('oosQty') || {}).value || '').replace(/[^0-9]/g, ''), 10) > 0)
+      hint.textContent = isZero
         ? 'ℹ️ 品名睇唔出容量，請自己填件數。'
-        : 'ℹ️ 先填上面「缺貨件數」，就會自動計。';
+        : 'ℹ️ 品名睇唔出容量，請自己填件數。';
     }
     return null;
   }
+
   if (hint) {
-    hint.innerHTML = '原貨品每件 <b>' + esc(r.origDesc) + '</b>，總共 <b>' + r.qty + ' 件</b> = ' +
-      r.totalOrig + '；替代貨品每件 <b>' + esc(r.subDesc) + '</b> → 建議 <b>' + r.need + ' 件</b>' +
+    var prefix = r.isTrial ? '🧪 <b>試算</b>（缺貨填 0，假設 ' + r.qty + ' 件）：' : '';
+    hint.innerHTML = prefix +
+      '原貨品每件 <b>' + esc(r.origDesc) + '</b>，' + r.qty + ' 件 = ' + r.totalOrig +
+      '；替代貨品每件 <b>' + esc(r.subDesc) + '</b> → 建議 <b>' + r.need + ' 件</b>' +
       '（' + r.need + '×' + r.subVol + ' = ' + (r.need * r.subVol) + '）';
   }
+
   if (autoFill) {
     var el = $('subQty');
     if (el) el.value = String(r.need);
   }
   return r;
+}
+
+/** #69：試算數量改動 → 重新計 */
+function onSubTrialInput() {
+  var el = $('subTrialQty');
+  if (!el) return;
+  var clean = String(el.value || '').replace(/[^0-9]/g, '');
+  if (el.value !== clean) el.value = clean;
+  suggestSubQty(false);
+}
+
+/** #69：上面的「缺貨件數」改動 → 重新計（0 就轉做試算） */
+function onOOSQtyInput() {
+  var el = $('oosQty');
+  if (!el) return;
+  var clean = String(el.value || '').replace(/[^0-9]/g, '');
+  if (el.value !== clean) el.value = clean;
+  if (oosSubstitute) suggestSubQty(false);
 }
 
 function onSubQtyInput() {
