@@ -3306,26 +3306,45 @@ function renderChosenSubstitute() {
  *   「維他檸檬茶 9 X 250ML」→ { count: 9, size: 250, unit: 'ML', volume: 2250 }
  *   支援 ML / L / G / GM / KG / 克 / 毫升 / 升
  */
+/**
+ * #70 容量單位。⚠️ 中文單位（毫升／升／克）唔可以用 \b 結尾 ——
+ *     \b 只對英文字母數字有效，中文字唔算 word char，
+ *     所以「500毫升」後面永遠冇邊界 → 舊版正則式會完全匹配失敗。
+ *     改用「後面唔可以再係英文字母數字」嘅 lookahead。
+ */
+var PACK_UNIT_RE = '(毫升|毫升裝|升裝|升|克|千克|公斤|鍵|LTR|LT|ML|KG|GM|GR|L|G)';
+var PACK_UNIT_TAIL = '(?![A-Za-z0-9])';
+
+function packUnitMult(unit) {
+  var u = String(unit || '').toUpperCase();
+  if (u.indexOf('毫升') >= 0) return 1;
+  if (u.indexOf('升') >= 0) return 1000;
+  if (u === 'L' || u === 'LT' || u === 'LTR') return 1000;
+  if (u === 'KG') return 1000;
+  if (u.indexOf('千克') >= 0 || u.indexOf('公斤') >= 0) return 1000;
+  return 1;   // ML / G / GM / GR / 克
+}
+
 function parsePackVolume(name) {
   var s = String(name || '');
-  var m = s.match(/([0-9]+(?:\.[0-9]+)?)\s*[xX×*]\s*([0-9]+(?:\.[0-9]+)?)\s*(ML|L|LT|LTR|G|GM|GR|KG|克|毫升|升)/i);
+
+  // ① 多件裝：「9 X 250ML」「24 X 500毫升」
+  var re1 = new RegExp('([0-9]+(?:\\.[0-9]+)?)\\s*[xX×*]\\s*([0-9]+(?:\\.[0-9]+)?)\\s*' +
+                       PACK_UNIT_RE + PACK_UNIT_TAIL, 'i');
+  var m = s.match(re1);
   if (m) {
     var cnt = parseFloat(m[1]), size = parseFloat(m[2]);
     var unit = String(m[3]).toUpperCase();
-    var mult = 1;
-    if (unit === 'L' || unit === 'LT' || unit === 'LTR' || unit === '升') mult = 1000;
-    else if (unit === 'KG') mult = 1000;
-    return { count: cnt, size: size, unit: unit, volume: cnt * size * mult };
+    return { count: cnt, size: size, unit: unit, volume: cnt * size * packUnitMult(unit) };
   }
-  // 淨係單一容量，例如「500ML」
-  var m2 = s.match(/([0-9]+(?:\.[0-9]+)?)\s*(ML|L|LT|LTR|G|GM|GR|KG|克|毫升|升)\b/i);
+
+  // ② 單一容量：「500ML」「500毫升」「1.5LT」
+  var re2 = new RegExp('([0-9]+(?:\\.[0-9]+)?)\\s*' + PACK_UNIT_RE + PACK_UNIT_TAIL, 'i');
+  var m2 = s.match(re2);
   if (m2) {
     var size2 = parseFloat(m2[1]);
     var unit2 = String(m2[2]).toUpperCase();
-    var mult2 = 1;
-    if (unit2 === 'L' || unit2 === 'LT' || unit2 === 'LTR' || unit2 === '升') mult2 = 1000;
-    else if (unit2 === 'KG') mult2 = 1000;
-    return { count: 1, size: size2, unit: unit2, volume: size2 * mult2 };
+    return { count: 1, size: size2, unit: unit2, volume: size2 * packUnitMult(unit2) };
   }
   return null;
 }
@@ -3375,9 +3394,16 @@ function suggestSubQty(autoFill) {
   var r = calcSubQty();
   if (!r) {
     if (hint) {
-      hint.textContent = isZero
-        ? 'ℹ️ 品名睇唔出容量，請自己填件數。'
-        : 'ℹ️ 品名睇唔出容量，請自己填件數。';
+      var p0 = allData.find(function (d) { return String(d.id) === String(oosTargetId); });
+      if (!p0) {
+        hint.textContent = '⚠️ 搵唔到原貨品資料，請自己填件數。';
+      } else if (!parsePackVolume(p0.name_zh || p0.name)) {
+        hint.textContent = 'ℹ️ 原貨品「' + (p0.name_zh || p0.name) + '」品名睇唔出容量，請自己填件數。';
+      } else if (!oosSubstitute || !parsePackVolume(oosSubstitute.name)) {
+        hint.textContent = 'ℹ️ 替代貨品品名睇唔出容量，請自己填件數。';
+      } else {
+        hint.textContent = 'ℹ️ 計唔到，請自己填件數。';
+      }
     }
     return null;
   }
