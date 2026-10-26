@@ -783,6 +783,37 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .otg-total { font-size: 16px; font-weight: 800; color: #0071e3; margin-left: auto; padding-right: 4px; }
 .otg-none { font-size: 14px; color: #86868b; padding: 8px 0; border-bottom: 1px solid #f2f2f7; }
 
+/* #76 缺貨紀錄：每行兩個「❄️貨類 [件數] 件 [地區]」 */
+.otg2-top {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 0 6px; border-bottom: 1px solid #f2f2f7; background: #fbfdff;
+}
+.otg2-badge { font-size: 15px; font-weight: 800; color: #1d1d1f; white-space: nowrap; }
+.otg2-all { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.otg2-name { font-size: 14px; font-weight: 800; color: #1d1d1f; white-space: nowrap; flex: 0 0 auto; }
+.otg2-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px;
+  padding: 8px 0 10px; border-bottom: 1px solid #f2f2f7;
+}
+.otg2-cell { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.otg2-num {
+  flex: 1 1 0; min-width: 38px; max-width: 64px; min-height: 46px; padding: 8px 3px;
+  font-size: 20px; font-weight: 800; text-align: center;
+  border: 2px solid #d2d2d7; border-radius: 10px; background: #fff;
+  -webkit-appearance: none; font-family: inherit; outline: none;
+}
+.otg2-num:focus { border-color: #0071e3; box-shadow: 0 0 0 3px rgba(0,113,227,.15); }
+.otg2-unit { flex: 0 0 auto; font-size: 13px; font-weight: 700; color: #86868b; }
+.otg2-cell .ot-dist {
+  flex: 1 1 0; width: auto; min-width: 52px; max-width: 78px;
+  min-height: 46px; padding: 8px 3px; font-size: 19px; letter-spacing: .5px; border-radius: 10px;
+}
+.otg2-cell .ot-dist::placeholder { font-size: 13px; letter-spacing: 0; }
+.otg2-all .ot-dist {
+  width: 74px; min-height: 46px; padding: 8px 3px; font-size: 19px; border-radius: 10px;
+}
+.otg2-all .ot-dist::placeholder { font-size: 13px; letter-spacing: 0; }
+
 /* #73 #74 地區編號 */
 .ot-dist {
   width: 100%; min-height: 50px; padding: 12px 8px;
@@ -4561,12 +4592,12 @@ function renderOOSLog() {
 // ============================================================
 var _oosLogGroups = [];
 var OTG_SHORT = [
-  { key: 'dry',      short: '干' },
-  { key: 'egg',      short: '旦' },
-  { key: 'chill',    short: '風' },
-  { key: 'frozen',   short: '凍' },
-  { key: 'bulky',    short: '大' },
-  { key: 'original', short: '原' }
+  { key: 'dry',      short: '干', name: '干貨' },
+  { key: 'egg',      short: '旦', name: '旦貨' },
+  { key: 'chill',    short: '風', name: '風貨' },
+  { key: 'frozen',   short: '凍', name: '凍貨' },
+  { key: 'bulky',    short: '大', name: '大件' },
+  { key: 'original', short: '原', name: '原箱' }
 ];
 
 /** 搵某張單（日期＋單號尾）嘅件數記錄 */
@@ -4587,35 +4618,35 @@ function oosLogGroupTotalsHtml(g, gi) {
   var t = findOrderTotalByKey(g.date, g.tail);
   var v = t || { dry: 0, egg: 0, chill: 0, frozen: 0, bulky: 0, total: 0 };
 
-  var cells = OTG_SHORT.map(function (k) {
-    return '<label class="otg-cell">' + k.short +
-      '<input id="otg' + gi + '_' + k.key + '" type="text" inputmode="numeric" maxlength="4"' +
-      ' value="' + (parseInt(v[k.key], 10) ? parseInt(v[k.key], 10) : '') + '" placeholder="0"' +
-      ' onchange="saveGroupTotals(' + gi + ')"></label>';
-  }).join('');
-
-  // #73/#75：🌏送 = 送貨地區（整張單）；❄️ = 掛貨暫存地區（每類貨）
+  // #76 每行兩個：❄️貨類 [件數] 件 [地區]
   var dAll = normDistrict(v.district || '');
   var ds = v.districts || {};
-  var dCells = OTG_SHORT.map(function (k) {
-    var id = 'otgd' + gi + '_' + k.key;
-    return '<label class="otg-cell">❄️' + k.short +
-      '<input id="' + id + '" class="otg-dist" type="text" maxlength="6" placeholder="W___"' +
-      ' value="' + esc(normDistrict(ds[k.key] || '')) + '"' +
-      ' onchange="saveGroupTotals(' + gi + ')"></label>';
+  var rem = loadHoldDist();
+
+  var cells2 = OTG_SHORT.map(function (k) {
+    var num = parseInt(v[k.key], 10);
+    var dv = normDistrict(ds[k.key] || '');
+    if (!dv && HOLD_DEFAULT_KINDS.indexOf(k.key) >= 0) dv = rem[k.key] || HOLD_DISTRICT_PREF[0];
+    return '<div class="otg2-cell">' +
+      '<span class="otg2-name">❄️ ' + k.name + '</span>' +
+      '<input id="otg' + gi + '_' + k.key + '" class="otg2-num" type="text" inputmode="numeric"' +
+      ' maxlength="4" value="' + (num ? num : '') + '" placeholder="0"' +
+      ' onchange="saveGroupTotals(' + gi + ')">' +
+      '<span class="otg2-unit">件</span>' +
+      '<input id="otgd' + gi + '_' + k.key + '" class="otg-dist" type="text" maxlength="6"' +
+      ' placeholder="W___" value="' + esc(dv) + '"' +
+      ' onchange="saveGroupTotals(' + gi + ')">' +
+    '</div>';
   }).join('');
 
-  return '<div class="otg-row">' +
-    '<span class="otg-cell" style="font-weight:800; color:#0071e3;">📦</span>' +
-    cells +
+  return '<div class="otg2-top">' +
+    '<span class="otg2-badge">📦 單尾 ' + esc(g.tail) + '</span>' +
+    '<span class="otg2-all"><span class="otg2-name">🌏 送</span>' +
+      '<input id="otgd' + gi + '_all" class="otg-dist" type="text" maxlength="6" placeholder="W___"' +
+      ' value="' + esc(dAll) + '" onchange="saveGroupTotals(' + gi + ')"></span>' +
     '<span class="otg-total" id="otgTotal' + gi + '">共 ' + (parseInt(v.total, 10) || 0) + ' 件</span>' +
   '</div>' +
-  '<div class="otg-row" style="border-top:none; padding-top:0;">' +
-    '<label class="otg-cell" style="font-weight:800; color:#0b5aa6;">🌏 送</label>' +
-    '<input id="otgd' + gi + '_all" class="otg-dist" type="text" maxlength="6" placeholder="W___"' +
-    ' value="' + esc(dAll) + '" onchange="saveGroupTotals(' + gi + ')">' +
-    dCells +
-  '</div>';
+  '<div class="otg2-grid">' + cells2 + '</div>';
 }
 
 /** 改咗任何一格就即刻儲存（一張單一組數字） */
