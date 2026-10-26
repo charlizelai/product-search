@@ -1597,16 +1597,6 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       而家填緊：<b id="otSelectedLabel">（未揀單）</b>
     </div>
 
-    <!-- #73 地區編號 -->
-    <div class="field" style="margin-bottom:12px;">
-      <label>🌏 地區編號（整張單）</label>
-      <input id="otDistrict" type="text" autocomplete="off" maxlength="6" placeholder="W___"
-             oninput="onDistrictInput('otDistrict')"
-             style="width:120px; padding:11px 12px; font-size:17px; font-weight:700; text-align:center;
-                    border:2px solid #d2d2d7; border-radius:12px; background:#fff;
-                    -webkit-appearance:none; font-family:inherit; outline:none;">
-    </div>
-
     <div class="section-title">件數</div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
       <div>
@@ -1641,21 +1631,42 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       </div>
     </div>
 
-    <!-- #73 每類貨各自嘅地區（唔填就跟上面「整張單」） -->
-    <div class="section-title">各地區（唔填就跟整張單）</div>
-    <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-bottom:14px;">
-      <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">干貨地區</label>
-        <input id="otd_dry" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_dry')"></div>
-      <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">旦貨地區</label>
-        <input id="otd_egg" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_egg')"></div>
-      <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">風貨地區</label>
-        <input id="otd_chill" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_chill')"></div>
-      <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">凍貨地區</label>
-        <input id="otd_frozen" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_frozen')"></div>
-      <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">大件地區</label>
-        <input id="otd_bulky" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_bulky')"></div>
-      <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">原箱地區</label>
-        <input id="otd_original" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_original')"></div>
+    <!-- #73/#75 地區：一節過，兩樣唔同嘅嘢 -->
+    <div class="section-title">🌏 地區</div>
+    <div style="background:#f5f5f7; border-radius:12px; padding:12px; margin-bottom:14px;">
+
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="flex:1;">
+          <div style="font-size:15px; font-weight:800;">送貨地區</div>
+          <div style="font-size:11px; color:#86868b; line-height:1.45; margin-top:2px;">整張單送去邊區</div>
+        </div>
+        <input id="otDistrict" type="text" autocomplete="off" maxlength="6" placeholder="W___"
+               oninput="onDistrictInput('otDistrict')"
+               style="width:120px; padding:11px 12px; font-size:17px; font-weight:700; text-align:center;
+                      border:2px solid #d2d2d7; border-radius:12px; background:#fff;
+                      -webkit-appearance:none; font-family:inherit; outline:none;">
+      </div>
+
+      <div style="height:1px; background:#dcdce0; margin:12px 0;"></div>
+
+      <div style="font-size:15px; font-weight:800;">❄️ 掛貨暫存地區</div>
+      <div style="font-size:11px; color:#86868b; line-height:1.55; margin:3px 0 10px;">
+        張單未齊料，要等中午／凌晨返貨之後再執，嗰堆貨臨時放入邊個地區嘅雪柜。
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px;">
+        <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">干貨</label>
+          <input id="otd_dry" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_dry')"></div>
+        <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">旦貨</label>
+          <input id="otd_egg" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_egg')"></div>
+        <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">風貨</label>
+          <input id="otd_chill" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_chill')"></div>
+        <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">凍貨</label>
+          <input id="otd_frozen" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_frozen')"></div>
+        <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">大件</label>
+          <input id="otd_bulky" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_bulky')"></div>
+        <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">原箱</label>
+          <input id="otd_original" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_original')"></div>
+      </div>
     </div>
 
     <div id="otTotalLine" style="font-size:17px; font-weight:800; color:#0071e3; text-align:center; margin-bottom:6px;">
@@ -4585,12 +4596,12 @@ function oosLogGroupTotalsHtml(g, gi) {
       ' onchange="saveGroupTotals(' + gi + ')"></label>';
   }).join('');
 
-  // #73：地區編號（整張單 + 每類）
+  // #73/#75：🌏送 = 送貨地區（整張單）；❄️ = 掛貨暫存地區（每類貨）
   var dAll = normDistrict(v.district || '');
   var ds = v.districts || {};
   var dCells = OTG_SHORT.map(function (k) {
     var id = 'otgd' + gi + '_' + k.key;
-    return '<label class="otg-cell">🌏' + k.short +
+    return '<label class="otg-cell">❄️' + k.short +
       '<input id="' + id + '" class="otg-dist" type="text" maxlength="6" placeholder="W___"' +
       ' value="' + esc(normDistrict(ds[k.key] || '')) + '"' +
       ' onchange="saveGroupTotals(' + gi + ')"></label>';
@@ -4602,7 +4613,7 @@ function oosLogGroupTotalsHtml(g, gi) {
     '<span class="otg-total" id="otgTotal' + gi + '">共 ' + (parseInt(v.total, 10) || 0) + ' 件</span>' +
   '</div>' +
   '<div class="otg-row" style="border-top:none; padding-top:0;">' +
-    '<label class="otg-cell" style="font-weight:800; color:#0b5aa6;">🌏 單</label>' +
+    '<label class="otg-cell" style="font-weight:800; color:#0b5aa6;">🌏 送</label>' +
     '<input id="otgd' + gi + '_all" class="otg-dist" type="text" maxlength="6" placeholder="W___"' +
     ' value="' + esc(dAll) + '" onchange="saveGroupTotals(' + gi + ')">' +
     dCells +
