@@ -941,8 +941,67 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     <input type="text" id="regInvite" placeholder="邀請碼（問管理員）"
            autocapitalize="characters" autocorrect="off" spellcheck="false">
     <div class="login-err" id="regErr"></div>
-    <button onclick="register()">註冊並登入</button>
+    <button onclick="register()">下一步</button>
     <div class="login-switch"><a href="#" onclick="showLoginPane();return false;">已經有帳戶？返回登入</a></div>
+  </div>
+
+  <!-- #77 用邀碼登記但未過數 -->
+  <div id="payPane" style="display:none">
+    <div style="background:#fff8e1; border:2px solid #ffb300; border-radius:14px;
+                padding:14px; margin-bottom:14px; font-size:15px; line-height:1.75; color:#6d4c00;">
+      <div style="font-size:17px; font-weight:800; margin-bottom:8px;">⏳ 仲差一步：轉數快過數</div>
+      <div>登記名稱：<b id="payNameLbl">—</b></div>
+      <div>應付金額：<b style="font-size:22px; color:#d84315;">HK$88</b></div>
+      <div>轉數快 FPS：<b style="font-size:24px; letter-spacing:2px;">91513427</b></div>
+      <div style="font-size:12px; color:#8d6e63; margin-top:8px; line-height:1.6;">
+        用銀行 App／八達通銀包／AlipayHK／WeChat Pay 揀「轉數快 FPS」，
+        入上面嘅電話號碼，轉 HK$88。
+      </div>
+    </div>
+    <input type="text" id="payRef" placeholder="過數參考編號／備註（可留空）"
+           autocapitalize="off" autocorrect="off" spellcheck="false">
+    <div class="login-err" id="payErr"></div>
+    <button onclick="submitPayProof()">✅ 我已經過咗數</button>
+    <div class="login-switch"><a href="#" onclick="showLoginPane();return false;">返回登入</a></div>
+    <div class="login-note">管理員確認收款之後，你就可以用同一個名＋密碼登入。</div>
+  </div>
+</div>
+
+<!-- #77 收款管理（管理員） -->
+<div class="modal" id="payMgrModal" style="align-items:center;">
+  <div class="modal-content" style="border-radius:24px; margin:12px; max-height:90vh; padding:20px 16px;">
+    <h2 style="margin:0 0 12px; font-size:20px;">💰 收款管理</h2>
+    <div style="background:#f0f7ff; border-radius:10px; padding:10px 12px; margin-bottom:14px;
+                font-size:13px; color:#0071e3; line-height:1.6;">
+      轉數快 FPS：<b>91513427</b>　·　每個收費碼 HK$88
+    </div>
+
+    <div class="section-title">⏳ 等確認收款</div>
+    <div id="payPendingList" style="margin-bottom:14px;"></div>
+
+    <div class="section-title">🎟️ 邀請碼</div>
+    <div id="payInviteList" style="margin-bottom:14px;"></div>
+
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
+      <input id="newInviteCode" type="text" placeholder="新碼（例 HK99）"
+             style="flex:1 1 110px; min-width:0; padding:10px; font-size:15px;
+                    border:2px solid #d2d2d7; border-radius:10px; font-family:inherit;">
+      <select id="newInviteType" style="padding:10px; font-size:15px; border:2px solid #d2d2d7;
+                                        border-radius:10px; font-family:inherit;">
+        <option value="free">免費</option>
+        <option value="paid">收費 88</option>
+      </select>
+      <input id="newInviteUses" type="text" inputmode="numeric" value="5" placeholder="人數"
+             style="width:66px; padding:10px; font-size:15px; border:2px solid #d2d2d7;
+                    border-radius:10px; font-family:inherit;">
+      <button type="button" onclick="createInviteUI()"
+              style="padding:10px 14px; border:2px solid #0071e3; border-radius:10px; background:#fff;
+                     color:#0071e3; font-size:15px; font-weight:800; cursor:pointer;">＋ 新增</button>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closePayMgr()">關閉</button>
+    </div>
   </div>
 </div>
 
@@ -954,6 +1013,8 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
         style="display:none;background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">⚙️</button>
       <button id="btnUserMgr" onclick="openUserMgr()" title="員工管理"
         style="display:none;background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">👥</button>
+      <button id="btnPayMgr" onclick="openPayMgr()" title="收款管理"
+        style="display:none;background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">💰</button>
       <button id="btnLogout" onclick="logout()" title="登出"
         style="background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">🚪</button>
     </h1>
@@ -1961,12 +2022,65 @@ function generateTempId() {
 function showLoginPane() {
   $('loginPane').style.display = 'block';
   $('registerPane').style.display = 'none';
+  var pp = $('payPane'); if (pp) pp.style.display = 'none';
   $('loginTitle').textContent = '🔐 登入';
   var e1 = $('loginErr'); if (e1) e1.textContent = '';
 }
 
+// ============================================================
+//  #77  付費（轉數快 FPS）—— 用邀碼登記但未過數
+// ============================================================
+var _pendingPay = null;
+
+function showPayPane(info) {
+  _pendingPay = info || {};
+  $('loginPane').style.display = 'none';
+  $('registerPane').style.display = 'none';
+  var pp = $('payPane'); if (pp) pp.style.display = 'block';
+  $('loginTitle').textContent = '💳 付費 HK$' + (_pendingPay.amount || 88);
+  var nl = $('payNameLbl'); if (nl) nl.textContent = _pendingPay.name || '—';
+  var pe = $('payErr'); if (pe) { pe.textContent = ''; pe.style.color = ''; }
+  var pr = $('payRef'); if (pr) pr.value = '';
+  var pbtn = $('payPane') ? $('payPane').querySelector('button') : null;
+  if (pbtn) { pbtn.style.display = 'block'; pbtn.disabled = false; }
+  try { navigator.clipboard.writeText('91513427'); toast('📋 已複製轉數快號碼 91513427'); } catch (e) {}
+}
+
+async function submitPayProof() {
+  var err = $('payErr');
+  if (err) { err.textContent = ''; err.style.color = ''; }
+  if (!_pendingPay || !_pendingPay.name) {
+    if (err) err.textContent = '請重新登記一次';
+    return;
+  }
+  var btn = $('payPane') ? $('payPane').querySelector('button') : null;
+  if (btn) btn.disabled = true;
+  try {
+    var res = await apiPost({
+      action: 'submitPaymentProof',
+      name: _pendingPay.name,
+      password: _pendingPay.password || '',
+      ref: (($('payRef') || {}).value || '').trim()
+    });
+    if (!res || res.error) {
+      if (err) err.textContent = '❌ ' + ((res && res.error) || '提交失敗');
+      if (btn) btn.disabled = false;
+      return;
+    }
+    if (err) {
+      err.style.color = '#2e7d32';
+      err.textContent = res.message || '✅ 已經通知管理員';
+    }
+    if (btn) btn.style.display = 'none';
+  } catch (e) {
+    if (err) err.textContent = '❌ ' + e.message;
+    if (btn) btn.disabled = false;
+  }
+}
+
 function showRegisterPane() {
   $('loginPane').style.display = 'none';
+  var pp = $('payPane'); if (pp) pp.style.display = 'none';
   $('registerPane').style.display = 'block';
   $('loginTitle').textContent = '📝 註冊新帳戶';
   var e2 = $('regErr'); if (e2) e2.textContent = '';
@@ -2024,6 +2138,10 @@ async function login() {
   if (btn) btn.disabled = true;
   try {
     var res = await apiPost({ action: 'login', name: name, password: pwd, remember: remember });
+    if (res && res.pending) {          // #77 未過數 / 未確認
+      showPayPane({ name: name, password: pwd, amount: res.amount, fps: res.fps });
+      return;
+    }
     if (!res || res.error) {
       if (err) err.textContent = '❌ ' + ((res && res.error) || '登入失敗');
       return;
@@ -2063,6 +2181,11 @@ async function register() {
       action: 'register', name: name, displayName: display,
       password: p1, inviteCode: invite
     });
+    if (res && res.pending) {          // #77 需要付款
+      showPayPane({ name: name, password: p1, amount: res.amount,
+                    fps: res.fps, invite: res.inviteCode });
+      return;
+    }
     if (!res || res.error) {
       if (err) err.textContent = '❌ ' + ((res && res.error) || '註冊失敗');
       return;
@@ -2140,6 +2263,7 @@ async function logout() {
   $('stats').textContent = '載入中...';
   $('btnOptionsMgr').style.display = 'none';
   var bum2 = $('btnUserMgr'); if (bum2) bum2.style.display = 'none';   // #38
+  var bpm2 = $('btnPayMgr'); if (bpm2) bpm2.style.display = 'none';    // #77
   $('phashBanner').style.display = 'none';
   $('tempIdBanner').style.display = 'none';
   toast('👋 已登出');
@@ -2150,6 +2274,7 @@ function showApp() {
   $('appScreen').style.display = 'block';
   $('btnOptionsMgr').style.display = isAdmin ? 'inline-block' : 'none';
   var bum = $('btnUserMgr'); if (bum) bum.style.display = isAdmin ? 'inline-block' : 'none';   // #38
+  var bpm = $('btnPayMgr'); if (bpm) bpm.style.display = isAdmin ? 'inline-block' : 'none';     // #77
   loadOptions().then(function() {
     if (categoryFilter) {
       var sel = $('categoryFilter');
@@ -6370,6 +6495,163 @@ function openUserMgr() {
   refreshUserList();
 }
 function closeUserModal() { $('userModal').classList.remove('show'); }
+
+// ============================================================
+//  #77  管理員：收款管理
+// ============================================================
+var _payPending = [];
+var _payInvites = [];
+
+function openPayMgr() {
+  $('payMgrModal').classList.add('show');
+  loadPayPending();
+  loadPayInvites();
+}
+function closePayMgr() { $('payMgrModal').classList.remove('show'); }
+
+async function loadPayPending() {
+  var box = $('payPendingList');
+  if (!box) return;
+  box.innerHTML = '<div style="color:#86868b;font-size:13px;padding:10px;">載入中…</div>';
+  try {
+    var res = await apiGet('listPendingPayments');
+    if (!res || res.error) {
+      box.innerHTML = '<div style="color:#c62828;font-size:13px;padding:10px;">❌ ' +
+        esc((res && res.error) || '讀取失敗') + '</div>';
+      return;
+    }
+    _payPending = res.pending || [];
+    if (!_payPending.length) {
+      box.innerHTML = '<div style="color:#86868b;font-size:14px;padding:10px;">👍 目前冇人等緊確認</div>';
+      return;
+    }
+    box.innerHTML = _payPending.map(function (p, i) {
+      var when = String(p.at || '').replace('T', ' ').slice(0, 16);
+      return '<div style="background:#fff8e1;border-radius:10px;padding:10px 12px;margin-bottom:8px;">' +
+        '<div style="font-size:16px;font-weight:800;">' + esc(p.display || p.name) +
+          '<span style="font-size:12px;color:#86868b;font-weight:600;">（' + esc(p.name) + '）</span></div>' +
+        '<div style="font-size:12px;color:#6d4c00;line-height:1.6;margin:4px 0 8px;">' +
+          'HK$' + (parseInt(p.amount, 10) || 88) + '　·　碼 ' + esc(p.invite || '—') +
+          (when ? '　·　' + esc(when) : '') +
+          (p.note ? '<br>備註：' + esc(p.note) : '') + '</div>' +
+        '<div style="display:flex;gap:8px;">' +
+          '<button type="button" onclick="confirmPay(' + i + ')" ' +
+            'style="flex:1;padding:12px;border:none;border-radius:10px;background:#34c759;color:#fff;' +
+            'font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;">✅ 確認收款</button>' +
+          '<button type="button" onclick="rejectPay(' + i + ')" ' +
+            'style="padding:12px 16px;border:2px solid #d2d2d7;border-radius:10px;background:#fff;' +
+            'color:#c62828;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;">🗑</button>' +
+        '</div></div>';
+    }).join('');
+  } catch (e) {
+    box.innerHTML = '<div style="color:#c62828;font-size:13px;padding:10px;">❌ ' + esc(e.message) + '</div>';
+  }
+}
+
+async function confirmPay(i) {
+  var p = _payPending[i];
+  if (!p) return;
+  if (!confirm('確認已經收到 HK$' + (parseInt(p.amount, 10) || 88) + '（' + (p.display || p.name) + '）？\n撳 OK 之後佢即刻可以登入。')) return;
+  try {
+    var res = await apiPost({ action: 'confirmPayment', name: p.name });
+    if (!res || res.error) { toast('❌ ' + ((res && res.error) || '失敗'), 3000); return; }
+    toast('✅ 已開通 ' + res.name);
+    loadPayPending();
+    loadPayInvites();
+  } catch (e) { toast('❌ ' + e.message, 3000); }
+}
+
+async function rejectPay(i) {
+  var p = _payPending[i];
+  if (!p) return;
+  if (!confirm('刪除「' + (p.display || p.name) + '」嘅申請？（個名會空返出嚟）')) return;
+  try {
+    var res = await apiPost({ action: 'rejectPayment', name: p.name });
+    if (!res || res.error) { toast('❌ ' + ((res && res.error) || '失敗'), 3000); return; }
+    toast('🗑 已刪除 ' + res.removed);
+    loadPayPending();
+  } catch (e) { toast('❌ ' + e.message, 3000); }
+}
+
+async function loadPayInvites() {
+  var box = $('payInviteList');
+  if (!box) return;
+  box.innerHTML = '<div style="color:#86868b;font-size:13px;padding:10px;">載入中…</div>';
+  try {
+    var res = await apiGet('listInvites');
+    if (!res || res.error) {
+      box.innerHTML = '<div style="color:#c62828;font-size:13px;padding:10px;">❌ ' +
+        esc((res && res.error) || '讀取失敗') + '</div>';
+      return;
+    }
+    _payInvites = res.invites || [];
+    if (!_payInvites.length) {
+      box.innerHTML = '<div style="color:#86868b;font-size:14px;padding:10px;">' +
+        '仲未建立邀請碼（可以喺編輯器執行 setupDefaultInvites）</div>';
+      return;
+    }
+    box.innerHTML = _payInvites.map(function (v, i) {
+      var off = v.status !== 'active';
+      var rate = v.maxUses > 0 ? (v.used + '/' + v.maxUses) : (v.used + '/∞');
+      return '<div style="display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid #f2f2f7;' +
+             (off ? 'opacity:.5;' : '') + '">' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="font-size:15px;font-weight:800;">' + esc(v.code) +
+            '<span style="font-size:11px;font-weight:700;color:#0071e3;margin-left:6px;">' +
+            (v.type === 'paid' ? ('HK$' + (parseInt(v.amount, 10) || 88)) : '免費') + '</span></div>' +
+          '<div style="font-size:11px;color:#86868b;">用咗 ' + rate + '　·　剩 ' + v.left + '</div>' +
+        '</div>' +
+        '<button type="button" onclick="toggleInvite(' + i + ')" ' +
+          'style="padding:8px 12px;border:2px solid #d2d2d7;border-radius:10px;background:#fff;' +
+          'font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">' +
+          (off ? '啟用' : '停用') + '</button>' +
+        '<button type="button" onclick="deleteInviteUI(' + i + ')" ' +
+          'style="padding:8px 10px;border:2px solid #d2d2d7;border-radius:10px;background:#fff;' +
+          'color:#c62828;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">🗑</button>' +
+      '</div>';
+    }).join('');
+  } catch (e) {
+    box.innerHTML = '<div style="color:#c62828;font-size:13px;padding:10px;">❌ ' + esc(e.message) + '</div>';
+  }
+}
+
+async function toggleInvite(i) {
+  var v = _payInvites[i];
+  if (!v) return;
+  var next = (v.status === 'active') ? 'disabled' : 'active';
+  try {
+    var res = await apiPost({ action: 'disableInvite', code: v.code, status: next });
+    if (!res || res.error) { toast('❌ ' + ((res && res.error) || '失敗'), 3000); return; }
+    toast(next === 'active' ? ('✅ ' + v.code + ' 已啟用') : ('⏸ ' + v.code + ' 已停用'));
+    loadPayInvites();
+  } catch (e) { toast('❌ ' + e.message, 3000); }
+}
+
+async function deleteInviteUI(i) {
+  var v = _payInvites[i];
+  if (!v) return;
+  if (!confirm('刪除邀請碼「' + v.code + '」？')) return;
+  try {
+    var res = await apiPost({ action: 'deleteInvite', code: v.code });
+    if (!res || res.error) { toast('❌ ' + ((res && res.error) || '失敗'), 3000); return; }
+    toast('🗑 已刪除 ' + res.deleted);
+    loadPayInvites();
+  } catch (e) { toast('❌ ' + e.message, 3000); }
+}
+
+async function createInviteUI() {
+  var code = (($('newInviteCode') || {}).value || '').trim();
+  var type = (($('newInviteType') || {}).value || 'free');
+  var uses = parseInt((($('newInviteUses') || {}).value || '5').replace(/[^0-9]/g, ''), 10) || 5;
+  if (!code) { toast('請輸入新邀請碼', 3000); return; }
+  try {
+    var res = await apiPost({ action: 'createInvite', code: code, type: type, maxUses: uses });
+    if (!res || res.error) { toast('❌ ' + ((res && res.error) || '失敗'), 3000); return; }
+    toast('✅ 已建立 ' + res.code);
+    var ci = $('newInviteCode'); if (ci) ci.value = '';
+    loadPayInvites();
+  } catch (e) { toast('❌ ' + e.message, 3000); }
+}
 
 function copyInviteCode() {
   copyText($('userInviteCode').textContent || '', '邀請碼');
