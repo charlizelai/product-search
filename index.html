@@ -1631,42 +1631,26 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       </div>
     </div>
 
-    <!-- #73/#75 地區：一節過，兩樣唔同嘅嘢 -->
+    <!-- #73/#75 地區：一個格仔陣，每行兩個 -->
     <div class="section-title">🌏 地區</div>
-    <div style="background:#f5f5f7; border-radius:12px; padding:12px; margin-bottom:14px;">
-
-      <div style="display:flex; align-items:center; gap:12px;">
-        <div style="flex:1;">
-          <div style="font-size:15px; font-weight:800;">送貨地區</div>
-          <div style="font-size:11px; color:#86868b; line-height:1.45; margin-top:2px;">整張單送去邊區</div>
-        </div>
-        <input id="otDistrict" type="text" autocomplete="off" maxlength="6" placeholder="W___"
-               oninput="onDistrictInput('otDistrict')"
-               style="width:120px; padding:11px 12px; font-size:17px; font-weight:700; text-align:center;
-                      border:2px solid #d2d2d7; border-radius:12px; background:#fff;
-                      -webkit-appearance:none; font-family:inherit; outline:none;">
-      </div>
-
-      <div style="height:1px; background:#dcdce0; margin:12px 0;"></div>
-
-      <div style="font-size:15px; font-weight:800;">❄️ 掛貨暫存地區</div>
-      <div style="font-size:11px; color:#86868b; line-height:1.55; margin:3px 0 10px;">
-        張單未齊料，要等中午／凌晨返貨之後再執，嗰堆貨臨時放入邊個地區嘅雪柜。
-      </div>
-      <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px;">
-        <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">干貨</label>
-          <input id="otd_dry" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_dry')"></div>
-        <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">旦貨</label>
-          <input id="otd_egg" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_egg')"></div>
-        <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">風貨</label>
-          <input id="otd_chill" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_chill')"></div>
-        <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">凍貨</label>
-          <input id="otd_frozen" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_frozen')"></div>
-        <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">大件</label>
-          <input id="otd_bulky" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_bulky')"></div>
-        <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">原箱</label>
-          <input id="otd_original" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_original')"></div>
-      </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:8px;">
+      <div><label style="display:block;font-size:14px;font-weight:800;margin-bottom:6px;">🌏 送貨地區</label>
+        <input id="otDistrict" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otDistrict')"></div>
+      <div><label style="display:block;font-size:14px;font-weight:800;margin-bottom:6px;">❄️ 干貨</label>
+        <input id="otd_dry" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_dry')"></div>
+      <div><label style="display:block;font-size:14px;font-weight:800;margin-bottom:6px;">❄️ 旦貨</label>
+        <input id="otd_egg" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_egg')"></div>
+      <div><label style="display:block;font-size:14px;font-weight:800;margin-bottom:6px;">❄️ 風貨</label>
+        <input id="otd_chill" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_chill')"></div>
+      <div><label style="display:block;font-size:14px;font-weight:800;margin-bottom:6px;">❄️ 凍貨</label>
+        <input id="otd_frozen" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_frozen')"></div>
+      <div><label style="display:block;font-size:14px;font-weight:800;margin-bottom:6px;">❄️ 大件</label>
+        <input id="otd_bulky" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_bulky')"></div>
+      <div><label style="display:block;font-size:14px;font-weight:800;margin-bottom:6px;">❄️ 原箱</label>
+        <input id="otd_original" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_original')"></div>
+    </div>
+    <div style="font-size:11px; color:#86868b; line-height:1.55; margin-bottom:14px;">
+      🌏 送貨地區＝整張單送去邊區。❄️＝掛貨暫存喺邊個地區嘅雪柜（張單未齊料，等中午／凌晨返貨再執）。
     </div>
 
     <div id="otTotalLine" style="font-size:17px; font-weight:800; color:#0071e3; text-align:center; margin-bottom:6px;">
