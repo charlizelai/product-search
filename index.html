@@ -799,6 +799,12 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   border: 2px solid #d2d2d7; border-radius: 10px; background: #fff;
   -webkit-appearance: none; font-family: inherit; outline: none; text-transform: uppercase;
 }
+.ot-dist-chip {
+  padding: 8px 14px; border: 2px solid #0071e3; border-radius: 999px; background: #fff;
+  color: #0071e3; font-size: 15px; font-weight: 800; letter-spacing: .5px;
+  cursor: pointer; font-family: inherit; -webkit-appearance: none;
+}
+.ot-dist-chip:active { background: #e8f0fe; }
 .otg-dist::placeholder { font-size: 15px; color: #b0b0b5; letter-spacing: 0; }
 .otg-dist:focus { border-color: #0071e3; box-shadow: 0 0 0 3px rgba(0,113,227,.15); }
 
@@ -1648,6 +1654,12 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
         <input id="otd_bulky" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_bulky')"></div>
       <div><label style="display:block;font-size:14px;font-weight:800;margin-bottom:6px;">❄️ 原箱</label>
         <input id="otd_original" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_original')"></div>
+    </div>
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
+      <span style="font-size:11px; color:#86868b;">快速填旦／風／凍：</span>
+      <button type="button" class="ot-dist-chip" onclick="setHoldDist('W14')">W14</button>
+      <button type="button" class="ot-dist-chip" onclick="setHoldDist('W08')">W08</button>
+      <button type="button" class="ot-dist-chip" onclick="setHoldDist('W07')">W07</button>
     </div>
     <div style="font-size:11px; color:#86868b; line-height:1.55; margin-bottom:14px;">
       🌏 送貨地區＝整張單送去邊區。❄️＝掛貨暫存喺邊個地區嘅雪柜（張單未齊料，等中午／凌晨返貨再執）。
@@ -4082,6 +4094,8 @@ async function saveOrderTotalsForm() {
       districts: getDistrictForm().districts
     });
     if (res && res.error) { $('otHint').textContent = '❌ ' + res.error; return; }
+
+    saveHoldDist(getDistrictForm().districts);   // #76 記住今次用邊區
 
     // 更新本地快取
     var key = otOrderKey(o.orderDate, o.orderTail);
@@ -6673,6 +6687,51 @@ function invalidateCatSuspect(id) {
 // ============================================================
 var OT_KIND_KEYS = ['dry', 'egg', 'chill', 'frozen', 'bulky', 'original'];
 
+// #76 掛貨暫存地區預設：旦／風／凍 平時放 W14，其次 W08，其三 W07
+var HOLD_DEFAULT_KINDS = ['egg', 'chill', 'frozen'];
+var HOLD_DISTRICT_PREF = ['W14', 'W08', 'W07'];
+var HOLD_DIST_LS = 'hc_hold_dist_v1';
+
+/** 讀返上次用過嘅預設（冇就用 W14） */
+function loadHoldDist() {
+  var d = {};
+  HOLD_DEFAULT_KINDS.forEach(function (k) { d[k] = HOLD_DISTRICT_PREF[0]; });
+  try {
+    var raw = localStorage.getItem(HOLD_DIST_LS);
+    if (raw) {
+      var o = JSON.parse(raw) || {};
+      HOLD_DEFAULT_KINDS.forEach(function (k) {
+        var v = normDistrict(o[k]);
+        if (v) d[k] = v;
+      });
+    }
+  } catch (e) {}
+  return d;
+}
+
+/** 記住今次用過嘅，下次開就自動填返 */
+function saveHoldDist(districts) {
+  try {
+    var o = loadHoldDist();
+    HOLD_DEFAULT_KINDS.forEach(function (k) {
+      var v = normDistrict((districts || {})[k]);
+      if (v) o[k] = v;
+    });
+    localStorage.setItem(HOLD_DIST_LS, JSON.stringify(o));
+  } catch (e) {}
+}
+
+/** 一撳就將旦／風／凍三格填同一區 */
+function setHoldDist(code) {
+  var v = normDistrict(code);
+  HOLD_DEFAULT_KINDS.forEach(function (k) {
+    var el = $('otd_' + k);
+    if (el) el.value = v;
+  });
+  saveHoldDist(getDistrictForm().districts);
+  toast('❄️ 旦／風／凍 暫存地區 → ' + v);
+}
+
 /** 正規化：大寫、只留英文數字、最多 6 位 */
 function normDistrict(v) {
   return String(v || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 6);
@@ -6694,6 +6753,15 @@ function getDistrictForm() {
   return d;
 }
 
+/** 冇存過嘅話，旦／風／凍 自動填預設（W14 → W08 → W07） */
+function fillHoldDefaults() {
+  var rem = loadHoldDist();
+  HOLD_DEFAULT_KINDS.forEach(function (k) {
+    var el = $('otd_' + k);
+    if (el && !normDistrict(el.value)) el.value = rem[k] || HOLD_DISTRICT_PREF[0];
+  });
+}
+
 /** 載入某張單嘅地區設定 */
 function setDistrictForm(t) {
   var rec = t || {};
@@ -6703,14 +6771,16 @@ function setDistrictForm(t) {
     var el = $('otd_' + k);
     if (el) el.value = normDistrict(ds[k] || '');
   });
+  fillHoldDefaults();   // #76 旦／風／凍 冇記錄就填預設
 }
 
-/** 清空地區 */
+/** 清空地區（旦／風／凍 保留預設） */
 function clearDistrictForm() {
   var de = $('otDistrict'); if (de) de.value = '';
   OT_KIND_KEYS.forEach(function (k) {
     var el = $('otd_' + k); if (el) el.value = '';
   });
+  fillHoldDefaults();   // #76
 }
 
 /** #66：只顯示自己手動新入（惠康仲未抓到）嘅貨 */
