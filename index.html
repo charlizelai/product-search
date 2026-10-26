@@ -814,6 +814,30 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 }
 .otg2-all .ot-dist::placeholder { font-size: 13px; letter-spacing: 0; }
 
+/* #76 訂單件數彈窗：同缺貨紀錄一樣，一格＝貨類＋件數＋地區 */
+.otc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.otc-cell {
+  display: flex; align-items: center; gap: 5px; min-width: 0;
+  background: #f5f5f7; border-radius: 12px; padding: 8px;
+}
+.otc-name { flex: 0 0 auto; font-size: 14px; font-weight: 800; color: #1d1d1f; white-space: nowrap; }
+.otc-num {
+  flex: 1 1 0; min-width: 0; max-width: 62px; min-height: 50px; padding: 8px 3px;
+  font-size: 22px; font-weight: 800; text-align: center;
+  border: 2px solid #d2d2d7; border-radius: 10px; background: #fff;
+  -webkit-appearance: none; font-family: inherit; outline: none;
+}
+.otc-num:focus { border-color: #0071e3; box-shadow: 0 0 0 3px rgba(0,113,227,.15); }
+.otc-unit { flex: 0 0 auto; font-size: 13px; font-weight: 700; color: #86868b; }
+.otc-dist {
+  flex: 1 1 0; width: auto; min-width: 0; max-width: 78px; min-height: 50px; padding: 8px 3px;
+  font-size: 20px; font-weight: 800; letter-spacing: .5px; text-align: center;
+  border: 2px solid #d2d2d7; border-radius: 10px; background: #fff;
+  -webkit-appearance: none; font-family: inherit; outline: none; text-transform: uppercase;
+}
+.otc-dist::placeholder { font-size: 13px; color: #b0b0b5; font-weight: 700; letter-spacing: 0; }
+.otc-dist:focus { border-color: #0071e3; box-shadow: 0 0 0 3px rgba(0,113,227,.15); }
+
 /* #73 #74 地區編號 */
 .ot-dist {
   width: 100%; min-height: 50px; padding: 12px 8px;
@@ -1634,57 +1658,54 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       而家填緊：<b id="otSelectedLabel">（未揀單）</b>
     </div>
 
-    <div class="section-title">件數</div>
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
-      <div>
-        <label style="display:block;font-size:14px;font-weight:700;margin-bottom:6px;">干貨</label>
-        <input id="ot_dry" class="ot-num" type="text" inputmode="numeric" maxlength="4" value=""
-               placeholder="0" oninput="ordTotalsSum()">
-      </div>
-      <div>
-        <label style="display:block;font-size:14px;font-weight:700;margin-bottom:6px;">旦貨</label>
-        <input id="ot_egg" class="ot-num" type="text" inputmode="numeric" maxlength="4" value=""
-               placeholder="0" oninput="ordTotalsSum()">
-      </div>
-      <div>
-        <label style="display:block;font-size:14px;font-weight:700;margin-bottom:6px;">風貨（0-4度）</label>
-        <input id="ot_chill" class="ot-num" type="text" inputmode="numeric" maxlength="4" value=""
-               placeholder="0" oninput="ordTotalsSum()">
-      </div>
-      <div>
-        <label style="display:block;font-size:14px;font-weight:700;margin-bottom:6px;">凍貨（-18度）</label>
-        <input id="ot_frozen" class="ot-num" type="text" inputmode="numeric" maxlength="4" value=""
-               placeholder="0" oninput="ordTotalsSum()">
-      </div>
-      <div>
-        <label style="display:block;font-size:14px;font-weight:700;margin-bottom:6px;">大件（sim卡／禮券）</label>
-        <input id="ot_bulky" class="ot-num" type="text" inputmode="numeric" maxlength="4" value=""
-               placeholder="0" oninput="ordTotalsSum()">
-      </div>
-      <div>
-        <label style="display:block;font-size:14px;font-weight:700;margin-bottom:6px;">原箱</label>
-        <input id="ot_original" class="ot-num" type="text" inputmode="numeric" maxlength="4" value=""
-               placeholder="0" oninput="ordTotalsSum()">
-      </div>
+    <div class="field" style="margin-bottom:12px;">
+      <label>🌏 送貨地區（整張單）</label>
+      <input id="otDistrict" type="text" autocomplete="off" maxlength="6" placeholder="W___"
+             oninput="onDistrictInput('otDistrict')"
+             style="width:150px; padding:12px; font-size:22px; font-weight:800; letter-spacing:1px;
+                    text-align:center; text-transform:uppercase; border:2px solid #d2d2d7; border-radius:12px;
+                    background:#fff; -webkit-appearance:none; font-family:inherit; outline:none;">
     </div>
 
-    <!-- #73/#75 地區：一個格仔陣，每行兩個 -->
-    <div class="section-title">🌏 地區</div>
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:8px;">
-      <div><label style="display:block;font-size:14px;font-weight:800;margin-bottom:6px;">🌏 送貨地區</label>
-        <input id="otDistrict" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otDistrict')"></div>
-      <div><label style="display:block;font-size:14px;font-weight:800;margin-bottom:6px;">❄️ 干貨</label>
-        <input id="otd_dry" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_dry')"></div>
-      <div><label style="display:block;font-size:14px;font-weight:800;margin-bottom:6px;">❄️ 旦貨</label>
-        <input id="otd_egg" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_egg')"></div>
-      <div><label style="display:block;font-size:14px;font-weight:800;margin-bottom:6px;">❄️ 風貨</label>
-        <input id="otd_chill" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_chill')"></div>
-      <div><label style="display:block;font-size:14px;font-weight:800;margin-bottom:6px;">❄️ 凍貨</label>
-        <input id="otd_frozen" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_frozen')"></div>
-      <div><label style="display:block;font-size:14px;font-weight:800;margin-bottom:6px;">❄️ 大件</label>
-        <input id="otd_bulky" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_bulky')"></div>
-      <div><label style="display:block;font-size:14px;font-weight:800;margin-bottom:6px;">❄️ 原箱</label>
-        <input id="otd_original" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_original')"></div>
+    <!-- #76 件數＋掛貨暫存地區：一格一樣，每行兩個 -->
+    <div class="section-title">件數　／　❄️ 掛貨暫存地區</div>
+    <div class="otc-grid">
+      <div class="otc-cell"><span class="otc-name">❄️ 干貨</span>
+        <input id="ot_dry" class="otc-num" type="text" inputmode="numeric" maxlength="4" value=""
+               placeholder="0" oninput="ordTotalsSum()">
+        <span class="otc-unit">件</span>
+        <input id="otd_dry" class="otc-dist" type="text" autocomplete="off" maxlength="6"
+               placeholder="W___" oninput="onDistrictInput('otd_dry')"></div>
+      <div class="otc-cell"><span class="otc-name">❄️ 旦貨</span>
+        <input id="ot_egg" class="otc-num" type="text" inputmode="numeric" maxlength="4" value=""
+               placeholder="0" oninput="ordTotalsSum()">
+        <span class="otc-unit">件</span>
+        <input id="otd_egg" class="otc-dist" type="text" autocomplete="off" maxlength="6"
+               placeholder="W___" oninput="onDistrictInput('otd_egg')"></div>
+      <div class="otc-cell"><span class="otc-name">❄️ 風貨</span>
+        <input id="ot_chill" class="otc-num" type="text" inputmode="numeric" maxlength="4" value=""
+               placeholder="0" oninput="ordTotalsSum()">
+        <span class="otc-unit">件</span>
+        <input id="otd_chill" class="otc-dist" type="text" autocomplete="off" maxlength="6"
+               placeholder="W___" oninput="onDistrictInput('otd_chill')"></div>
+      <div class="otc-cell"><span class="otc-name">❄️ 凍貨</span>
+        <input id="ot_frozen" class="otc-num" type="text" inputmode="numeric" maxlength="4" value=""
+               placeholder="0" oninput="ordTotalsSum()">
+        <span class="otc-unit">件</span>
+        <input id="otd_frozen" class="otc-dist" type="text" autocomplete="off" maxlength="6"
+               placeholder="W___" oninput="onDistrictInput('otd_frozen')"></div>
+      <div class="otc-cell"><span class="otc-name">❄️ 大件</span>
+        <input id="ot_bulky" class="otc-num" type="text" inputmode="numeric" maxlength="4" value=""
+               placeholder="0" oninput="ordTotalsSum()">
+        <span class="otc-unit">件</span>
+        <input id="otd_bulky" class="otc-dist" type="text" autocomplete="off" maxlength="6"
+               placeholder="W___" oninput="onDistrictInput('otd_bulky')"></div>
+      <div class="otc-cell"><span class="otc-name">❄️ 原箱</span>
+        <input id="ot_original" class="otc-num" type="text" inputmode="numeric" maxlength="4" value=""
+               placeholder="0" oninput="ordTotalsSum()">
+        <span class="otc-unit">件</span>
+        <input id="otd_original" class="otc-dist" type="text" autocomplete="off" maxlength="6"
+               placeholder="W___" oninput="onDistrictInput('otd_original')"></div>
     </div>
     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
       <span style="font-size:11px; color:#86868b;">快速填旦／風／凍：</span>
