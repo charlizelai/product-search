@@ -748,16 +748,16 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 /* #47 缺貨紀錄 / 貨品缺貨歷史 */
 .ooslog-group { margin-bottom: 14px; }
 .ooslog-head {
-  font-size: 14px; font-weight: 800; color: #c62828;
-  padding: 6px 0; border-bottom: 2px solid #fdecea; margin-bottom: 6px;
+  font-size: 17px; font-weight: 800; color: #c62828;
+  padding: 8px 0; border-bottom: 2px solid #fdecea; margin-bottom: 6px;
 }
-.ooslog-head .lg-sum { font-weight: 600; font-size: 12px; color: #86868b; margin-left: 6px; }
-.ooslog-item { display: flex; gap: 8px; padding: 8px 0; border-bottom: 1px solid #f2f2f7; font-size: 13px; line-height: 1.45; }
+.ooslog-head .lg-sum { font-weight: 700; font-size: 14px; color: #86868b; margin-left: 8px; }
+.ooslog-item { display: flex; gap: 8px; padding: 12px 0; border-bottom: 1px solid #f2f2f7; font-size: 16px; line-height: 1.5; }
 .ooslog-item:last-child { border-bottom: none; }
 .ooslog-item .oi-main { flex: 1; min-width: 0; }
-.ooslog-item .oi-name { color: #1d1d1f; font-weight: 700; word-break: break-word; cursor: pointer; }
+.ooslog-item .oi-name { color: #1d1d1f; font-weight: 800; font-size: 17px; word-break: break-word; cursor: pointer; padding: 3px 0; }
 .ooslog-item .oi-name:active { color: #0071e3; }
-.ooslog-item .oi-meta { display: block; font-size: 11px; color: #86868b; font-weight: 500; margin-top: 2px; }
+.ooslog-item .oi-meta { display: block; font-size: 14px; color: #86868b; font-weight: 600; margin-top: 4px; line-height: 1.45; }
 .ooslog-item .oi-qty { flex-shrink: 0; font-weight: 800; color: #c62828; font-size: 15px; align-self: flex-start; }
 .ooslog-ok { color: #2e7d32 !important; }
 .ooslog-empty { text-align: center; color: #86868b; padding: 34px 10px; font-size: 14px; line-height: 1.6; }
@@ -769,17 +769,44 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .sub-result .sr-name { font-size: 14px; font-weight: 700; color: #1d1d1f; }
 .sub-result .sr-meta { font-size: 11px; color: #86868b; margin-top: 2px; }
 
-/* #58 缺貨紀錄：每張單下面直接填件數 */
-.otg-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 0 8px; border-bottom: 1px solid #f2f2f7; background: #fbfdff; border-radius: 8px; }
-.otg-cell { display: flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 700; color: #1d1d1f; }
+/* #58 #74 缺貨紀錄：每張單下面直接填件數
+   ⚠️ 手套／手指粗都要按得中 → 每個格最少 44×44，字體加大 */
+.otg-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 0 8px; border-bottom: 1px solid #f2f2f7; background: #fbfdff; border-radius: 8px; }
+.otg-cell { display: flex; align-items: center; gap: 4px; font-size: 16px; font-weight: 800; color: #1d1d1f; }
 .otg-cell input {
-  width: 44px; padding: 5px 3px; font-size: 14px; text-align: center;
-  border: 1.5px solid #d2d2d7; border-radius: 8px; background: #fff;
+  width: 62px; min-height: 46px; padding: 8px 4px; font-size: 20px; font-weight: 800;
+  text-align: center;
+  border: 2px solid #d2d2d7; border-radius: 10px; background: #fff;
   -webkit-appearance: none; font-family: inherit; outline: none;
 }
-.otg-cell input:focus { border-color: #0071e3; }
-.otg-total { font-size: 12px; font-weight: 800; color: #0071e3; margin-left: auto; padding-right: 4px; }
-.otg-none { font-size: 12px; color: #86868b; padding: 6px 0; border-bottom: 1px solid #f2f2f7; }
+.otg-cell input:focus { border-color: #0071e3; box-shadow: 0 0 0 3px rgba(0,113,227,.15); }
+.otg-total { font-size: 16px; font-weight: 800; color: #0071e3; margin-left: auto; padding-right: 4px; }
+.otg-none { font-size: 14px; color: #86868b; padding: 8px 0; border-bottom: 1px solid #f2f2f7; }
+
+/* #73 #74 地區編號 */
+.ot-dist {
+  width: 100%; min-height: 50px; padding: 12px 8px;
+  font-size: 22px; font-weight: 800; letter-spacing: 1px; text-align: center;
+  border: 2px solid #d2d2d7; border-radius: 12px; background: #fff;
+  -webkit-appearance: none; font-family: inherit; outline: none;
+  text-transform: uppercase;
+}
+.ot-dist::placeholder { font-size: 18px; color: #b0b0b5; font-weight: 700; letter-spacing: 0; }
+.ot-dist:focus { border-color: #0071e3; box-shadow: 0 0 0 3px rgba(0,113,227,.15); }
+.otg-dist {
+  width: 74px; min-height: 46px; padding: 8px 3px;
+  font-size: 19px; font-weight: 800; letter-spacing: .5px; text-align: center;
+  border: 2px solid #d2d2d7; border-radius: 10px; background: #fff;
+  -webkit-appearance: none; font-family: inherit; outline: none; text-transform: uppercase;
+}
+.otg-dist::placeholder { font-size: 15px; color: #b0b0b5; letter-spacing: 0; }
+.otg-dist:focus { border-color: #0071e3; box-shadow: 0 0 0 3px rgba(0,113,227,.15); }
+
+/* #74 訂單件數／回報缺貨 用嘅件數格，加大到手指按得中 */
+.ot-num, .oot-num {
+  min-height: 50px; font-size: 22px !important; font-weight: 800 !important;
+  text-align: center;
+}
 
 /* #59 訂單件數：嗰日有缺貨嘅單列表 */
 .ot-order-item {
@@ -799,7 +826,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 
 /* #53 跟進動作（每筆記錄自己一個） */
 .oos-action-chip {
-  display: inline-block; margin-top: 4px; padding: 3px 10px; border-radius: 999px;
+  display: inline-block; margin-top: 6px; padding: 8px 14px; border-radius: 999px; min-height: 40px;
   border: 1.5px solid #c8e6c9; background: #e6f4ea; color: #1b5e20;
   font-size: 12px; font-weight: 700; cursor: pointer; line-height: 1.4;
 }
@@ -1570,6 +1597,16 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       而家填緊：<b id="otSelectedLabel">（未揀單）</b>
     </div>
 
+    <!-- #73 地區編號 -->
+    <div class="field" style="margin-bottom:12px;">
+      <label>🌏 地區編號（整張單）</label>
+      <input id="otDistrict" type="text" autocomplete="off" maxlength="6" placeholder="W___"
+             oninput="onDistrictInput('otDistrict')"
+             style="width:120px; padding:11px 12px; font-size:17px; font-weight:700; text-align:center;
+                    border:2px solid #d2d2d7; border-radius:12px; background:#fff;
+                    -webkit-appearance:none; font-family:inherit; outline:none;">
+    </div>
+
     <div class="section-title">件數</div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
       <div>
@@ -1602,6 +1639,23 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
         <input id="ot_original" class="ot-num" type="text" inputmode="numeric" maxlength="4" value=""
                placeholder="0" oninput="ordTotalsSum()">
       </div>
+    </div>
+
+    <!-- #73 每類貨各自嘅地區（唔填就跟上面「整張單」） -->
+    <div class="section-title">各地區（唔填就跟整張單）</div>
+    <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-bottom:14px;">
+      <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">干貨地區</label>
+        <input id="otd_dry" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_dry')"></div>
+      <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">旦貨地區</label>
+        <input id="otd_egg" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_egg')"></div>
+      <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">風貨地區</label>
+        <input id="otd_chill" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_chill')"></div>
+      <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">凍貨地區</label>
+        <input id="otd_frozen" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_frozen')"></div>
+      <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">大件地區</label>
+        <input id="otd_bulky" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_bulky')"></div>
+      <div><label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">原箱地區</label>
+        <input id="otd_original" class="ot-dist" type="text" autocomplete="off" maxlength="6" placeholder="W___" oninput="onDistrictInput('otd_original')"></div>
     </div>
 
     <div id="otTotalLine" style="font-size:17px; font-weight:800; color:#0071e3; text-align:center; margin-bottom:6px;">
@@ -3900,6 +3954,7 @@ function pickOTOrder(tail, n) {
 
   var t = findOrderTotalByKey(ymd, tail);
   otSetNums(t || {});
+  setDistrictForm(t || {});     // #73
   var h = $('otHint');
   if (h) h.textContent = t ? ('✅ 已載入現有件數（共 ' + (parseInt(t.total, 10) || 0) + ' 件）') : '';
 
@@ -3961,6 +4016,7 @@ async function openOrderTotals() {
   var lbl = $('otSelectedLabel'); if (lbl) lbl.textContent = '（未揀單）';
   var h = $('otHint'); if (h) h.textContent = '';
   otSetNums({});
+  clearDistrictForm();          // #73
   $('ordTotalsModal').classList.add('show');
   $('otOrderList').innerHTML = '<div style="text-align:center;color:#86868b;font-size:13px;padding:14px;">載入中…</div>';
 
@@ -4026,7 +4082,9 @@ async function saveOrderTotalsForm() {
       timeSlot:  o.timeSlot,
       orderType: o.orderType,
       counts: counts,
-      by: authUser ? (authUser.display || authUser.name || '') : ''
+      by: authUser ? (authUser.display || authUser.name || '') : '',
+      district: getDistrictForm().district,     // #73
+      districts: getDistrictForm().districts
     });
     if (res && res.error) { $('otHint').textContent = '❌ ' + res.error; return; }
 
@@ -4527,10 +4585,27 @@ function oosLogGroupTotalsHtml(g, gi) {
       ' onchange="saveGroupTotals(' + gi + ')"></label>';
   }).join('');
 
+  // #73：地區編號（整張單 + 每類）
+  var dAll = normDistrict(v.district || '');
+  var ds = v.districts || {};
+  var dCells = OTG_SHORT.map(function (k) {
+    var id = 'otgd' + gi + '_' + k.key;
+    return '<label class="otg-cell">🌏' + k.short +
+      '<input id="' + id + '" class="otg-dist" type="text" maxlength="6" placeholder="W___"' +
+      ' value="' + esc(normDistrict(ds[k.key] || '')) + '"' +
+      ' onchange="saveGroupTotals(' + gi + ')"></label>';
+  }).join('');
+
   return '<div class="otg-row">' +
     '<span class="otg-cell" style="font-weight:800; color:#0071e3;">📦</span>' +
     cells +
     '<span class="otg-total" id="otgTotal' + gi + '">共 ' + (parseInt(v.total, 10) || 0) + ' 件</span>' +
+  '</div>' +
+  '<div class="otg-row" style="border-top:none; padding-top:0;">' +
+    '<label class="otg-cell" style="font-weight:800; color:#0b5aa6;">🌏 單</label>' +
+    '<input id="otgd' + gi + '_all" class="otg-dist" type="text" maxlength="6" placeholder="W___"' +
+    ' value="' + esc(dAll) + '" onchange="saveGroupTotals(' + gi + ')">' +
+    dCells +
   '</div>';
 }
 
@@ -4551,6 +4626,15 @@ async function saveGroupTotals(gi) {
     total += n;
   });
 
+  // #73：地區
+  var dForm = { district: '', districts: {} };
+  var dAllEl = $('otgd' + gi + '_all');
+  dForm.district = normDistrict(dAllEl ? dAllEl.value : '');
+  OTG_SHORT.forEach(function (k) {
+    var el = $('otgd' + gi + '_' + k.key);
+    dForm.districts[k.key] = normDistrict(el ? el.value : '');
+  });
+
   var totEl = $('otgTotal' + gi);
   if (totEl) totEl.textContent = '儲存中…';
 
@@ -4562,7 +4646,9 @@ async function saveGroupTotals(gi) {
       timeSlot:  g.slot || '',
       orderType: g.type || '',
       counts: counts,
-      by: authUser ? (authUser.display || authUser.name || '') : ''
+      by: authUser ? (authUser.display || authUser.name || '') : '',
+      district: dForm.district,          // #73
+      districts: dForm.districts
     });
     if (res && res.error) {
       if (totEl) totEl.textContent = '共 ' + total + ' 件';
@@ -4576,7 +4662,8 @@ async function saveGroupTotals(gi) {
     for (var i = 0; i < allOrderTotals.length; i++) {
       if (otOrderKey(allOrderTotals[i].orderDate, allOrderTotals[i].orderTail) === key) {
         Object.assign(allOrderTotals[i], counts, {
-          total: res.total, timeSlot: g.slot || '', orderType: g.type || ''
+          total: res.total, timeSlot: g.slot || '', orderType: g.type || '',
+          district: dForm.district, districts: dForm.districts       // #73
         });
         found = true;
         break;
@@ -6584,6 +6671,51 @@ function invalidateCatSuspect(id) {
   var why = d ? catSuspectReason(d) : '';
   if (why) _catSuspectMap[key] = why;
   else delete _catSuspectMap[key];
+}
+
+// ============================================================
+//  #73 地區編號（W01-W29）
+// ============================================================
+var OT_KIND_KEYS = ['dry', 'egg', 'chill', 'frozen', 'bulky', 'original'];
+
+/** 正規化：大寫、只留英文數字、最多 6 位 */
+function normDistrict(v) {
+  return String(v || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 6);
+}
+
+function onDistrictInput(id) {
+  var el = $(id);
+  if (!el) return;
+  var clean = normDistrict(el.value);
+  if (el.value !== clean) el.value = clean;
+}
+
+/** 讀取彈窗內嘅地區設定 */
+function getDistrictForm() {
+  var d = { district: normDistrict(($('otDistrict') || {}).value), districts: {} };
+  OT_KIND_KEYS.forEach(function (k) {
+    d.districts[k] = normDistrict(($('otd_' + k) || {}).value);
+  });
+  return d;
+}
+
+/** 載入某張單嘅地區設定 */
+function setDistrictForm(t) {
+  var rec = t || {};
+  var de = $('otDistrict'); if (de) de.value = normDistrict(rec.district || '');
+  var ds = rec.districts || {};
+  OT_KIND_KEYS.forEach(function (k) {
+    var el = $('otd_' + k);
+    if (el) el.value = normDistrict(ds[k] || '');
+  });
+}
+
+/** 清空地區 */
+function clearDistrictForm() {
+  var de = $('otDistrict'); if (de) de.value = '';
+  OT_KIND_KEYS.forEach(function (k) {
+    var el = $('otd_' + k); if (el) el.value = '';
+  });
 }
 
 /** #66：只顯示自己手動新入（惠康仲未抓到）嘅貨 */
