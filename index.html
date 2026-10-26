@@ -308,10 +308,14 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   border: none; box-shadow: 0 6px 16px rgba(0,113,227,.45);
   cursor: pointer; z-index: 200;
 }
-.modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1000; align-items: flex-end; }
+.modal {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1000;
+  align-items: flex-end; overflow-x: hidden;
+}
 .modal.show { display: flex; }
 .modal-content {
-  background: #fff; width: 100%; max-height: 94vh; overflow-y: auto;
+  background: #fff; width: 100%; max-width: 100%; max-height: 94vh;
+  overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
   border-radius: 24px 24px 0 0;
   padding: 24px 18px calc(24px + env(safe-area-inset-bottom));
 }
@@ -790,10 +794,10 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 }
 .otg2-badge { font-size: 15px; font-weight: 800; color: #1d1d1f; white-space: nowrap; }
 .otg2-all { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.otg2-name { font-size: 14px; font-weight: 800; color: #1d1d1f; white-space: nowrap; flex: 0 0 auto; }
+.otg2-name { font-size: 14px; font-weight: 800; color: #1d1d1f; white-space: nowrap; flex: 0 0 auto; min-width: 0; }
 .otg2-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px;
-  padding: 8px 0 10px; border-bottom: 1px solid #f2f2f7;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+  gap: 8px 10px; padding: 8px 0 10px; border-bottom: 1px solid #f2f2f7;
 }
 .otg2-cell { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .otg2-num {
@@ -815,12 +819,17 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .otg2-all .ot-dist::placeholder { font-size: 13px; letter-spacing: 0; }
 
 /* #76 訂單件數彈窗：同缺貨紀錄一樣，一格＝貨類＋件數＋地區 */
-.otc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.otc-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+  gap: 10px; margin-bottom: 12px;
+}
 .otc-cell {
   display: flex; align-items: center; gap: 5px; min-width: 0;
   background: #f5f5f7; border-radius: 12px; padding: 8px;
 }
-.otc-name { flex: 0 0 auto; font-size: 14px; font-weight: 800; color: #1d1d1f; white-space: nowrap; }
+.otc-name {
+  flex: 0 0 auto; min-width: 0; font-size: 14px; font-weight: 800; color: #1d1d1f; white-space: nowrap;
+}
 .otc-num {
   flex: 1 1 0; min-width: 0; max-width: 62px; min-height: 50px; padding: 8px 3px;
   font-size: 22px; font-weight: 800; text-align: center;
