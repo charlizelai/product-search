@@ -818,6 +818,19 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 }
 .otg2-all .ot-dist::placeholder { font-size: 13px; letter-spacing: 0; }
 
+/* #78 原箱偵測 */
+.cs-btn {
+  padding: 10px 14px; border: 2px solid #0071e3; border-radius: 999px; background: #fff;
+  color: #0071e3; font-size: 14px; font-weight: 800; cursor: pointer; font-family: inherit;
+  -webkit-appearance: none;
+}
+.cs-btn:active { background: #e8f0fe; }
+.cs-item { display: flex; align-items: center; gap: 10px; padding: 9px 2px; border-bottom: 1px solid #f2f2f7; }
+.cs-item:last-child { border-bottom: none; }
+.cs-item input[type=checkbox] { width: 22px; height: 22px; flex: 0 0 auto; }
+.cs-item .cs-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 700; color: #1d1d1f; }
+.cs-item .cs-why { font-size: 11px; color: #86868b; margin-top: 2px; font-weight: 600; }
+
 /* #76 訂單件數彈窗：同缺貨紀錄一樣，一格＝貨類＋件數＋地區 */
 .otc-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
@@ -1005,6 +1018,37 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   </div>
 </div>
 
+<!-- #78 原箱偵測：睇相認「紫紅左下角＋啡色箱」 -->
+<div class="modal" id="caseScanModal" style="align-items:center;">
+  <div class="modal-content" style="border-radius:24px; margin:12px; max-height:92vh; padding:20px 16px;">
+    <h2 style="margin:0 0 10px; font-size:20px;">🖼️ 原箱偵測</h2>
+    <div style="background:#f0f7ff; border-radius:10px; padding:10px 12px; margin-bottom:12px;
+                font-size:12px; color:#0071e3; line-height:1.6;">
+      惠康「原箱優惠」嘅相一定有個 <b>紫紅色左下角</b> ＋ <b>啡色紙箱底</b>。
+      呢個工具會逐張相驗色，搵出分錯咗去其他類別嘅原箱貨。
+    </div>
+
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+      <button type="button" class="cs-btn" onclick="csNamePass()">📝 用個名搵（即時）</button>
+      <button type="button" class="cs-btn" onclick="csStartScan()">🔍 掃相片</button>
+      <button type="button" class="cs-btn" onclick="csStopScan()">⏹ 停</button>
+    </div>
+
+    <div id="csProgress" style="font-size:12px; color:#86868b; line-height:1.6; margin-bottom:8px; min-height:16px;"></div>
+    <div id="csSummary" style="font-size:13px; font-weight:700; color:#1d1d1f; margin-bottom:8px;"></div>
+
+    <div id="csList" style="max-height:44vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
+                            border:1px solid #e5e5e7; border-radius:10px; padding:4px 8px; margin-bottom:12px;">
+      <div style="color:#86868b; font-size:13px; padding:12px;">撳上面嘅掣開始。</div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="csClose()">關閉</button>
+      <button class="btn-save" onclick="csApply()">✅ 套用所選</button>
+    </div>
+  </div>
+</div>
+
 <div id="appScreen" style="display:none">
   <header>
     <h1 style="display:flex;justify-content:center;align-items:center;gap:8px;">
@@ -1015,6 +1059,8 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
         style="display:none;background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">👥</button>
       <button id="btnPayMgr" onclick="openPayMgr()" title="收款管理"
         style="display:none;background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">💰</button>
+      <button id="btnCaseScan" onclick="openCaseScan()" title="原箱偵測（睇相）"
+        style="display:none;background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">🖼️</button>
       <button id="btnLogout" onclick="logout()" title="登出"
         style="background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">🚪</button>
     </h1>
@@ -2264,6 +2310,7 @@ async function logout() {
   $('btnOptionsMgr').style.display = 'none';
   var bum2 = $('btnUserMgr'); if (bum2) bum2.style.display = 'none';   // #38
   var bpm2 = $('btnPayMgr'); if (bpm2) bpm2.style.display = 'none';    // #77
+  var bcs2 = $('btnCaseScan'); if (bcs2) bcs2.style.display = 'none';  // #78
   $('phashBanner').style.display = 'none';
   $('tempIdBanner').style.display = 'none';
   toast('👋 已登出');
@@ -2275,6 +2322,7 @@ function showApp() {
   $('btnOptionsMgr').style.display = isAdmin ? 'inline-block' : 'none';
   var bum = $('btnUserMgr'); if (bum) bum.style.display = isAdmin ? 'inline-block' : 'none';   // #38
   var bpm = $('btnPayMgr'); if (bpm) bpm.style.display = isAdmin ? 'inline-block' : 'none';     // #77
+  var bcs = $('btnCaseScan'); if (bcs) bcs.style.display = isAdmin ? 'inline-block' : 'none';   // #78
   loadOptions().then(function() {
     if (categoryFilter) {
       var sel = $('categoryFilter');
@@ -5951,6 +5999,7 @@ function render() {
       return ka < kb ? -1 : ka > kb ? 1 : 0;
     });
   }
+  _lastFiltered = filtered;   // #78：原箱偵測用「而家睇到嘅貨」
 
   var statsText;
   if (terms.length) {
@@ -6508,6 +6557,215 @@ function openPayMgr() {
   loadPayInvites();
 }
 function closePayMgr() { $('payMgrModal').classList.remove('show'); }
+
+// ============================================================
+//  #78  原箱偵測：用相片認「紫紅色左下角 ＋ 啡色紙箱底」
+//   惠康「原箱優惠」嘅產品相一定帶呢兩個特徵，
+//   所以可以靠驗色搵出分錯咗去其他類別嘅原箱貨。
+// ============================================================
+var _lastFiltered = [];
+var _csCands = [];
+var _csSel = {};
+var _csStop = false;
+var _csBusy = false;
+var CS_N = 112;                 // 縮到 112x112 驗色（夠準又快）
+var CS_MAROON_MIN = 0.12;       // 左下角酒紅比例
+var CS_BEIGE_MIN  = 0.15;       // 紙箱米色比例
+
+function openCaseScan() {
+  $('caseScanModal').classList.add('show');
+  csNamePass();
+}
+function csClose() { $('caseScanModal').classList.remove('show'); }
+
+function csNote(msg) { var e = $('csProgress'); if (e) e.textContent = msg || ''; }
+
+/** 第一關：個名／分類欄自相矛盾 —— 唔使上網，即刻有結果 */
+function csNamePass() {
+  _csCands = [];
+  _csSel = {};
+  var pool = _lastFiltered || [];
+  pool.forEach(function (d) {
+    var id = String(d.id || '').trim();
+    if (!id) return;
+    var nm = String(d.name_zh || d.name || '');
+    var ce = String(d.category_en || '').trim();
+    var cz = String(d.category_zh || '').trim();
+    var isCase = /^case\s*deal$/i.test(ce);
+    if (isCase && cz !== '原箱優惠') {
+      _csCands.push({ id: id, name: nm, curEn: ce, curZh: cz,
+                      why: '英文已係 Case Deal，中文未同步', hit: 'name' });
+      _csSel[id] = true;
+    } else if (!isCase && /^\s*原箱/.test(nm)) {
+      _csCands.push({ id: id, name: nm, curEn: ce, curZh: cz,
+                      why: '個名以「原箱」開頭，但分類係「' + (cz || '未設定') + '」', hit: 'name' });
+      _csSel[id] = true;
+    }
+  });
+  csRender();
+}
+
+/** 逐張相驗色 */
+function csScoreImage(img) {
+  var cv = document.createElement('canvas');
+  cv.width = CS_N; cv.height = CS_N;
+  var ctx = cv.getContext('2d');
+  ctx.drawImage(img, 0, 0, CS_N, CS_N);
+  var data;
+  try { data = ctx.getImageData(0, 0, CS_N, CS_N).data; } catch (e) { return null; }
+  var maroon = 0, maroonBL = 0, totBL = 0, beige = 0, tot = 0;
+  var blX = Math.floor(CS_N * 0.40);
+  var blY = Math.floor(CS_N * 0.60);
+  for (var y = 0; y < CS_N; y++) {
+    for (var x = 0; x < CS_N; x++) {
+      var i = (y * CS_N + x) * 4;
+      var R = data[i], G = data[i + 1], B = data[i + 2];
+      tot++;
+      var mar = (R >= 100 && R <= 210 && G >= 20 && G <= 120 && B >= 40 && B <= 145 &&
+                 (R - G) >= 40 && (B - G) >= 4);
+      var bei = (R >= 160 && G >= 120 && B >= 70 &&
+                 (R - G) >= 14 && (G - B) >= 14 && (R - B) >= 42 && B >= 0.60 * G);
+      if (mar) maroon++;
+      if (bei) beige++;
+      if (x < blX && y >= blY) { totBL++; if (mar) maroonBL++; }
+    }
+  }
+  return { maroonBL: maroonBL / Math.max(totBL, 1), beige: beige / tot };
+}
+
+function csLoadImg(url) {
+  return new Promise(function (resolve) {
+    var im = new Image();
+    im.crossOrigin = 'anonymous';
+    var done = false;
+    var timer = setTimeout(function () {
+      if (done) return; done = true; resolve(null);
+    }, 12000);
+    im.onload = function () { if (done) return; done = true; clearTimeout(timer); resolve(im); };
+    im.onerror = function () { if (done) return; done = true; clearTimeout(timer); resolve(null); };
+    im.src = url;
+  });
+}
+
+async function csStartScan() {
+  if (_csBusy) return;
+  var pool = (_lastFiltered || []).filter(function (d) {
+    var id = String(d.id || '').trim();
+    if (!id || !d.image) return false;
+    if (/^case\s*deal$/i.test(String(d.category_en || '').trim())) return false;  // 已經係原箱
+    if (_csSel[id]) return false;                                                  // 已經命中
+    return true;
+  });
+  if (!pool.length) { csNote('已經掃完，冇新發現。'); return; }
+
+  var mb = Math.round(pool.length * 0.15);
+  if (!confirm('會逐張下載 ' + pool.length + ' 張相驗色（約 ' + mb + ' MB 數據）。\n\n建議先用右上嘅分類篩選／搜尋縮細範圍。\n繼續？')) return;
+
+  _csBusy = true; _csStop = false;
+  var done = 0, found = 0;
+  var Q = 6;                       // 同時 6 張
+  var idx = 0;
+
+  async function worker() {
+    while (!_csStop) {
+      var k = idx++;
+      if (k >= pool.length) return;
+      var d = pool[k];
+      try {
+        var im = await csLoadImg(d.image);
+        if (im) {
+          var s = csScoreImage(im);
+          if (s && (s.maroonBL >= CS_MAROON_MIN || s.beige >= CS_BEIGE_MIN)) {
+            var id = String(d.id || '').trim();
+            _csCands.push({
+              id: id,
+              name: String(d.name_zh || d.name || ''),
+              curEn: String(d.category_en || '').trim(),
+              curZh: String(d.category_zh || '').trim(),
+              why: '張相有' + (s.maroonBL >= CS_MAROON_MIN ? '紫紅左下角' : '') +
+                   (s.maroonBL >= CS_MAROON_MIN && s.beige >= CS_BEIGE_MIN ? '＋' : '') +
+                   (s.beige >= CS_BEIGE_MIN ? '啡色紙箱底' : '') +
+                   '（' + s.maroonBL.toFixed(2) + '／' + s.beige.toFixed(2) + '）',
+              hit: 'image'
+            });
+            _csSel[id] = true;
+            found++;
+          }
+        }
+      } catch (e) {}
+      done++;
+      if (done % 10 === 0 || done === pool.length) {
+        csNote('已掃 ' + done + ' / ' + pool.length + '　·　發現 ' + found + ' 個');
+        csRender(true);
+      }
+    }
+  }
+
+  var ws = [];
+  for (var w = 0; w < Q; w++) ws.push(worker());
+  await Promise.all(ws);
+
+  _csBusy = false;
+  csNote('掃完：' + done + ' 張，發現 ' + found + ' 個疑似原箱優惠。');
+  csRender();
+}
+
+function csStopScan() { _csStop = true; csNote('停止中…'); }
+
+function csRender(quiet) {
+  var box = $('csList');
+  var sum = $('csSummary');
+  if (!box) return;
+  var selN = 0;
+  _csCands.forEach(function (c) { if (_csSel[c.id]) selN++; });
+  if (sum) sum.textContent = _csCands.length
+    ? ('共 ' + _csCands.length + ' 個候選，已揀 ' + selN + ' 個')
+    : '暫時未有候選';
+  if (!_csCands.length) {
+    if (!quiet) box.innerHTML = '<div style="color:#86868b; font-size:13px; padding:12px;">冇發現。</div>';
+    return;
+  }
+  var sortable = _csCands.slice().sort(function (a, b) {
+    if (a.hit !== b.hit) return a.hit === 'name' ? -1 : 1;
+    return 0;
+  });
+  box.innerHTML = sortable.map(function (c) {
+    var on = !!_csSel[c.id];
+    return '<label class="cs-item">' +
+      '<input type="checkbox"' + (on ? ' checked' : '') +
+        ' onchange="csToggle(this, \'' + esc(c.id) + '\')">' +
+      '<span class="cs-name">' + esc(c.name || c.id) +
+        '<div class="cs-why">' + esc(c.why) + '</div></span>' +
+    '</label>';
+  }).join('');
+}
+
+function csToggle(el, id) { _csSel[id] = !!el.checked; csRender(true); }
+
+async function csApply() {
+  var items = _csCands.filter(function (c) { return _csSel[c.id]; })
+    .map(function (c) {
+      return { id: c.id, expect: c.curEn, category_en: 'Case Deal', category_zh: '原箱優惠' };
+    });
+  if (!items.length) { toast('冇揀任何貨品', 3000); return; }
+  if (!confirm('確定將 ' + items.length + ' 件貨嘅分類改成「原箱優惠」？')) return;
+
+  var applied = 0, skipped = 0;
+  for (var i = 0; i < items.length; i += 200) {
+    var chunk = items.slice(i, i + 200);
+    try {
+      var res = await apiPost({ action: 'bulkFixCategory', items: chunk });
+      if (!res || res.error) { toast('❌ ' + ((res && res.error) || '失敗'), 4000); break; }
+      applied += res.applied || 0;
+      skipped += res.skipped || 0;
+    } catch (e) { toast('❌ ' + e.message, 4000); break; }
+  }
+  toast('✅ 已改 ' + applied + ' 件' + (skipped ? ('，略過 ' + skipped) : ''), 4000);
+  _csCands = []; _csSel = {};
+  csRender();
+  csNote('套用完；撳「載入」重新整理就會見到新分類。');
+  try { await loadData(true); } catch (e) {}
+}
 
 async function loadPayPending() {
   var box = $('payPendingList');
