@@ -5445,8 +5445,8 @@ function onCategoryChange() {
   categoryFilter = sel.value;
   try { localStorage.setItem(CATEGORY_FILTER_KEY, categoryFilter); } catch (e) {}
   updateCategoryButtonState();
-  populateBrandFilter();   // #22：品牌清單跟著分類範圍重建
-  populateSubcatFilter();  // #28：細分清單同時重建
+  populateSubcatFilter();  // #100：先重建細分（唔啱新分類嘅細分會清走）
+  populateBrandFilter();   // #22：再按「分類＋細分」重建品牌清單
   render();
   if (categoryFilter === FILTER_NONE) {
     toast('📂 只顯示「未分類」產品');
@@ -5588,11 +5588,16 @@ function populateSubcatFilter() {
   var hint = $('subcatFilterHint');
   if (!sel) return;
 
-  // #30：細分直接由資料嘅 I 欄（category_zh）產生，唔再要求先揀分類。
-  //      細分名（紅酒／白酒／烈酒…）本身數量唔多，手機選單唔會過長。
+  // #100：細分清單要跟「已選分類」收窄。
+  //       以前唔理分類，77 個細分全部列出 —— 手機選單又長又慢。
   var counts = {};
   var noneCount = 0;
   allData.forEach(function(d) {
+    if (categoryFilter) {
+      var c = String(d.category_en || '').trim();
+      if (categoryFilter === FILTER_NONE) { if (c) return; }
+      else if (c !== categoryFilter) return;
+    }
     var s = String(d.category_zh || '').trim();
     if (s) counts[s] = (counts[s] || 0) + 1;
     else noneCount++;
@@ -5604,7 +5609,11 @@ function populateSubcatFilter() {
     return a.localeCompare(b, 'zh-HK');
   });
 
-  var html = '<option value="">🔎 全部細分（' + subs.length + '）</option>';
+  var scopeTag = categoryFilter
+    ? (categoryFilter === FILTER_NONE ? '未分類' : categoryFilter)
+    : '';
+  var html = '<option value="">🔎 全部細分（' + subs.length +
+             (scopeTag ? '·' + scopeTag : '') + '）</option>';
   subs.forEach(function(s) {
     html += '<option value="' + escAttr(s) + '">' + esc(s + '（' + counts[s] + '）') + '</option>';
   });
@@ -5680,8 +5689,8 @@ function filterByCategory(cat) {
   var sel = $('categoryFilter');
   if (sel) sel.value = cat;
   updateCategoryButtonState();
-  populateBrandFilter();   // #22：品牌清單跟著分類範圍重建
-  populateSubcatFilter();  // #28：細分清單同時重建
+  populateSubcatFilter();  // #100：先細分，後品牌
+  populateBrandFilter();   // #22
   try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
   render();
   toast('📂 已篩選：' + cat);
