@@ -1181,6 +1181,8 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
               style="display:none;">🖼️ 原箱偵測</button>
       <button id="btnAutoSubCat" class="hd-menu-item" onclick="closeMoreMenu();runAutoSubCat()"
               style="display:none;">🧠 自動分類 I 欄</button>
+      <button id="btnFixWine" class="hd-menu-item" onclick="closeMoreMenu();runFixWine()"
+              style="display:none;">🍷 修正酒類細分</button>
       <button id="btnLogout" class="hd-menu-item" onclick="closeMoreMenu();logout()">🚪 登出</button>
     </div>
     <div class="search-box" id="searchBox">
@@ -2473,6 +2475,7 @@ async function logout() {
   var bpm2 = $('btnPayMgr'); if (bpm2) bpm2.style.display = 'none';    // #77
   var bcs2 = $('btnCaseScan'); if (bcs2) bcs2.style.display = 'none';  // #78
   var bas2 = $('btnAutoSubCat'); if (bas2) bas2.style.display = 'none'; // #96
+  var bfw2 = $('btnFixWine'); if (bfw2) bfw2.style.display = 'none';   // #101
   $('phashBanner').style.display = 'none';
   $('tempIdBanner').style.display = 'none';
   toast('👋 已登出');
@@ -2486,6 +2489,7 @@ function showApp() {
   var bpm = $('btnPayMgr'); if (bpm) bpm.style.display = isAdmin ? 'block' : 'none';     // #77 #80
   var bcs = $('btnCaseScan'); if (bcs) bcs.style.display = isAdmin ? 'block' : 'none';   // #78 #80
   var bas = $('btnAutoSubCat'); if (bas) bas.style.display = isAdmin ? 'block' : 'none';  // #96
+  var bfw = $('btnFixWine'); if (bfw) bfw.style.display = isAdmin ? 'block' : 'none';    // #101
   loadOptions().then(function() {
     if (categoryFilter) {
       var sel = $('categoryFilter');
@@ -8209,6 +8213,32 @@ async function applySbBrand() {
     renderSbList();
     invalidateCatSuspect(null);
     render();
+  } catch (e) { toast('❌ ' + e.message, 4000); }
+}
+
+/** #101：把「H = Beer, Wines & Spirits」但 I 係「食品 / 糧油雜貨」嘅貨，全部改正做正確酒類 */
+async function runFixWine() {
+  try {
+    try { await apiPost({ action: 'seedCatRules' }); } catch (e) {}
+
+    var pre = await apiPost({ action: 'fixWine', dryRun: true, includeGeneric: true });
+    if (!pre || pre.error) { toast('❌ ' + ((pre && pre.error) || '失敗'), 4000); return; }
+    if (!pre.updated) { toast('🍷 冇需要修正嘅酒類貨品', 3000); return; }
+
+    var lines = Object.keys(pre.byCat || {})
+      .sort(function (a, b) { return pre.byCat[b] - pre.byCat[a]; })
+      .map(function (k) { return '　· ' + k + '：' + pre.byCat[k] + ' 件'; })
+      .join('\n');
+
+    if (!confirm('會修正 ' + pre.updated + ' 件酒類貨品嘅細分：\n' + lines +
+                 '\n\n（其中 ' + (pre.fallback || 0) + ' 件認唔出具體種類，會歸入「啤酒、葡萄酒和烈酒」）' +
+                 '\n\n只會改「食品 / 糧油雜貨」呢類萬用格，你手動填好嘅一定唔會郁。\n套用？')) return;
+
+    var res = await apiPost({ action: 'fixWine', dryRun: false, includeGeneric: true });
+    if (!res || res.error) { toast('❌ ' + ((res && res.error) || '失敗'), 4000); return; }
+    toast('✅ 已修正 ' + (res.updated || 0) + ' 件酒類細分', 4000);
+    if (typeof invalidateCatSuspect === 'function') invalidateCatSuspect(null);
+    await loadData(true);
   } catch (e) { toast('❌ ' + e.message, 4000); }
 }
 
