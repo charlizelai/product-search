@@ -26,10 +26,53 @@ header {
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   /* #46：左右讓開 iPhone 打橫嘅劉海（直度時 safe-area 為 0，所以唔影響） */
-  padding: 16px calc(14px + env(safe-area-inset-right)) 14px calc(14px + env(safe-area-inset-left));
+  padding: 8px calc(12px + env(safe-area-inset-right)) 10px calc(12px + env(safe-area-inset-left));
   border-bottom: 2px solid #e5e5e7;
   z-index: 100;
 }
+
+/* #80 手機版面：頂部一行 + 常用掣一行，其餘收埋 */
+.hd-top { display: flex; align-items: center; gap: 8px; }
+.hd-title { flex: 1; margin: 0; font-size: 18px; font-weight: 800; text-align: center; }
+.hd-icon {
+  flex: 0 0 auto; width: 44px; height: 44px; padding: 0;
+  border: none; border-radius: 12px; background: #f2f2f7; color: #1d1d1f;
+  font-size: 20px; font-weight: 700; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-family: inherit; -webkit-appearance: none;
+}
+.hd-icon:active { background: #e0e0e6; }
+.hd-icon.on { background: #0071e3; color: #fff; }
+
+.hd-menu, .hd-panel {
+  position: absolute; top: calc(100% - 4px); z-index: 130;
+  left: calc(10px + env(safe-area-inset-left));
+  right: calc(10px + env(safe-area-inset-right));
+  background: #fff; border: 1px solid #e5e5e7; border-radius: 16px;
+  box-shadow: 0 14px 34px rgba(0,0,0,.22);
+  padding: 10px;
+}
+.hd-menu {
+  left: auto; width: 200px; max-width: 74vw;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.hd-menu-item {
+  width: 100%; text-align: left; padding: 13px 14px;
+  border: none; border-radius: 10px; background: #f5f5f7; color: #1d1d1f;
+  font-size: 16px; font-weight: 700; font-family: inherit; cursor: pointer;
+}
+.hd-menu-item:active { background: #e0e0e6; }
+
+.hd-panel { max-height: 64vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.hd-panel .toolbar { margin-top: 0; justify-content: flex-start; }
+.hd-panel .category-filter-row:first-of-type { margin-top: 10px; }
+
+.quick-bar {
+  display: flex; gap: 8px; margin-top: 10px; flex-wrap: nowrap;
+  overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px;
+}
+.quick-bar::-webkit-scrollbar { display: none; }
+.quick-bar .tool-btn { flex: 0 0 auto; white-space: nowrap; }
 
 h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .search-box { position: relative; }
@@ -51,7 +94,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   background: #e8f0fe; color: #1a73e8;
 }
 .icon-btn:active { background: #d2e3fc; }
-.stats { font-size: 15px; color: #6e6e73; text-align: center; margin-top: 10px; }
+.stats { font-size: 13px; color: #6e6e73; text-align: center; margin-top: 6px; line-height: 1.4; }
 
 .search-history {
   position: absolute; top: 100%; left: 0; right: 0;
@@ -1067,19 +1110,24 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 
 <div id="appScreen" style="display:none">
   <header>
-    <h1 style="display:flex;justify-content:center;align-items:center;gap:8px;">
-      <span>📦 產品管理</span>
-      <button id="btnOptionsMgr" onclick="openOptionsModal()" title="選項管理"
-        style="display:none;background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">⚙️</button>
-      <button id="btnUserMgr" onclick="openUserMgr()" title="員工管理"
-        style="display:none;background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">👥</button>
-      <button id="btnPayMgr" onclick="openPayMgr()" title="收款管理"
-        style="display:none;background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">💰</button>
-      <button id="btnCaseScan" onclick="openCaseScan()" title="原箱偵測（睇相）"
-        style="display:none;background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">🖼️</button>
-      <button id="btnLogout" onclick="logout()" title="登出"
-        style="background:none;border:none;font-size:22px;cursor:pointer;vertical-align:middle;">🚪</button>
-    </h1>
+    <!-- #80 手機版面：頂部一行；其餘收埋入摺疊面板／⋯ 選單 -->
+    <div class="hd-top">
+      <button type="button" id="btnFilterToggle" class="hd-icon" onclick="toggleFilterPanel()" title="篩選">☰</button>
+      <h1 class="hd-title">📦 產品管理</h1>
+      <button type="button" id="btnMore" class="hd-icon" onclick="toggleMoreMenu()" title="更多">⋯</button>
+    </div>
+
+    <div id="moreMenu" class="hd-menu" style="display:none;">
+      <button id="btnOptionsMgr" class="hd-menu-item" onclick="closeMoreMenu();openOptionsModal()"
+              style="display:none;">⚙️ 選項管理</button>
+      <button id="btnUserMgr" class="hd-menu-item" onclick="closeMoreMenu();openUserMgr()"
+              style="display:none;">👥 員工管理</button>
+      <button id="btnPayMgr" class="hd-menu-item" onclick="closeMoreMenu();openPayMgr()"
+              style="display:none;">💰 收款管理</button>
+      <button id="btnCaseScan" class="hd-menu-item" onclick="closeMoreMenu();openCaseScan()"
+              style="display:none;">🖼️ 原箱偵測</button>
+      <button id="btnLogout" class="hd-menu-item" onclick="closeMoreMenu();logout()">🚪 登出</button>
+    </div>
     <div class="search-box" id="searchBox">
       <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
       <input id="q" type="search" inputmode="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="搜尋 / 條碼（尾 6 位以上）/ 位置...">
@@ -1091,14 +1139,20 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       <div class="search-history" id="searchHistory"></div>
     </div>
     <div class="stats" id="stats">載入中...</div>
+    <!-- 常用掣：一行橫向滑，唔會撐高個 header -->
+    <div class="quick-bar">
+      <button id="btnOrderTotals" class="tool-btn" onclick="openOrderTotals()">📦 訂單件數</button>
+      <button type="button" class="tool-btn" onclick="openOOSLog()">📋 缺貨紀錄</button>
+      <button id="btnOOSFilter" class="tool-btn" onclick="toggleOOSFilter()">⚠️ 只看缺貨</button>
+      <button id="btnNewItem" class="tool-btn" onclick="toggleNewItemOnly()">🆕 我新入嘅貨</button>
+      <button id="btnSortToggle" class="tool-btn" onclick="toggleSort()">📍 位置排序</button>
+    </div>
+
+    <div id="filterPanel" class="hd-panel" style="display:none;">
     <div class="toolbar">
       <button id="btnBarcodeOnly" class="tool-btn" onclick="toggleBarcodeOnly()">🏷️ 只搜條碼</button>
       <button id="btnSkuOnly" class="tool-btn" onclick="toggleSkuOnly()">🔖 只搜 SKU</button>
-      <button id="btnOOSFilter" class="tool-btn" onclick="toggleOOSFilter()">⚠️ 只看缺貨</button>
       <button id="btnCatSuspect" class="tool-btn" onclick="toggleCatSuspect()">🧩 分類待修</button>
-      <button id="btnNewItem" class="tool-btn" onclick="toggleNewItemOnly()">🆕 我新入嘅貨</button>
-      <button id="btnSortToggle" class="tool-btn" onclick="toggleSort()">📍 位置排序</button>
-      <button id="btnOrderTotals" class="tool-btn" onclick="openOrderTotals()">📦 訂單件數</button>
       <button id="btnRefreshAPI" class="tool-btn" onclick="refreshFromAPIManual()">🔄 用 API 刷新</button>
     </div>
     <div class="category-filter-row">
@@ -1134,8 +1188,8 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
         <option value="放假">放假</option>
       </select>
       <button type="button" id="btnOOSDateClear" class="tool-btn" onclick="clearOOSDateFilter()" style="display:none; margin-left:8px;">✕ 清除</button>
-      <button type="button" class="tool-btn" onclick="openOOSLog()" style="margin-left:8px;">📋 缺貨紀錄</button>
     </div>
+    </div><!-- /#filterPanel -->
   </header>
 
   <div id="phashBanner" class="phash-banner" style="display:none;">
@@ -2340,10 +2394,10 @@ async function logout() {
 function showApp() {
   $('loginScreen').style.display = 'none';
   $('appScreen').style.display = 'block';
-  $('btnOptionsMgr').style.display = isAdmin ? 'inline-block' : 'none';
-  var bum = $('btnUserMgr'); if (bum) bum.style.display = isAdmin ? 'inline-block' : 'none';   // #38
-  var bpm = $('btnPayMgr'); if (bpm) bpm.style.display = isAdmin ? 'inline-block' : 'none';     // #77
-  var bcs = $('btnCaseScan'); if (bcs) bcs.style.display = isAdmin ? 'inline-block' : 'none';   // #78
+  $('btnOptionsMgr').style.display = isAdmin ? 'block' : 'none';   // #80
+  var bum = $('btnUserMgr'); if (bum) bum.style.display = isAdmin ? 'block' : 'none';   // #38 #80
+  var bpm = $('btnPayMgr'); if (bpm) bpm.style.display = isAdmin ? 'block' : 'none';     // #77 #80
+  var bcs = $('btnCaseScan'); if (bcs) bcs.style.display = isAdmin ? 'block' : 'none';   // #78 #80
   loadOptions().then(function() {
     if (categoryFilter) {
       var sel = $('categoryFilter');
@@ -6578,6 +6632,56 @@ function openPayMgr() {
   loadPayInvites();
 }
 function closePayMgr() { $('payMgrModal').classList.remove('show'); }
+
+// ============================================================
+//  #80  手機版面：摺疊篩選面板 + ⋯ 選單
+// ============================================================
+function toggleFilterPanel() {
+  var p = $('filterPanel');
+  var b = $('btnFilterToggle');
+  if (!p) return;
+  var open = p.style.display !== 'none';
+  p.style.display = open ? 'none' : 'block';
+  if (b) b.classList.toggle('on', !open);
+  if (!open) closeMoreMenu();
+}
+
+function toggleMoreMenu() {
+  var m = $('moreMenu');
+  var b = $('btnMore');
+  if (!m) return;
+  var open = m.style.display !== 'none';
+  m.style.display = open ? 'none' : 'flex';
+  if (b) b.classList.toggle('on', !open);
+  if (!open) {
+    var p = $('filterPanel');
+    if (p) p.style.display = 'none';
+    var fb = $('btnFilterToggle');
+    if (fb) fb.classList.remove('on');
+  }
+}
+
+function closeMoreMenu() {
+  var m = $('moreMenu');
+  if (m) m.style.display = 'none';
+  var b = $('btnMore');
+  if (b) b.classList.remove('on');
+}
+
+/** 撳畫面其他地方 → 收埋兩個浮層 */
+document.addEventListener('click', function (e) {
+  var t = e.target;
+  if (!t || !t.closest) return;
+  if (t.closest('#filterPanel') || t.closest('#btnFilterToggle') ||
+      t.closest('#moreMenu') || t.closest('#btnMore')) return;
+  closeMoreMenu();
+  var p = $('filterPanel');
+  if (p && p.style.display !== 'none') {
+    p.style.display = 'none';
+    var fb = $('btnFilterToggle');
+    if (fb) fb.classList.remove('on');
+  }
+});
 
 // ============================================================
 //  #79  所有彈窗統一加左上角 ✕（左手姆指撳得到）
