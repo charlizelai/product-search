@@ -1179,6 +1179,8 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
               style="display:none;">💰 收款管理</button>
       <button id="btnCaseScan" class="hd-menu-item" onclick="closeMoreMenu();openCaseScan()"
               style="display:none;">🖼️ 原箱偵測</button>
+      <button id="btnAutoSubCat" class="hd-menu-item" onclick="closeMoreMenu();runAutoSubCat()"
+              style="display:none;">🧠 自動分類 I 欄</button>
       <button id="btnLogout" class="hd-menu-item" onclick="closeMoreMenu();logout()">🚪 登出</button>
     </div>
     <div class="search-box" id="searchBox">
@@ -1267,7 +1269,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       套用之後仍然可以逐件改。
     </div>
     <button type="button" onclick="runAutoSubCat()" style="width:100%; padding:13px; margin-bottom:8px; font-size:16px; font-weight:700; border:none; border-radius:10px; background:#0071e3; color:#fff; cursor:pointer; font-family:inherit;">🧠 自動填 I 欄（規則 ＋ 品牌自動學習）</button>
-    <button onclick="openBulkCatModal()" style="width:100%; padding:13px; font-size:16px; font-weight:700; border:none; border-radius:10px; background:#f57c00; color:#fff; cursor:pointer;">⚡ 一鍵套用全部建議</button>
+    <button id="btnBulkCat" onclick="openBulkCatModal()" style="width:100%; padding:13px; font-size:16px; font-weight:700; border:none; border-radius:10px; background:#f57c00; color:#fff; cursor:pointer;">⚡ 一鍵套用全部建議</button>
   </div>
 
   <div class="list" id="list"></div>
@@ -2440,6 +2442,7 @@ async function logout() {
   var bum2 = $('btnUserMgr'); if (bum2) bum2.style.display = 'none';   // #38
   var bpm2 = $('btnPayMgr'); if (bpm2) bpm2.style.display = 'none';    // #77
   var bcs2 = $('btnCaseScan'); if (bcs2) bcs2.style.display = 'none';  // #78
+  var bas2 = $('btnAutoSubCat'); if (bas2) bas2.style.display = 'none'; // #96
   $('phashBanner').style.display = 'none';
   $('tempIdBanner').style.display = 'none';
   toast('👋 已登出');
@@ -2452,6 +2455,7 @@ function showApp() {
   var bum = $('btnUserMgr'); if (bum) bum.style.display = isAdmin ? 'block' : 'none';   // #38 #80
   var bpm = $('btnPayMgr'); if (bpm) bpm.style.display = isAdmin ? 'block' : 'none';     // #77 #80
   var bcs = $('btnCaseScan'); if (bcs) bcs.style.display = isAdmin ? 'block' : 'none';   // #78 #80
+  var bas = $('btnAutoSubCat'); if (bas) bas.style.display = isAdmin ? 'block' : 'none';  // #96
   loadOptions().then(function() {
     if (categoryFilter) {
       var sel = $('categoryFilter');
@@ -8003,8 +8007,10 @@ function updateCatBulkBar() {
   if (!bar) return;
   if (!catSuspectOnly || !isAdmin) { bar.style.display = 'none'; return; }
   var n = catSuggestList().length;
-  if (!n) { bar.style.display = 'none'; return; }
   $('catBulkCount').textContent = n;
+  // #96：就算冇「建議分類」，都要顯示（因為裏面有「自動填 I 欄」掣）
+  var bulkBtn = $('btnBulkCat');
+  if (bulkBtn) bulkBtn.style.display = n ? 'block' : 'none';
   bar.style.display = 'block';
 }
 
