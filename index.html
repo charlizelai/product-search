@@ -74,6 +74,11 @@ header {
 .quick-bar::-webkit-scrollbar { display: none; }
 .quick-bar .tool-btn { flex: 0 0 auto; white-space: nowrap; }
 
+/* #88 捲落睇結果時，header 自動縮到最細（只留頂行＋搜尋格） */
+header.hd-compact .quick-bar,
+header.hd-compact .stats { display: none !important; }
+header.hd-compact { padding-top: 4px; padding-bottom: 6px; }
+
 h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .search-box { position: relative; }
 .search-box input {
@@ -1156,7 +1161,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     </div>
     <div class="stats" id="stats">載入中...</div>
     <!-- 常用掣：一行橫向滑，唔會撐高個 header -->
-    <div class="quick-bar">
+    <div class="quick-bar" id="quickBar">
       <button id="btnBarcodeOnly" class="tool-btn pri" onclick="toggleBarcodeOnly()">🏷️ 只搜條碼</button>
       <button id="btnOrderTotals" class="tool-btn" onclick="openOrderTotals()">📦 訂單件數</button>
       <button type="button" class="tool-btn" onclick="openOOSLog()">📋 缺貨紀錄</button>
@@ -6215,6 +6220,13 @@ function render() {
 
   $('btnClear').style.display = hasActiveConditions() ? 'flex' : 'none';   // #86
 
+  // #88：搵緊嘢就暫時收埋常用掣，讓返位俾搜尋結果
+  var qb = $('quickBar');
+  if (qb) {
+    var searching = !!raw || searchMode !== 'text';
+    qb.style.display = searching ? 'none' : 'flex';
+  }
+
   if (filtered.length === 0) {
     if (/^\d{4,5}$/.test(raw)) {
       $('list').innerHTML =
@@ -8877,6 +8889,18 @@ document.addEventListener('keydown', function(e) {
   picker.addEventListener('input', syncPickerToText);
   picker.addEventListener('click', function() { syncTextToPicker(); });
   picker.addEventListener('focus', function() { syncTextToPicker(); });
+})();
+
+// #88：一捲就縮細 header，唔好蓋住搜尋結果
+(function () {
+  var hd = null;
+  var onScroll = function () {
+    if (!hd) hd = document.querySelector('header');
+    if (!hd) return;
+    var on = (window.pageYOffset || document.documentElement.scrollTop || 0) > 30;
+    hd.classList.toggle('hd-compact', on);
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
 })();
 
 installModalCloseButtons();  // #79 所有彈窗加左上角 ✕
