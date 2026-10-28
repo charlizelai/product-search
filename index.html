@@ -2471,7 +2471,15 @@ function showApp() {
   }
 }
 
-async function apiGet(action, params) {
+/**
+ * #92：「系統忙碌中」＝伺服器拎唔到鎖，即係嗰次操作**完全冇執行過**，
+ *      所以自動重試係安全的（唔會重複寫入）。
+ */
+function isBusyReply(res) {
+  return !!(res && res.busy) || /系統忙碌/.test(String((res && res.error) || ''));
+}
+
+async function apiGet(action, params, _attempt) {
   var url = API_URL + '?action=' + encodeURIComponent(action) + '&token=' + encodeURIComponent(TOKEN);
   if (params) {
     Object.keys(params).forEach(function(k) {
@@ -2479,17 +2487,29 @@ async function apiGet(action, params) {
     });
   }
   var res = await fetch(url);
-  return res.json();
+  var out = await res.json();
+  var n = _attempt || 0;
+  if (isBusyReply(out) && n < 3) {
+    await new Promise(function (r) { setTimeout(r, 1200 * (n + 1)); });
+    return apiGet(action, params, n + 1);
+  }
+  return out;
 }
 
-async function apiPost(body) {
+async function apiPost(body, _attempt) {
   var payload = Object.assign({}, body, {token: TOKEN});
   var res = await fetch(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify(payload)
   });
-  return res.json();
+  var out = await res.json();
+  var n = _attempt || 0;
+  if (isBusyReply(out) && n < 3) {
+    await new Promise(function (r) { setTimeout(r, 1200 * (n + 1)); });
+    return apiPost(body, n + 1);
+  }
+  return out;
 }
 
 
