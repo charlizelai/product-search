@@ -842,7 +842,22 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .ooslog-item .oi-meta { display: block; font-size: 14px; color: #86868b; font-weight: 600; margin: 0 0 4px; line-height: 1.45; }
 .ooslog-item .oi-loc { font-size: 12px; color: #6e6e73; font-weight: 600; line-height: 1.45; margin: 2px 0 6px; }
 .ooslog-item .oi-loc.empty { color: #b0b0b5; }
-.ooslog-item .oi-qty { flex-shrink: 0; font-weight: 800; color: #c62828; font-size: 15px; align-self: flex-start; }
+.ooslog-item .oi-qty { flex-shrink: 0; font-weight: 800; color: #c62828; font-size: 15px; text-align: right; }
+
+/* #91 右邊貨品縮圖（約 1cm），撳落彈大圖 */
+.ooslog-item .oi-side {
+  flex: 0 0 auto; display: flex; flex-direction: column;
+  align-items: flex-end; gap: 6px;
+}
+.ooslog-item .oi-thumb {
+  width: 40px; height: 40px; border-radius: 9px; object-fit: cover;
+  border: 1px solid #e5e5e7; background: #f5f5f7; display: block; cursor: pointer;
+}
+.ooslog-item .oi-thumb:active { opacity: .7; }
+.ooslog-item .oi-thumb.empty {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; color: #c7c7cc; cursor: default;
+}
 .ooslog-ok { color: #2e7d32 !important; }
 .ooslog-empty { text-align: center; color: #86868b; padding: 34px 10px; font-size: 14px; line-height: 1.6; }
 
@@ -5068,9 +5083,9 @@ async function saveGroupTotals(gi) {
 
 // #82：由 productId 搵返貨品嘅「暫存位置」（L 欄），帶快取唔會逐筆掃
 var _oosLocMap = null, _oosLocLen = -1;
-function oosLocText(productId) {
+function oosProductOf(productId) {
   var key = String(productId || '').trim();
-  if (!key) return '';
+  if (!key) return null;
   if (!_oosLocMap || _oosLocLen !== allData.length) {
     _oosLocMap = {};
     for (var i = 0; i < allData.length; i++) {
@@ -5078,9 +5093,17 @@ function oosLocText(productId) {
     }
     _oosLocLen = allData.length;
   }
-  var d = _oosLocMap[key];
+  return _oosLocMap[key] || null;
+}
+function oosLocText(productId) {
+  var d = oosProductOf(productId);
   if (!d) return '';
   return String(d.temp_location || '').trim();     // 只要暫存位置
+}
+function oosImgUrl(productId) {
+  var d = oosProductOf(productId);
+  if (!d) return '';
+  return String(d._preview || d.image || '').trim();
 }
 
 /** 單筆缺貨紀錄嘅 HTML（單號檢視、巡查段、跟進動作檢視共用） */
@@ -5121,6 +5144,14 @@ function oosLogItemHtml(r, showDate) {
   // #82：缺貨資料排最前；貨品名 → 暫存位置 → 跟進動作 排後
   var locTxt = oosLocText(r.productId);
 
+  // #91：右邊 1cm 縮圖，撳落彈大圖
+  var imgUrl = oosImgUrl(r.productId);
+  var thumbHtml = imgUrl
+    ? '<img class="oi-thumb" src="' + escAttr(imgUrl) + '" alt="" loading="lazy" ' +
+      'referrerpolicy="no-referrer" onclick="event.stopPropagation();openLightbox(\'' +
+      escAttr(r.productId) + '\')">'
+    : '<div class="oi-thumb empty">📦</div>';
+
   return '<div class="ooslog-item">' +
     '<div class="oi-main">' +
       '<span class="oi-meta ' + st.cls + '">' + esc(meta.join(' · ')) + '</span>' +
@@ -5132,7 +5163,10 @@ function oosLogItemHtml(r, showDate) {
         : '<div class="oi-loc empty">📍 暫存位置未填</div>') +
       '<div>' + actChip + '</div>' +
     '</div>' +
-    '<div class="oi-qty ' + st.cls + '">×' + q + '</div>' +
+    '<div class="oi-side">' +
+      '<div class="oi-qty ' + st.cls + '">×' + q + '</div>' +
+      thumbHtml +
+    '</div>' +
   '</div>';
 }
 
