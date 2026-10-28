@@ -126,6 +126,12 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
   font-size: 14px; font-weight: 600; cursor: pointer;
   transition: all .15s;
 }
+/* #81 主要掣（只搜條碼）：藍底白字，最顯眼；開啟時下面嘅 barcode-active 會變紅 */
+.tool-btn.pri {
+  background: #0071e3; border-color: #0071e3; color: #fff;
+  font-size: 15px; font-weight: 800; padding: 9px 16px;
+  box-shadow: 0 3px 10px rgba(0,113,227,.35);
+}
 .tool-btn.active { background: #e8f0fe; border-color: #0071e3; color: #1a73e8; }
 .tool-btn.barcode-active { background: #fef2f2; border-color: #d93025; color: #d93025; }
 .tool-btn.oos-filter-active { background: #fdecea; border-color: #c62828; color: #c62828; }
@@ -1141,18 +1147,18 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     <div class="stats" id="stats">載入中...</div>
     <!-- 常用掣：一行橫向滑，唔會撐高個 header -->
     <div class="quick-bar">
+      <button id="btnBarcodeOnly" class="tool-btn pri" onclick="toggleBarcodeOnly()">🏷️ 只搜條碼</button>
       <button id="btnOrderTotals" class="tool-btn" onclick="openOrderTotals()">📦 訂單件數</button>
       <button type="button" class="tool-btn" onclick="openOOSLog()">📋 缺貨紀錄</button>
       <button id="btnOOSFilter" class="tool-btn" onclick="toggleOOSFilter()">⚠️ 只看缺貨</button>
       <button id="btnNewItem" class="tool-btn" onclick="toggleNewItemOnly()">🆕 我新入嘅貨</button>
-      <button id="btnSortToggle" class="tool-btn" onclick="toggleSort()">📍 位置排序</button>
     </div>
 
     <div id="filterPanel" class="hd-panel" style="display:none;">
     <div class="toolbar">
-      <button id="btnBarcodeOnly" class="tool-btn" onclick="toggleBarcodeOnly()">🏷️ 只搜條碼</button>
       <button id="btnSkuOnly" class="tool-btn" onclick="toggleSkuOnly()">🔖 只搜 SKU</button>
       <button id="btnCatSuspect" class="tool-btn" onclick="toggleCatSuspect()">🧩 分類待修</button>
+      <button id="btnSortToggle" class="tool-btn" onclick="toggleSort()">📍 位置排序</button>
       <button id="btnRefreshAPI" class="tool-btn" onclick="refreshFromAPIManual()">🔄 用 API 刷新</button>
     </div>
     <div class="category-filter-row">
