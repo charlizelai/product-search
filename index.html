@@ -3417,6 +3417,14 @@ function dateInputToYMD(v) {
   return String(v || '').replace(/[^0-9]/g, '').slice(0, 8);
 }
 
+/** 今日（本地時間）→ YYYYMMDD */
+function todayYMD() {
+  var d = new Date();
+  return String(d.getFullYear()) +
+         ('0' + (d.getMonth() + 1)).slice(-2) +
+         ('0' + d.getDate()).slice(-2);
+}
+
 /** YYYYMMDD → <input type="date"> 要嘅 YYYY-MM-DD */
 function ymdToDateInput(ymd) {
   var s = String(ymd || '').replace(/[^0-9]/g, '');
@@ -3556,6 +3564,7 @@ var oosLogIncludeRestocked = false;
 var oosLogTail = '';          // #49：用單號查「呢張單缺咩貨」
 var oosLogSlot = '';          // #55：彈窗內嘅派送時段篩選（早/中/晚/放假）
 var oosLogDate = '';          // #56：彈窗內嘅單日期篩選（YYYYMMDD）
+var _oosLogDateCleared = false;   // #84：用戶撳過「全部日期」就唔再自動填今日
 var oosLogGroupBy = 'order';  // #50：'order' = 按訂單分組；'action' = 按跟進動作分組
 var prodHistoryId = null;
 
@@ -4683,6 +4692,7 @@ function oosLogMatch(r) {
 function onOOSLogDate() {
   var el = $('oosLogDate');
   oosLogDate = dateInputToYMD(el ? el.value : '');
+  if (oosLogDate) _oosLogDateCleared = false;      // #84：揀咗日期就唔再自動填今日
   var c = $('btnOOSLogDateClear');
   if (c) c.style.display = oosLogDate ? 'inline-block' : 'none';
   renderOOSLog();
@@ -4690,6 +4700,7 @@ function onOOSLogDate() {
 
 function clearOOSLogDate() {
   oosLogDate = '';
+  _oosLogDateCleared = true;                       // #84：用戶明確要「全部日期」
   var el = $('oosLogDate'); if (el) el.value = '';
   var c = $('btnOOSLogDateClear'); if (c) c.style.display = 'none';
   renderOOSLog();
@@ -4738,8 +4749,11 @@ async function openOOSLog() {
   $('oosLogSummary').textContent = '';
   var el = $('oosLogTail'); if (el) el.value = oosLogTail;
   var clr = $('btnOOSLogTailClear'); if (clr) clr.style.display = oosLogTail ? 'block' : 'none';
-  // 第一次開就沿用頂部篩選列嘅日期／時段，之後彈窗自己記住自己嘅選擇
-  if (!oosLogDate && oosDateFilter) oosLogDate = oosDateFilter;
+  // #84：預設顯示「當日」資料；頂部篩選列有揀就跟頂部
+  if (!oosLogDate) {
+    if (oosDateFilter) oosLogDate = oosDateFilter;
+    else if (!_oosLogDateCleared) oosLogDate = todayYMD();
+  }
   if (!oosLogSlot && oosSlotFilter) oosLogSlot = oosSlotFilter;
 
   var dEl = $('oosLogDate');
@@ -4781,10 +4795,18 @@ function renderOOSLog() {
 
   if (!recs.length) {
     $('oosLogSummary').textContent = '';
-    $('oosLogBody').innerHTML = oosLogTail
-      ? '<div class="ooslog-empty">🔎 搵唔到單號含「' + esc(oosLogTail) + '」嘅缺貨紀錄。<br>' +
-        '<span style="font-size:12px;">提醒：冇填單號嘅缺貨唔可以用單號搵。試下用日期／時段搵。</span></div>'
-      : '<div class="ooslog-empty">呢個範圍冇缺貨紀錄。</div>';
+    var emptyMsg;
+    if (oosLogTail) {
+      emptyMsg = '🔎 搵唔到單號含「' + esc(oosLogTail) + '」嘅缺貨紀錄。<br>' +
+        '<span style="font-size:12px;">提醒：冇填單號嘅缺貨唔可以用單號搵。試下用日期／時段搵。</span>';
+    } else if (oosLogDate) {
+      emptyMsg = '📭 ' + esc(prettyYMD(oosLogDate)) + ' 未有缺貨紀錄。' +
+        '<br><button type="button" class="tool-btn" style="margin-top:12px;" ' +
+        'onclick="clearOOSLogDate()">睇全部日期</button>';
+    } else {
+      emptyMsg = '呢個範圍冇缺貨紀錄。';
+    }
+    $('oosLogBody').innerHTML = '<div class="ooslog-empty">' + emptyMsg + '</div>';
     return;
   }
 
