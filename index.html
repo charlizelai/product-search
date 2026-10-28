@@ -81,7 +81,15 @@ header {
   overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px;
 }
 .quick-bar::-webkit-scrollbar { display: none; }
-.quick-bar .tool-btn { flex: 0 0 auto; white-space: nowrap; }
+.quick-bar .tool-btn {
+  flex: 0 0 auto; white-space: nowrap;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  touch-action: pan-x;                            /* #90 平時照樣可以左右滑 */
+}
+.quick-bar .tool-btn.qb-drag {
+  pointer-events: none; opacity: .85; z-index: 3;
+  box-shadow: 0 8px 22px rgba(0,0,0,.28); position: relative;
+}
 
 /* #88 捲落睇結果時，header 自動縮到最細（只留頂行＋搜尋格） */
 header.hd-compact .quick-bar,
@@ -1173,7 +1181,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     <div class="quick-bar" id="quickBar">
       <button id="btnBarcodeOnly" class="tool-btn pri" onclick="toggleBarcodeOnly()">🏷️ 只搜條碼</button>
       <button id="btnOrderTotals" class="tool-btn" onclick="openOrderTotals()">📦 訂單件數</button>
-      <button type="button" class="tool-btn" onclick="openOOSLog()">📋 缺貨紀錄</button>
+      <button type="button" id="btnOOSLogQuick" class="tool-btn" onclick="openOOSLog()">📋 缺貨紀錄</button>
       <button id="btnOOSFilter" class="tool-btn" onclick="toggleOOSFilter()">⚠️ 只看缺貨</button>
       <button id="btnNewItem" class="tool-btn" onclick="toggleNewItemOnly()">🆕 我新入嘅貨</button>
     </div>
@@ -8913,6 +8921,115 @@ document.addEventListener('keydown', function(e) {
   picker.addEventListener('focus', function() { syncTextToPicker(); });
 })();
 
+// ============================================================
+//  #90  常用掣可拖動換位（長按 → 左右拖 → 自動記住）
+// ============================================================
+var QB_ORDER_KEY = 'hc_quickbar_order_v1';
+
+function qbButtons() {
+  var bar = $('quickBar');
+  if (!bar) return [];
+  return Array.prototype.filter.call(bar.children, function (n) {
+    return n && n.tagName === 'BUTTON';
+  });
+}
+
+function saveQuickBarOrder() {
+  var ids = qbButtons().map(function (b) { return b.id; }).filter(function (x) { return !!x; });
+  try { localStorage.setItem(QB_ORDER_KEY, JSON.stringify(ids)); } catch (e) {}
+}
+
+function applyQuickBarOrder() {
+  var bar = $('quickBar');
+  if (!bar) return;
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem(QB_ORDER_KEY) || '[]'); } catch (e) { saved = null; }
+  if (!saved || !saved.length) return;
+
+  var map = {};
+  qbButtons().forEach(function (b) { if (b.id) map[b.id] = b; });
+
+  saved.forEach(function (id) {
+    if (map[id]) bar.appendChild(map[id]);        // 依記錄次序重新排
+  });
+  qbButtons().forEach(function (b) {              // 未記錄嘅（新加）排最後
+    if (saved.indexOf(b.id) < 0) bar.appendChild(b);
+  });
+}
+
+function initQuickBarDrag() {
+  var bar = $('quickBar');
+  if (!bar) return;
+  applyQuickBarOrder();
+
+  var drag = null;
+
+  function start(e) {
+    var t = e.touches ? (e.touches.length === 1 ? e.touches[0] : null) : e;
+    if (!t) return;
+    var btn = e.target && e.target.closest ? e.target.closest('button') : null;
+    if (!btn || btn.parentNode !== bar) return;
+
+    drag = { btn: btn, x0: t.clientX, y0: t.clientY, active: false, timer: null };
+    drag.timer = setTimeout(function () {
+      if (!drag) return;
+      drag.active = true;
+      drag.btn.classList.add('qb-drag');
+      try { if (navigator.vibrate) navigator.vibrate(15); } catch (er) {}
+      toast('✋ 左右拖動就可以換位', 1600);
+    }, 300);
+  }
+
+  function move(e) {
+    if (!drag) return;
+    var t = e.touches ? (e.touches.length ? e.touches[0] : null) : e;
+    if (!t) return;
+
+    if (!drag.active) {
+      // 未長按夠就郁 → 當係正常左右滑
+      if (Math.abs(t.clientX - drag.x0) > 10 || Math.abs(t.clientY - drag.y0) > 10) {
+        clearTimeout(drag.timer);
+        drag = null;
+      }
+      return;
+    }
+
+    if (e.cancelable) e.preventDefault();
+    drag.btn.style.transform = 'translateX(' + (t.clientX - drag.x0) + 'px)';
+
+    var over = document.elementFromPoint(t.clientX, t.clientY);
+    var target = over && over.closest ? over.closest('button') : null;
+    if (target && target !== drag.btn && target.parentNode === bar) {
+      var r = target.getBoundingClientRect();
+      var after = t.clientX > r.left + r.width / 2;
+      bar.insertBefore(drag.btn, after ? target.nextSibling : target);
+      drag.x0 = t.clientX;
+      drag.btn.style.transform = 'none';
+    }
+  }
+
+  function end() {
+    if (!drag) return;
+    clearTimeout(drag.timer);
+    if (drag.active) {
+      drag.btn.classList.remove('qb-drag');
+      drag.btn.style.transform = '';
+      saveQuickBarOrder();
+      toast('✅ 新次序已記住', 1600);
+    }
+    drag = null;
+  }
+
+  bar.addEventListener('touchstart', start, { passive: true });
+  bar.addEventListener('touchmove', move, { passive: false });
+  bar.addEventListener('touchend', end);
+  bar.addEventListener('touchcancel', end);
+
+  bar.addEventListener('mousedown', start);
+  window.addEventListener('mousemove', function (e) { if (drag) move(e); });
+  window.addEventListener('mouseup', function () { if (drag) end(); });
+}
+
 // #88：一捲就縮細 header，唔好蓋住搜尋結果
 (function () {
   var hd = null;
@@ -8925,6 +9042,7 @@ document.addEventListener('keydown', function(e) {
   window.addEventListener('scroll', onScroll, { passive: true });
 })();
 
+initQuickBarDrag();          // #90 常用掣可拖動換位
 installModalCloseButtons();  // #79 所有彈窗加左上角 ✕
 
 updateBarcodeButton();
