@@ -8095,7 +8095,7 @@ function closeSubBulk() { $('subBulkModal').classList.remove('show'); }
 
 async function loadSubBulk() {
   try {
-    var res = await apiGet('listBlankSubCat');
+    var res = await apiPost({ action: 'listBlankSubCat' });   // #99：用 POST，唔靠 GET 路由
     if (!res || res.error) {
       $('sbList').innerHTML = '<div style="color:#c62828; font-size:13px; padding:12px;">❌ ' +
         esc((res && res.error) || '讀取失敗') + '</div>';
