@@ -63,9 +63,18 @@ header {
 }
 .hd-menu-item:active { background: #e0e0e6; }
 
-.hd-panel { max-height: 64vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-.hd-panel .toolbar { margin-top: 0; justify-content: flex-start; }
-.hd-panel .category-filter-row:first-of-type { margin-top: 10px; }
+.hd-panel {
+  max-height: 46vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 10px 10px 6px;
+}
+.hd-panel .toolbar { margin-top: 0; justify-content: flex-start; gap: 6px; }
+.hd-panel .toolbar .tool-btn { padding: 7px 12px; font-size: 13px; }
+.hd-panel .category-filter-row { margin-top: 8px; padding: 0; }
+.hd-panel .category-select {
+  padding: 9px 34px 9px 12px; font-size: 15px; max-width: none;
+  background-position: right 10px center;
+}
+.hd-panel select.category-select + select.category-select { margin-left: 6px; }
 
 .quick-bar {
   display: flex; gap: 8px; margin-top: 10px; flex-wrap: nowrap;
@@ -3476,12 +3485,14 @@ async function applyOOSDateFilter(reload) {
 }
 
 async function onOOSDateChange() {
+  setTimeout(closeFilterPanel, 0);      // #89
   var el = $('oosDateFilter');
   oosDateFilter = dateInputToYMD(el ? el.value : '');
   await applyOOSDateFilter(true);
 }
 
 async function onOOSSlotChange() {
+  setTimeout(closeFilterPanel, 0);      // #89
   var el = $('oosSlotFilter');
   oosSlotFilter = el ? String(el.value || '').trim() : '';
   // 時段只是就同一批已載入的記錄再篩，不必重新拉資料
@@ -5332,6 +5343,7 @@ function updateCategoryButtonState() {
 }
 
 function onCategoryChange() {
+  setTimeout(closeFilterPanel, 0);      // #89 揀完即刻收埋面板
   var sel = $('categoryFilter');
   if (!sel) return;
   categoryFilter = sel.value;
@@ -5526,6 +5538,7 @@ function populateSubcatFilter() {
 }
 
 function onSubcatChange() {
+  setTimeout(closeFilterPanel, 0);      // #89
   var sel = $('subcatFilter');
   if (!sel) return;
   subcatFilter = sel.value || '';
@@ -5554,6 +5567,7 @@ async function loadPromoBrands() {
 }
 
 function onBrandChange() {
+  setTimeout(closeFilterPanel, 0);      // #89 揀完即刻收埋面板
   var sel = $('brandFilter');
   if (!sel) return;
   brandFilter = sel.value || '';
@@ -6799,6 +6813,14 @@ function toggleMoreMenu() {
     var fb = $('btnFilterToggle');
     if (fb) fb.classList.remove('on');
   }
+}
+
+/** #89：閂埋 ☰ 篩選面板（揀完品牌／分類／日期之後即刻讓返位俾資料） */
+function closeFilterPanel() {
+  var p = $('filterPanel');
+  if (p) p.style.display = 'none';
+  var b = $('btnFilterToggle');
+  if (b) b.classList.remove('on');
 }
 
 function closeMoreMenu() {
