@@ -842,6 +842,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .otg2-top {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   padding: 8px 0 6px; border-bottom: 1px solid #f2f2f7; background: #fbfdff;
+  border-top: 1px solid #e5e5e7; margin-top: 6px;      /* #83 */
 }
 .otg2-badge { font-size: 15px; font-weight: 800; color: #1d1d1f; white-space: nowrap; }
 .otg2-all { display: flex; align-items: center; gap: 4px; min-width: 0; }
@@ -4855,7 +4856,7 @@ function renderOOSLog() {
         (dateStr ? '<span class="lg-sum">📅 ' + esc(dateStr) + '</span>' : '') +
         '<span class="lg-sum">' + g.items.length + ' 筆 · ' + g.qty + ' 件</span>' +
       '</div>' +
-      oosLogGroupTotalsHtml(g, gi) + items +
+      items + oosLogGroupTotalsHtml(g, gi) +      // #83：缺貨資料排先，件數／掛貨暫存地區排後
     '</div>';
   }).join('');
 
