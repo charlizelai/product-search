@@ -818,6 +818,22 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 }
 .otg2-all .ot-dist::placeholder { font-size: 13px; letter-spacing: 0; }
 
+/* #79 彈窗左上角關閉掣（左手姆指撳得到） */
+.modal-x {
+  flex: 0 0 auto; width: 44px; height: 44px; padding: 0; margin-left: -8px;
+  border: none; border-radius: 50%; background: #f2f2f7;
+  color: #6e6e73; font-size: 20px; font-weight: 700; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; -webkit-appearance: none; font-family: inherit;
+}
+.modal-x:active { background: #e0e0e6; color: #1d1d1f; }
+.modal-x-bar {
+  position: sticky; top: 0; z-index: 6; background: #fff;
+  display: flex; align-items: center; gap: 4px;
+  margin: 0 0 10px; padding-bottom: 6px;
+}
+.modal-x-bar h2 { margin: 0 !important; }
+
 /* #78 原箱偵測 */
 .cs-btn {
   padding: 10px 14px; border: 2px solid #0071e3; border-radius: 999px; background: #fff;
@@ -1740,7 +1756,12 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 <!-- #57 訂單件數：一張單有幾多件，按貨類分 -->
 <div class="modal" id="ordTotalsModal" style="align-items:center;">
   <div class="modal-content">
-    <h2 style="margin:0 0 10px; font-size:20px;">📦 訂單件數</h2>
+    <!-- #79 左上角關閉掣：sticky，捲到任何位置都撳得到 -->
+    <div style="position:sticky; top:0; z-index:6; background:#fff;
+                display:flex; align-items:center; gap:4px; margin:0 0 10px; padding-bottom:6px;">
+      <button type="button" class="modal-x" onclick="closeOrderTotals()" aria-label="關閉">✕</button>
+      <h2 style="margin:0; font-size:20px;">📦 訂單件數</h2>
+    </div>
 
     <div class="field">
       <label>單日期</label>
@@ -6559,6 +6580,59 @@ function openPayMgr() {
 function closePayMgr() { $('payMgrModal').classList.remove('show'); }
 
 // ============================================================
+//  #79  所有彈窗統一加左上角 ✕（左手姆指撳得到）
+//   #ordTotalsModal 已手動加；#scanModal、#optionsModal 本身已有關閉掣
+// ============================================================
+var MODAL_X_LIST = [
+  ['modal',            'closeModal'],
+  ['oosModal',         'closeOOSModal'],
+  ['userModal',        'closeUserModal'],
+  ['ocrModal',         'closeOcrModal'],
+  ['bcModal',          'closeBarcodeModal'],
+  ['catModal',         'closeCatModal'],
+  ['bulkCatModal',     'closeBulkCatModal'],
+  ['oosLogModal',      'closeOOSLog'],
+  ['prodHistoryModal', 'closeProductHistory'],
+  ['oosActionModal',   'closeOOSActionPicker'],
+  ['payMgrModal',      'closePayMgr'],
+  ['caseScanModal',    'csClose']
+];
+
+function installModalCloseButtons() {
+  MODAL_X_LIST.forEach(function (pair) {
+    try {
+      var m = $(pair[0]);
+      if (!m) return;
+      var content = m.querySelector('.modal-content');
+      if (!content) return;
+      if (content.querySelector('.modal-x')) return;      // 已經有
+
+      var bar = document.createElement('div');
+      bar.className = 'modal-x-bar';
+
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'modal-x';
+      btn.setAttribute('aria-label', '關閉');
+      btn.textContent = '✕';
+      btn.onclick = function () {
+        var fn = window[pair[1]];
+        if (typeof fn === 'function') fn();
+      };
+      bar.appendChild(btn);
+
+      var h2 = content.querySelector('h2');
+      if (h2 && h2.parentNode === content) {              // 標題直接喺最頂 → 一齊放入 sticky 行
+        content.insertBefore(bar, h2);
+        bar.appendChild(h2);
+      } else {                                            // 冇標準標題 → 只放 ✕
+        content.insertBefore(bar, content.firstChild);
+      }
+    } catch (e) {}
+  });
+}
+
+// ============================================================
 //  #78  原箱偵測：用相片認「紫紅色左下角 ＋ 啡色紙箱底」
 //   惠康「原箱優惠」嘅產品相一定帶呢兩個特徵，
 //   所以可以靠驗色搵出分錯咗去其他類別嘅原箱貨。
@@ -8549,6 +8623,8 @@ document.addEventListener('keydown', function(e) {
   picker.addEventListener('click', function() { syncTextToPicker(); });
   picker.addEventListener('focus', function() { syncTextToPicker(); });
 })();
+
+installModalCloseButtons();  // #79 所有彈窗加左上角 ✕
 
 updateBarcodeButton();
 updateSkuButton();          // #32
