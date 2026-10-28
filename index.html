@@ -1151,6 +1151,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
     <!-- 常用掣：一行橫向滑，唔會撐高個 header -->
     <div class="quick-bar">
       <button id="btnBarcodeOnly" class="tool-btn pri" onclick="toggleBarcodeOnly()">🏷️ 只搜條碼</button>
+      <button type="button" class="tool-btn" onclick="clearAllSearch()">🧹 清除條件</button>
       <button id="btnOrderTotals" class="tool-btn" onclick="openOrderTotals()">📦 訂單件數</button>
       <button type="button" class="tool-btn" onclick="openOOSLog()">📋 缺貨紀錄</button>
       <button id="btnOOSFilter" class="tool-btn" onclick="toggleOOSFilter()">⚠️ 只看缺貨</button>
@@ -6582,11 +6583,59 @@ $('imageSearchInput').addEventListener('change', async function(e) {
   } catch (err) { toast('❌ ' + err.message, 3000); }
 });
 
-$('btnClear').onclick = function() {
-  $('q').value = '';
+/**
+ * #85：一撳清走晒所有搜尋／篩選條件 → 方便搵下一件貨、搵多幾件貨
+ *   （最痛嘅係「只搜條碼」開住，唔清走就連下一件都搵唔到）
+ */
+function clearAllSearch() {
+  var q = $('q'); if (q) q.value = '';
   searchMode = 'text';
-  loadData(true);
-};
+
+  barcodeOnly = false;
+  skuOnly = false;
+  oosFilterOnly = false;
+  catSuspectOnly = false;
+  newItemOnly = false;
+  sortMode = 'default';
+
+  categoryFilter = '';
+  brandFilter = '';
+  subcatFilter = '';
+  oosDateFilter = '';
+  oosSlotFilter = '';
+
+  try {
+    localStorage.setItem(BARCODE_MODE_KEY, '0');
+    localStorage.setItem(SKU_MODE_KEY, '0');
+    localStorage.setItem(OOS_FILTER_KEY, '0');
+    localStorage.setItem(CAT_SUSPECT_KEY, '0');
+    localStorage.setItem(NEW_ITEM_KEY, '0');
+    localStorage.setItem(CATEGORY_FILTER_KEY, '');
+  } catch (e) {}
+
+  ['categoryFilter', 'brandFilter', 'subcatFilter', 'oosDateFilter', 'oosSlotFilter']
+    .forEach(function (id) { var el = $(id); if (el) el.value = ''; });
+
+  if (typeof updateCategoryButtonState === 'function') updateCategoryButtonState();
+  if (typeof populateBrandFilter === 'function') populateBrandFilter();
+  if (typeof populateSubcatFilter === 'function') populateSubcatFilter();
+
+  updateBarcodeButton();
+  updateSkuButton();
+  updateOOSFilterButton();
+  updateCatSuspectButton();
+  updateNewItemButton();
+  updateSortButton();
+  applyInputMode();
+
+  var c = $('btnClear'); if (c) c.style.display = 'none';
+  if (typeof hideSearchHistory === 'function') hideSearchHistory();
+
+  if (allData.length > 0) render();
+  toast('🧹 已清除全部條件', 2000);
+}
+
+$('btnClear').onclick = function() { clearAllSearch(); };
 
 
 // ============================================================
