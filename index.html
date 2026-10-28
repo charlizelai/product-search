@@ -1269,7 +1269,37 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       套用之後仍然可以逐件改。
     </div>
     <button type="button" onclick="runAutoSubCat()" style="width:100%; padding:13px; margin-bottom:8px; font-size:16px; font-weight:700; border:none; border-radius:10px; background:#0071e3; color:#fff; cursor:pointer; font-family:inherit;">🧠 自動填 I 欄（規則 ＋ 品牌自動學習）</button>
+    <button type="button" onclick="openSubBulk()" style="width:100%; padding:13px; margin-bottom:8px; font-size:16px; font-weight:700; border:none; border-radius:10px; background:#2e7d32; color:#fff; cursor:pointer; font-family:inherit;">🏷️ 按品牌批量分細分（收拾剩低嘅）</button>
     <button id="btnBulkCat" onclick="openBulkCatModal()" style="width:100%; padding:13px; font-size:16px; font-weight:700; border:none; border-radius:10px; background:#f57c00; color:#fff; cursor:pointer;">⚡ 一鍵套用全部建議</button>
+  </div>
+
+  <!-- #99 按品牌批量分細分 -->
+  <div class="modal" id="subBulkModal" style="align-items:center;">
+    <div class="modal-content" style="border-radius:24px; margin:12px; max-height:92vh; padding:20px 16px;">
+      <h2 style="margin:0 0 10px; font-size:20px;" id="sbTitle">🏷️ 未細分貨品</h2>
+      <div style="background:#f0f7ff; border-radius:10px; padding:10px 12px; margin-bottom:12px;
+                  font-size:12px; color:#0071e3; line-height:1.6;">
+        撳一個品牌 → 揀細分 → 一次過幫佢成個品牌填好。<br>只會填「空白」嘅格，唔會覆蓋你手動填嘅。
+      </div>
+      <div id="sbList" style="max-height:52vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
+                              border:1px solid #e5e5e7; border-radius:10px; padding:4px 8px; margin-bottom:12px;"></div>
+
+      <div id="sbPanel" style="display:none;">
+        <div id="sbPanelTitle" style="font-size:14px; font-weight:800; margin-bottom:8px;"></div>
+        <div id="sbChips" class="chip-group" style="margin-bottom:10px;"></div>
+        <input id="sbCustom" type="text" placeholder="或者自己打（例：酒類 / 威士忌）"
+               style="width:100%; padding:12px; font-size:16px; border:2px solid #d2d2d7;
+                      border-radius:12px; margin-bottom:10px; font-family:inherit;">
+        <div style="display:flex; gap:8px; margin-bottom:12px;">
+          <button type="button" class="btn-cancel" onclick="closeSbPanel()" style="flex:0 0 auto;">返回</button>
+          <button type="button" class="btn-save" onclick="applySbBrand()" style="flex:1;">✅ 套用</button>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeSubBulk()">關閉</button>
+      </div>
+    </div>
   </div>
 
   <div class="list" id="list"></div>
@@ -8044,6 +8074,132 @@ async function runAutoSubCat() {
     toast('✅ 已自動填 ' + (res.updated || 0) + ' 件', 3000);
     invalidateCatSuspect(null);
     await loadData(true);
+  } catch (e) { toast('❌ ' + e.message, 4000); }
+}
+
+// ============================================================
+//  #99  按品牌批量分細分（收拾剩低嘅零散貨品）
+// ============================================================
+var _sbBrands = [];
+var _sbSel = null;
+var _sbPick = '';
+
+function openSubBulk() {
+  $('subBulkModal').classList.add('show');
+  $('sbPanel').style.display = 'none';
+  $('sbList').innerHTML = '<div style="color:#86868b; font-size:13px; padding:12px;">載入中…</div>';
+  loadSubBulk();
+}
+
+function closeSubBulk() { $('subBulkModal').classList.remove('show'); }
+
+async function loadSubBulk() {
+  try {
+    var res = await apiGet('listBlankSubCat');
+    if (!res || res.error) {
+      $('sbList').innerHTML = '<div style="color:#c62828; font-size:13px; padding:12px;">❌ ' +
+        esc((res && res.error) || '讀取失敗') + '</div>';
+      return;
+    }
+    _sbBrands = res.brands || [];
+    $('sbTitle').textContent = '🏷️ 未細分：' + (res.total || 0) + ' 件';
+    renderSbList();
+  } catch (e) {
+    $('sbList').innerHTML = '<div style="color:#c62828; font-size:13px; padding:12px;">❌ ' + esc(e.message) + '</div>';
+  }
+}
+
+function renderSbList() {
+  var box = $('sbList');
+  if (!_sbBrands.length) {
+    box.innerHTML = '<div style="color:#2e7d32; font-size:14px; padding:14px; text-align:center;">' +
+      '🎉 全部貨品都已經有細分！</div>';
+    return;
+  }
+  box.innerHTML = _sbBrands.map(function (b, i) {
+    return '<div class="cs-item" style="cursor:pointer;" onclick="pickSbBrand(' + i + ')">' +
+      '<span class="cs-name">' + esc(b.brand) +
+        '<div class="cs-why">' + esc((b.items[0] && b.items[0].name) || '') + ' …</div></span>' +
+      '<span style="font-size:15px; font-weight:800; color:#c62828;">' + b.count + '</span>' +
+    '</div>';
+  }).join('');
+}
+
+/** 現有嘅細分值（按使用次數排），做快速揀 */
+function subCatChoices() {
+  var counts = {};
+  allData.forEach(function (d) {
+    var c = String(d.category_zh || '').trim();
+    if (!c) return;
+    counts[c] = (counts[c] || 0) + 1;
+  });
+  return Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; }).slice(0, 40);
+}
+
+function pickSbBrand(i) {
+  var b = _sbBrands[i];
+  if (!b) return;
+  _sbSel = b;
+  _sbPick = '';
+  $('sbPanelTitle').textContent = b.brand + '（' + b.count + ' 件）';
+  $('sbChips').innerHTML = subCatChoices().map(function (c) {
+    return '<button type="button" class="chip-btn" data-value="' + escAttr(c) + '" ' +
+      'onclick="pickSbCat(this)">' + esc(c) + '</button>';
+  }).join('');
+  $('sbCustom').value = '';
+  $('sbPanel').style.display = 'block';
+  $('sbPanel').scrollIntoView({ block: 'nearest' });
+}
+
+function pickSbCat(btn) {
+  if (!btn) return;
+  var v = btn.getAttribute('data-value') || '';
+  if (_sbPick === v) {
+    _sbPick = '';
+    btn.classList.remove('active');
+    return;
+  }
+  _sbPick = v;
+  Array.prototype.forEach.call($('sbChips').querySelectorAll('.chip-btn'), function (x) {
+    x.classList.toggle('active', x === btn);
+  });
+  var ci = $('sbCustom'); if (ci) ci.value = '';
+}
+
+function closeSbPanel() {
+  $('sbPanel').style.display = 'none';
+  _sbSel = null;
+  _sbPick = '';
+}
+
+async function applySbBrand() {
+  if (!_sbSel) return;
+  var custom = ($('sbCustom').value || '').trim();
+  var want = custom || _sbPick;
+  if (!want) { toast('請揀一個細分或者自己輸入', 3000); return; }
+  if (!confirm('「' + _sbSel.brand + '」嘅 ' + _sbSel.ids.length + ' 件貨，全部設為：\n      ' + want + '\n\n只會填空白嘅格。套用？')) return;
+
+  try {
+    var res = await apiPost({
+      action: 'bulkSetSubCat',
+      onlyBlank: true,
+      items: _sbSel.ids.map(function (id) { return { id: id, subcat: want }; })
+    });
+    if (!res || res.error) { toast('❌ ' + ((res && res.error) || '失敗'), 4000); return; }
+    toast('✅ 已填 ' + (res.applied || 0) + ' 件', 3000);
+
+    // 本機即時更新
+    var set = {};
+    _sbSel.ids.forEach(function (id) { set[String(id)] = true; });
+    allData.forEach(function (d) {
+      if (set[String(d.id).trim()]) { d.category_zh = want; d._last_source = 'user'; }
+    });
+
+    _sbBrands = _sbBrands.filter(function (x) { return x !== _sbSel; });
+    closeSbPanel();
+    renderSbList();
+    invalidateCatSuspect(null);
+    render();
   } catch (e) { toast('❌ ' + e.message, 4000); }
 }
 
