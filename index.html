@@ -8029,10 +8029,14 @@ async function runAutoSubCat() {
     var lines = Object.keys(pre.byRule || {}).map(function (k) {
       var n = pre.byRule[k] || 0;
       var bn = (pre.byBrand || {})[k] || 0;
-      return '　· ' + k + '：' + n + ' 件' + (bn ? '（其中 ' + bn + ' 件靠品牌學習）' : '');
+      var mn = (pre.byMap || {})[k] || 0;
+      var parts = [];
+      if (bn) parts.push('品牌學習 ' + bn);
+      if (mn) parts.push('分類對照 ' + mn);
+      return '　· ' + k + '：' + n + ' 件' + (parts.length ? '（' + parts.join('、') + '）' : '');
     }).join('\n');
     if (!confirm('可以自動填 ' + pre.updated + ' 件貨嘅 I 欄：\n' + lines +
-                 '\n\n關鍵字規則 ' + (pre.rules || 0) + ' 條　·　品牌學習規則 ' + (pre.brandRules || 0) + ' 條' +
+                 '\n\n關鍵字 ' + (pre.rules || 0) + ' 條　·　分類對照 ' + (pre.catMapRules || 0) + ' 條　·　品牌學習 ' + (pre.brandRules || 0) + ' 條' +
                  '\n只會填「空白」嘅格，你手動填過嘅一定唔會郁。\n套用？')) return;
 
     var res = await apiPost({ action: 'autoSubCat', dryRun: false });
