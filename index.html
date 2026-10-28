@@ -810,7 +810,9 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .ooslog-item .oi-main { flex: 1; min-width: 0; }
 .ooslog-item .oi-name { color: #1d1d1f; font-weight: 800; font-size: 17px; word-break: break-word; cursor: pointer; padding: 3px 0; }
 .ooslog-item .oi-name:active { color: #0071e3; }
-.ooslog-item .oi-meta { display: block; font-size: 14px; color: #86868b; font-weight: 600; margin-top: 4px; line-height: 1.45; }
+.ooslog-item .oi-meta { display: block; font-size: 14px; color: #86868b; font-weight: 600; margin: 0 0 4px; line-height: 1.45; }
+.ooslog-item .oi-loc { font-size: 12px; color: #6e6e73; font-weight: 600; line-height: 1.45; margin: 2px 0 6px; }
+.ooslog-item .oi-loc.empty { color: #b0b0b5; }
 .ooslog-item .oi-qty { flex-shrink: 0; font-weight: 800; color: #c62828; font-size: 15px; align-self: flex-start; }
 .ooslog-ok { color: #2e7d32 !important; }
 .ooslog-empty { text-align: center; color: #86868b; padding: 34px 10px; font-size: 14px; line-height: 1.6; }
@@ -5009,6 +5011,23 @@ async function saveGroupTotals(gi) {
   }
 }
 
+// #82：由 productId 搵返貨品嘅「暫存位置」（L 欄），帶快取唔會逐筆掃
+var _oosLocMap = null, _oosLocLen = -1;
+function oosLocText(productId) {
+  var key = String(productId || '').trim();
+  if (!key) return '';
+  if (!_oosLocMap || _oosLocLen !== allData.length) {
+    _oosLocMap = {};
+    for (var i = 0; i < allData.length; i++) {
+      _oosLocMap[String(allData[i].id || '').trim()] = allData[i];
+    }
+    _oosLocLen = allData.length;
+  }
+  var d = _oosLocMap[key];
+  if (!d) return '';
+  return String(d.temp_location || '').trim();     // 只要暫存位置
+}
+
 /** 單筆缺貨紀錄嘅 HTML（單號檢視、巡查段、跟進動作檢視共用） */
 function oosLogItemHtml(r, showDate) {
   var st = oosStatusLabel(r);
@@ -5044,12 +5063,18 @@ function oosLogItemHtml(r, showDate) {
     '✏️ ' + (act ? ('🎯 ' + esc(oosActionLabel(act))) : '修改 / 加跟進動作') +
   '</button>';
 
+  // #82：缺貨資料排最前；貨品名 → 暫存位置 → 跟進動作 排後
+  var locTxt = oosLocText(r.productId);
+
   return '<div class="ooslog-item">' +
     '<div class="oi-main">' +
+      '<span class="oi-meta ' + st.cls + '">' + esc(meta.join(' · ')) + '</span>' +
       '<div class="oi-name" onclick="jumpToProduct(\'' + escAttr(r.productId) + '\')">' +
         esc(r.productName || r.productId || '（無名）') +
       '</div>' +
-      '<span class="oi-meta ' + st.cls + '">' + esc(meta.join(' · ')) + '</span>' +
+      (locTxt
+        ? '<div class="oi-loc">📍 暫存 ' + esc(locTxt) + '</div>'
+        : '<div class="oi-loc empty">📍 暫存位置未填</div>') +
       '<div>' + actChip + '</div>' +
     '</div>' +
     '<div class="oi-qty ' + st.cls + '">×' + q + '</div>' +
