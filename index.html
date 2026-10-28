@@ -8011,6 +8011,9 @@ function updateCatBulkBar() {
 /** #87：用 _CatRules 關鍵字規則自動填 I 欄（只填空白，唔覆蓋手動值） */
 async function runAutoSubCat() {
   try {
+    // #96：先確保關鍵字規則齊全（只會補未存在嘅，唔會重複）
+    try { await apiPost({ action: 'seedCatRules' }); } catch (eSeed) {}
+
     var pre = await apiPost({ action: 'autoSubCat', dryRun: true });
     if (!pre || pre.error) { toast('❌ ' + ((pre && pre.error) || '失敗'), 4000); return; }
     if (!pre.updated) {
