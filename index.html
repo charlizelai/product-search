@@ -1229,6 +1229,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       ⚡ 可以由品名推測出 <b id="catBulkCount">0</b> 件貨嘅分類。<br>
       套用之後仍然可以逐件改。
     </div>
+    <button type="button" onclick="runAutoSubCat()" style="width:100%; padding:13px; margin-bottom:8px; font-size:16px; font-weight:700; border:none; border-radius:10px; background:#0071e3; color:#fff; cursor:pointer; font-family:inherit;">🧠 自動填 I 欄（牙膏／牙刷／洗頭水…）</button>
     <button onclick="openBulkCatModal()" style="width:100%; padding:13px; font-size:16px; font-weight:700; border:none; border-radius:10px; background:#f57c00; color:#fff; cursor:pointer;">⚡ 一鍵套用全部建議</button>
   </div>
 
@@ -7909,6 +7910,29 @@ function updateCatBulkBar() {
   if (!n) { bar.style.display = 'none'; return; }
   $('catBulkCount').textContent = n;
   bar.style.display = 'block';
+}
+
+/** #87：用 _CatRules 關鍵字規則自動填 I 欄（只填空白，唔覆蓋手動值） */
+async function runAutoSubCat() {
+  try {
+    var pre = await apiPost({ action: 'autoSubCat', dryRun: true });
+    if (!pre || pre.error) { toast('❌ ' + ((pre && pre.error) || '失敗'), 4000); return; }
+    if (!pre.updated) {
+      toast('🧠 冇新嘅可以自動分類（規則 ' + (pre.rules || 0) + ' 條）', 3000);
+      return;
+    }
+    var lines = Object.keys(pre.byRule || {}).map(function (k) {
+      return '　· ' + k + '：' + pre.byRule[k] + ' 件';
+    }).join('\n');
+    if (!confirm('可以自動填 ' + pre.updated + ' 件貨嘅 I 欄：\n' + lines +
+                 '\n\n只會填「空白」嘅格，你手動填過嘅一定唔會郁。\n套用？')) return;
+
+    var res = await apiPost({ action: 'autoSubCat', dryRun: false });
+    if (!res || res.error) { toast('❌ ' + ((res && res.error) || '失敗'), 4000); return; }
+    toast('✅ 已自動填 ' + (res.updated || 0) + ' 件', 3000);
+    invalidateCatSuspect(null);
+    await loadData(true);
+  } catch (e) { toast('❌ ' + e.message, 4000); }
 }
 
 function openBulkCatModal() {
