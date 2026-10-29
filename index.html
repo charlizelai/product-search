@@ -930,6 +930,13 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 }
 .modal-x-bar h2 { margin: 0 !important; }
 
+/* #102 當日缺貨單號尾 chips */
+#oosTailChips .chip-btn { padding: 6px 12px; font-size: 15px; font-weight: 800; font-family: ui-monospace, monospace; }
+#oosTailChips .tail-n {
+  display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 8px;
+  background: rgba(0,0,0,.08); font-size: 11px; font-weight: 700; vertical-align: middle;
+}
+
 /* #78 原箱偵測 */
 .cs-btn {
   padding: 10px 14px; border: 2px solid #0071e3; border-radius: 999px; background: #fff;
@@ -1503,6 +1510,10 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
         <span class="order-field-label">單號尾4</span>
         <input id="oosOrderTail" class="order-input" type="text" inputmode="numeric" maxlength="4" placeholder="1234" onchange="ootLookupCurrentOrder()">
       </div>
+
+      <!-- #102：揀咗日期就列出當日有缺貨嘅單號尾，一撳即填 -->
+      <div id="oosTailChips" class="chip-group"
+           style="display:none; margin:2px 0 4px; padding-left:78px;"></div>
 
       <div class="order-field-row">
         <span class="order-field-label">派送時段</span>
@@ -2863,6 +2874,12 @@ function reportOOS(id) {
   var qw0 = $('subQtyWrap'); if (qw0) qw0.style.display = 'none';
   var qh0 = $('subQtyHint'); if (qh0) qh0.textContent = '';
   loadSubstitutes();         // 背景載入，揀咗「替代貨品」先會用到
+  // #102：背景載入缺貨記錄，等「同一張單自動帶入時段／類型」有資料可用
+  if (!allOOSReports.length && typeof ensureOOSReports === 'function') {
+    ensureOOSReports().then(function () { renderOOSDayTails(); }).catch(function () {});
+  } else {
+    renderOOSDayTails();
+  }
   loadOOSHistory(id);
   var info = $('oosProductInfo');
   info.innerHTML =
@@ -3050,7 +3067,15 @@ function resetOrderInfo() {
   var g1 = $('oosTimeSlotGroup');
   if (g1) g1.querySelectorAll('.chip-btn').forEach(function(b) { b.classList.remove('selected'); });
   var g2 = $('oosOrderTypeGroup');
-  if (g2) g2.querySelectorAll('.chip-btn').forEach(function(b) { b.classList.remove('selected'); });
+  if (g2) {
+    g2.querySelectorAll('.chip-btn').forEach(function(b) { b.classList.remove('selected'); });
+    // #102：單類型預設 O2O（極少機會執 CNC／B2B）
+    var o2o = null;
+    g2.querySelectorAll('.chip-btn').forEach(function(b) {
+      if (b.getAttribute('data-value') === 'O2O') o2o = b;
+    });
+    if (o2o) o2o.classList.add('selected');
+  }
 
   try { syncTextToPicker(); } catch (e) {}
 
@@ -4144,7 +4169,138 @@ function ootOrderKeyNow() {
 }
 
 /** 單日期／單號尾／時段／類型一改 → 睇下同一張單有冇舊記錄，有就帶入 */
+var _ootAutoFilling = false;
+
+/** #102：揀一個 chip（唔會觸發 lookup，避免無限迴圈） */
+function selectChipByValue(groupId, value) {
+  var g = $(groupId);
+  if (!g) return false;
+  var target = null;
+  g.querySelectorAll('.chip-btn').forEach(function (b) {
+    if (String(b.getAttribute('data-value') || '') === String(value)) target = b;
+  });
+  if (!target) return false;
+  g.querySelectorAll('.chip-btn').forEach(function (b) {
+    if (b === target) b.classList.add('selected');
+    else b.classList.remove('selected');
+  });
+  return true;
+}
+
+/**
+ * #102：同一張單報第二件缺貨時，自動帶入第一件嘅「派送時段／單類型」。
+ *   條件：單號尾相同（有填單日期就一定要同日期）。
+ *   force = true 會蓋過你已經揀咗嘅值。
+ */
+function ootAutoFillFromSameOrder(force) {
+  var tail = String(($('oosOrderTail') || {}).value || '').replace(/[^0-9]/g, '').slice(0, 4);
+  if (!tail) return false;
+  var date = dateInputToYMD(($('oosOrderDate') || {}).value || '');
+
+  var recs = (allOOSReports || []).filter(function (r) {
+    if (String(r.orderTail || '').trim() !== tail) return false;
+    var rd = String(r.orderDate || '').trim();
+    if (date && rd && rd !== date) return false;
+    return true;
+  });
+  if (!recs.length) return false;
+
+  function pick(key) {
+    var counts = {}, best = '', bn = 0;
+    recs.forEach(function (r) {
+      var v = String(r[key] || '').trim();
+      if (!v) return;
+      counts[v] = (counts[v] || 0) + 1;
+      if (counts[v] > bn) { bn = counts[v]; best = v; }
+    });
+    return best;
+  }
+  var slot = pick('timeSlot');
+  var type = pick('orderType');
+
+  // 冇填日期 → 要所有記錄完全一致先用（避免撞到尾號嘅另一張單）
+  if (!date) {
+    var ss = {}, tt = {};
+    recs.forEach(function (r) {
+      var s = String(r.timeSlot || '').trim(); if (s) ss[s] = 1;
+      var t = String(r.orderType || '').trim(); if (t) tt[t] = 1;
+    });
+    if (Object.keys(ss).length > 1) slot = '';
+    if (Object.keys(tt).length > 1) type = '';
+  }
+
+  var applied = [];
+  if (slot && (force || !getSelectedChipValue('oosTimeSlotGroup'))) {
+    if (selectChipByValue('oosTimeSlotGroup', slot)) applied.push('時段 ' + slot);
+  }
+  if (type && (force || !getSelectedChipValue('oosOrderTypeGroup'))) {
+    if (selectChipByValue('oosOrderTypeGroup', type)) applied.push('類型 ' + type);
+  }
+  if (applied.length) toast('🔄 已帶入同一張單：' + applied.join(' · '), 2200);
+  return applied.length > 0;
+}
+
+/** #102：揀咗單日期 → 列出當日有缺貨嘅單號尾，一撳即填 */
+function renderOOSDayTails() {
+  var box = $('oosTailChips');
+  if (!box) return;
+  var date = dateInputToYMD(($('oosOrderDate') || {}).value || '');
+  if (!date) { box.innerHTML = ''; box.style.display = 'none'; return; }
+
+  var counts = {}, order = [];
+  (allOOSReports || []).forEach(function (r) {
+    if (String(r.orderDate || '').trim() !== date) return;
+    var t = String(r.orderTail || '').trim();
+    if (!t) return;
+    if (counts[t] === undefined) { counts[t] = 0; order.push(t); }
+    counts[t]++;
+  });
+
+  if (!order.length) {
+    box.innerHTML = '<span style="font-size:12px; color:#86868b;">呢日未有缺貨單號</span>';
+    box.style.display = 'flex';
+    return;
+  }
+
+  order.sort(function (a, b) {
+    if (counts[b] !== counts[a]) return counts[b] - counts[a];
+    return a.localeCompare(b);
+  });
+
+  var cur = String(($('oosOrderTail') || {}).value || '').trim();
+  box.innerHTML = order.slice(0, 40).map(function (t) {
+    return '<button type="button" class="chip-btn' + (t === cur ? ' selected' : '') + '" ' +
+      'data-value="' + escAttr(t) + '" onclick="pickOOSDayTail(this)">' +
+      esc(t) + (counts[t] > 1 ? '<span class="tail-n">' + counts[t] + '</span>' : '') +
+      '</button>';
+  }).join('');
+  box.style.display = 'flex';
+}
+
+function pickOOSDayTail(btn) {
+  if (!btn) return;
+  var v = btn.getAttribute('data-value') || '';
+  var el = $('oosOrderTail');
+  if (el) el.value = v;
+  var box = $('oosTailChips');
+  if (box) {
+    Array.prototype.forEach.call(box.querySelectorAll('.chip-btn'), function (b) {
+      b.classList.toggle('selected', b === btn);
+    });
+  }
+  if (typeof ootLookupCurrentOrder === 'function') ootLookupCurrentOrder();
+}
+
 async function ootLookupCurrentOrder() {
+  renderOOSDayTails();      // #102：先更新「當日單號尾」清單
+
+  // 先試帶入同一張單嘅時段／類型
+  if (!_ootAutoFilling) {
+    _ootAutoFilling = true;
+    try { ootAutoFillFromSameOrder(false); } catch (eAuto) {}
+    _ootAutoFilling = false;
+  }
+
   var h = $('ootHint');
   var date = dateInputToYMD(($('oosOrderDate') || {}).value || '');
   if (!date) { if (h) h.textContent = ''; return; }
