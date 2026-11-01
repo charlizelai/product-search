@@ -1222,6 +1222,8 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       <button id="btnScanInbox" class="hd-menu-item" onclick="closeMoreMenu();toggleScanInbox()">📡 接收外部掃碼</button>
       <button id="btnFixBrand" class="hd-menu-item" onclick="closeMoreMenu();runFixBrand()"
               style="display:none;">🧹 清理壞品牌</button>
+      <button id="btnFillBrand" class="hd-menu-item" onclick="closeMoreMenu();runFixBlankBrand()"
+              style="display:none;">🏷️ 補回空白品牌</button>
       <button id="btnLogout" class="hd-menu-item" onclick="closeMoreMenu();logout()">🚪 登出</button>
     </div>
     <div class="search-box" id="searchBox">
@@ -2545,6 +2547,7 @@ async function logout() {
   var bas2 = $('btnAutoSubCat'); if (bas2) bas2.style.display = 'none'; // #96
   var bfw2 = $('btnFixWine'); if (bfw2) bfw2.style.display = 'none';   // #101
   var bfb2 = $('btnFixBrand'); if (bfb2) bfb2.style.display = 'none';  // #106
+  var bfl2 = $('btnFillBrand'); if (bfl2) bfl2.style.display = 'none'; // #107
   $('phashBanner').style.display = 'none';
   $('tempIdBanner').style.display = 'none';
   toast('👋 已登出');
@@ -2560,6 +2563,7 @@ function showApp() {
   var bas = $('btnAutoSubCat'); if (bas) bas.style.display = isAdmin ? 'block' : 'none';  // #96
   var bfw = $('btnFixWine'); if (bfw) bfw.style.display = isAdmin ? 'block' : 'none';    // #101
   var bfb = $('btnFixBrand'); if (bfb) bfb.style.display = isAdmin ? 'block' : 'none';   // #106
+  var bfl = $('btnFillBrand'); if (bfl) bfl.style.display = isAdmin ? 'block' : 'none';  // #107
   loadOptions().then(function() {
     if (categoryFilter) {
       var sel = $('categoryFilter');
@@ -8524,6 +8528,30 @@ async function runFixBrand() {
     var res = await apiPost({ action: 'fixObjectBrands', dryRun: false });
     if (!res || res.error) { toast('❌ ' + ((res && res.error) || '失敗'), 4000); return; }
     toast('✅ 已處理 ' + res.total + ' 件（救返 ' + res.recovered + '、清空 ' + res.cleared + '）', 4000);
+    await loadData(true);
+  } catch (e) { toast('❌ ' + e.message, 4000); }
+}
+
+/** #107：用品名自動補回空白品牌（只認品名開頭嘅品牌名） */
+async function runFixBlankBrand() {
+  try {
+    var pre = await apiPost({ action: 'fixBlankBrands', dryRun: true });
+    if (!pre || pre.error) { toast('❌ ' + ((pre && pre.error) || '失敗'), 4000); return; }
+    if (!pre.blank) { toast('✅ 冇空白品牌', 3000); return; }
+
+    var lines = Object.keys(pre.byBrand || {})
+      .sort(function (a, b) { return pre.byBrand[b] - pre.byBrand[a]; })
+      .slice(0, 12)
+      .map(function (k) { return '　' + k + '：' + pre.byBrand[k] + ' 件'; })
+      .join('\n');
+
+    if (!confirm('空白品牌 ' + pre.blank + ' 件，可以自動補回 ' + pre.filled + ' 件：\n' +
+                 lines + '\n\n仲有 ' + pre.stillBlank + ' 件認唔出，' +
+                 '下週惠康更新會自動補回。\n\n套用？')) return;
+
+    var res = await apiPost({ action: 'fixBlankBrands', dryRun: false });
+    if (!res || res.error) { toast('❌ ' + ((res && res.error) || '失敗'), 4000); return; }
+    toast('✅ 已補回 ' + (res.filled || 0) + ' 件品牌', 4000);
     await loadData(true);
   } catch (e) { toast('❌ ' + e.message, 4000); }
 }
