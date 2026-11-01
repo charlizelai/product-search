@@ -347,10 +347,39 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
 .bc-stage svg { display: block; width: 100%; height: 150px; }
 .bc-digit { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 26px; font-weight: 700; letter-spacing: 2px; margin: 12px 0 2px; color: #000; word-break: break-all; }
 .bc-kind { font-size: 12px; color: #86868b; min-height: 16px; }
+/* #105 多條碼：每個條碼一嚿，分隔線隔開 */
+.bc-block { padding: 10px 0 8px; border-bottom: 1px dashed #e5e5e7; text-align: center; }
+.bc-block:first-child { padding-top: 0; }
+.bc-block:last-child { border-bottom: none; padding-bottom: 0; }
+.bc-block-head { font-size: 12px; color: #86868b; font-weight: 700; margin-bottom: 6px; letter-spacing: .5px; }
+.bc-block .bc-digit { font-size: 22px; margin: 8px 0 2px; }
+
 .bc-nav { display: flex; gap: 10px; justify-content: center; align-items: center; margin-top: 14px; }
 .bc-nav button { padding: 10px 16px; border-radius: 10px; border: 2px solid #d2d2d7; background: #fff; font-size: 15px; font-weight: 600; cursor: pointer; color: #1d1d1f; }
 .bc-nav .bc-count { font-size: 14px; color: #86868b; font-weight: 600; min-width: 54px; }
 .bc-hint { margin-top: 14px; background: #f0f7ff; color: #0071e3; font-size: 13px; line-height: 1.55; padding: 10px 12px; border-radius: 10px; text-align: left; }
+
+/* #104 大字掃碼模式：全屏白底、條碼放到最大、屏幕唔會熄 */
+#bcModal.screen-mode { background: #fff; align-items: stretch; }
+#bcModal.screen-mode .modal-content {
+  border-radius: 0; margin: 0; height: 100vh; max-height: 100vh;
+  padding: 8px; display: flex; flex-direction: column; justify-content: center;
+  background: #fff; overflow: hidden;
+}
+#bcModal.screen-mode .bc-name,
+#bcModal.screen-mode .bc-sub,
+#bcModal.screen-mode .bc-kind,
+#bcModal.screen-mode .bc-hint { display: none; }
+#bcModal.screen-mode .bc-stage {
+  border: none; padding: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+}
+#bcModal.screen-mode .bc-stage svg { width: 100%; height: auto; max-height: 46vh; }
+#bcModal.screen-mode .bc-block .bc-digit { font-size: 26px; }
+#bcModal.screen-mode .bc-block .bc-kind { display: block; font-size: 11px; }
+#bcModal.screen-mode .bc-block-head { display: block; }
+#bcModal.screen-mode .bc-digit { font-size: 34px; margin: 18px 0 10px; }
+#bcModal.screen-mode .bc-nav { margin-top: 10px; }
+#bcModal.screen-mode .modal-actions { margin-top: 14px; }
 
 .loc-section { margin-top: 12px; padding-top: 12px; border-top: 1px dashed #e5e5e7; }
 .loc-title { font-size: 14px; font-weight: 700; color: #2e7d32; margin-bottom: 8px; }
@@ -1190,6 +1219,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
               style="display:none;">🧠 自動分類 I 欄</button>
       <button id="btnFixWine" class="hd-menu-item" onclick="closeMoreMenu();runFixWine()"
               style="display:none;">🍷 修正酒類細分</button>
+      <button id="btnScanInbox" class="hd-menu-item" onclick="closeMoreMenu();toggleScanInbox()">📡 接收外部掃碼</button>
       <button id="btnLogout" class="hd-menu-item" onclick="closeMoreMenu();logout()">🚪 登出</button>
     </div>
     <div class="search-box" id="searchBox">
@@ -1741,6 +1771,7 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       <div class="bc-nav" id="bcNav"></div>
       <div class="bc-hint">📱 螢幕調到最光，將條碼貼近掃描槍（約 5–15 厘米）掃描。<br>⚠️ 呢個係貨品本身嘅真實條碼，POS 認得。App 唔會自己生成新碼。</div>
       <div class="modal-actions">
+        <button class="btn-cancel" onclick="toggleBcScreenMode()" id="btnBcScreenMode">🔆 大字掃碼</button>
         <button class="btn-cancel" onclick="closeBarcodeModal()">關閉</button>
       </div>
     </div>
@@ -7720,8 +7751,13 @@ function showBarcode(id, fallbackCode) {
 
   var codes = bcSplitCodes(p && p.barcode);
   bcState = { codes: codes, idx: 0, product: p || {} };
+  var m = $('bcModal');
+  if (m) m.classList.remove('screen-mode');
+  var b = $('btnBcScreenMode');
+  if (b) b.textContent = '🔆 大字掃碼';
   bcRender();
   $('bcModal').classList.add('show');
+  keepScreenOn();          // #104：開住條碼期間唔好熄屏
 }
 
 function bcRender() {
@@ -7749,20 +7785,29 @@ function bcRender() {
     return;
   }
 
-  var code = bcState.codes[bcState.idx] || '';
+  // #105：多個條碼 → 一次過全部列出（唔再要逐個撳上／下一個）
+  if (bcState.codes.length > 1) {
+    $('bcStage').innerHTML = bcState.codes.map(function (c, i) {
+      var made = bcMakeSvg(c);
+      return '<div class="bc-block">' +
+        '<div class="bc-block-head">條碼 ' + (i + 1) + ' / ' + bcState.codes.length + '</div>' +
+        made.svg +
+        '<div class="bc-digit">' + esc(c) + '</div>' +
+        '<div class="bc-kind">' + esc(made.kind) + '</div>' +
+      '</div>';
+    }).join('');
+    $('bcDigit').textContent = '';
+    $('bcKind').textContent = '';
+    $('bcNav').innerHTML = '';
+    return;
+  }
+
+  var code = bcState.codes[0] || '';
   var made = bcMakeSvg(code);
   $('bcStage').innerHTML = made.svg;
   $('bcDigit').textContent = code;
   $('bcKind').textContent = made.kind;
-
-  if (bcState.codes.length > 1) {
-    $('bcNav').innerHTML =
-      '<button onclick="bcStep(-1)">◀ 上一個</button>' +
-      '<span class="bc-count">' + (bcState.idx + 1) + ' / ' + bcState.codes.length + '</span>' +
-      '<button onclick="bcStep(1)">下一個 ▶</button>';
-  } else {
-    $('bcNav').innerHTML = '';
-  }
+  $('bcNav').innerHTML = '';
 }
 
 function bcStep(n) {
@@ -7772,7 +7817,41 @@ function bcStep(n) {
   bcRender();
 }
 
-function closeBarcodeModal() { $('bcModal').classList.remove('show'); }
+// #104 大字掃碼模式 + 保持屏幕唔熄（等掃描槍易啲讀到）
+var _wakeLock = null;
+
+async function keepScreenOn() {
+  try {
+    if ('wakeLock' in navigator && !_wakeLock) {
+      _wakeLock = await navigator.wakeLock.request('screen');
+      _wakeLock.addEventListener('release', function () { _wakeLock = null; });
+    }
+  } catch (e) {}
+}
+
+function releaseScreenOn() {
+  try { if (_wakeLock) { _wakeLock.release(); _wakeLock = null; } } catch (e) {}
+}
+
+function toggleBcScreenMode() {
+  var m = $('bcModal');
+  if (!m) return;
+  var on = !m.classList.contains('screen-mode');
+  m.classList.toggle('screen-mode', on);
+  var b = $('btnBcScreenMode');
+  if (b) b.textContent = on ? '🔅 還原' : '🔆 大字掃碼';
+  if (on) { keepScreenOn(); toast('🔆 大字掃碼模式（屏幕唔會熄）', 2000); }
+  else { releaseScreenOn(); }
+}
+
+function closeBarcodeModal() {
+  var m = $('bcModal');
+  if (m) m.classList.remove('screen-mode');
+  var b = $('btnBcScreenMode');
+  if (b) b.textContent = '🔆 大字掃碼';
+  releaseScreenOn();
+  if (m) m.classList.remove('show');
+}
 
 
 // ============================================================
@@ -9451,6 +9530,80 @@ function initQuickBarDrag() {
   window.addEventListener('mouseup', function () { if (drag) end(); });
 }
 
+// ============================================================
+//  #103  接收外部掃碼（HHT 藍牙鍵盤 / 手機 App / Apple Watch 快捷指令）
+//   開啟後每 3 秒問一次伺服器有冇新條碼；有就自動填入搜尋並顯示結果。
+// ============================================================
+var SCAN_INBOX_KEY = 'scan_inbox_v1';
+var _scanInboxOn = false;
+var _scanInboxTimer = null;
+var _scanInboxBusy = false;
+
+function updateScanInboxButton() {
+  var b = $('btnScanInbox');
+  if (!b) return;
+  b.textContent = _scanInboxOn ? '📡 接收中（撳一下停）' : '📡 接收外部掃碼';
+  b.style.color = _scanInboxOn ? '#0071e3' : '';
+}
+
+function toggleScanInbox() {
+  _scanInboxOn = !_scanInboxOn;
+  try { localStorage.setItem(SCAN_INBOX_KEY, _scanInboxOn ? '1' : '0'); } catch (e) {}
+  updateScanInboxButton();
+  if (_scanInboxOn) {
+    startScanInboxPolling();
+    toast('📡 已開啟接收外部掃碼', 2500);
+  } else {
+    stopScanInboxPolling();
+    toast('📡 已停止接收', 2000);
+  }
+}
+
+function startScanInboxPolling() {
+  stopScanInboxPolling();
+  _scanInboxTimer = setInterval(pollScanInbox, 3000);
+  pollScanInbox();
+}
+
+function stopScanInboxPolling() {
+  if (_scanInboxTimer) { clearInterval(_scanInboxTimer); _scanInboxTimer = null; }
+}
+
+async function pollScanInbox() {
+  if (!_scanInboxOn || _scanInboxBusy || !TOKEN) return;
+  if (document.hidden) return;
+  _scanInboxBusy = true;
+  try {
+    var res = await apiPost({ action: 'pullScan' }, 0);
+    if (res && !res.error && res.codes && res.codes.length) {
+      handleScannedCodes(res.codes);
+    }
+  } catch (e) {
+  } finally { _scanInboxBusy = false; }
+}
+
+function handleScannedCodes(codes) {
+  var last = String(codes[codes.length - 1] || '').trim();
+  if (!last) return;
+  barcodeOnly = false;
+  skuOnly = false;
+  var q = $('q');
+  if (q) q.value = last;
+  render();
+  toast('📡 收到掃碼：' + last + (codes.length > 1 ? '（共 ' + codes.length + ' 個）' : ''), 3000);
+  var list = $('list');
+  if (list) list.scrollIntoView({ block: 'start' });
+}
+
+function initScanInbox() {
+  try { _scanInboxOn = localStorage.getItem(SCAN_INBOX_KEY) === '1'; } catch (e) {}
+  updateScanInboxButton();
+  if (_scanInboxOn) startScanInboxPolling();
+  document.addEventListener('visibilitychange', function () {
+    if (_scanInboxOn && !document.hidden) pollScanInbox();
+  });
+}
+
 // #88：一捲就縮細 header，唔好蓋住搜尋結果
 (function () {
   var hd = null;
@@ -9463,6 +9616,7 @@ function initQuickBarDrag() {
   window.addEventListener('scroll', onScroll, { passive: true });
 })();
 
+initScanInbox();            // #103 接收外部掃碼
 initQuickBarDrag();          // #90 常用掣可拖動換位
 installModalCloseButtons();  // #79 所有彈窗加左上角 ✕
 
