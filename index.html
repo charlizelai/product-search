@@ -1220,6 +1220,8 @@ h1 { margin: 0 0 14px; font-size: 24px; font-weight: 700; text-align: center; }
       <button id="btnFixWine" class="hd-menu-item" onclick="closeMoreMenu();runFixWine()"
               style="display:none;">🍷 修正酒類細分</button>
       <button id="btnScanInbox" class="hd-menu-item" onclick="closeMoreMenu();toggleScanInbox()">📡 接收外部掃碼</button>
+      <button id="btnFixBrand" class="hd-menu-item" onclick="closeMoreMenu();runFixBrand()"
+              style="display:none;">🧹 清理壞品牌</button>
       <button id="btnLogout" class="hd-menu-item" onclick="closeMoreMenu();logout()">🚪 登出</button>
     </div>
     <div class="search-box" id="searchBox">
@@ -2199,6 +2201,30 @@ function toast(msg, ms) {
   clearTimeout(t._tid);
   t._tid = setTimeout(function() { t.classList.remove('show'); }, ms || 2200);
 }
+/**
+ * #106：品牌值清洗。舊資料可能係「[object Object]」或被寫成 JSON 字串。
+ *   後端已經會清，但快取／CDN 舊資料都要擋一次。
+ */
+function cleanBrand(v) {
+  if (v == null) return '';
+  if (typeof v === 'object') return String(v.name || v['@value'] || '').trim();
+  var s = String(v).trim();
+  if (!s) return '';
+  if (s === '[object Object]') return '';
+  if (s.indexOf('[object Object]') >= 0) return s.split('[object Object]').join('').trim();
+  if (/^\{.*\}$/.test(s) || /^\[.*\]$/.test(s)) {
+    try {
+      var o = JSON.parse(s);
+      if (o && typeof o === 'object') {
+        var n = Array.isArray(o) ? (o[0] && (o[0].name || o[0]['@value'])) : (o.name || o['@value']);
+        if (typeof n === 'string') return n.trim();
+      }
+    } catch (e) {}
+    return '';
+  }
+  return s;
+}
+
 function esc(s) {
   return String(s || '').replace(/[&<>"']/g, function(c) {
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
@@ -2518,6 +2544,7 @@ async function logout() {
   var bcs2 = $('btnCaseScan'); if (bcs2) bcs2.style.display = 'none';  // #78
   var bas2 = $('btnAutoSubCat'); if (bas2) bas2.style.display = 'none'; // #96
   var bfw2 = $('btnFixWine'); if (bfw2) bfw2.style.display = 'none';   // #101
+  var bfb2 = $('btnFixBrand'); if (bfb2) bfb2.style.display = 'none';  // #106
   $('phashBanner').style.display = 'none';
   $('tempIdBanner').style.display = 'none';
   toast('👋 已登出');
@@ -2532,6 +2559,7 @@ function showApp() {
   var bcs = $('btnCaseScan'); if (bcs) bcs.style.display = isAdmin ? 'block' : 'none';   // #78 #80
   var bas = $('btnAutoSubCat'); if (bas) bas.style.display = isAdmin ? 'block' : 'none';  // #96
   var bfw = $('btnFixWine'); if (bfw) bfw.style.display = isAdmin ? 'block' : 'none';    // #101
+  var bfb = $('btnFixBrand'); if (bfb) bfb.style.display = isAdmin ? 'block' : 'none';   // #106
   loadOptions().then(function() {
     if (categoryFilter) {
       var sel = $('categoryFilter');
@@ -4065,7 +4093,7 @@ function onSubSearchInput() {
     if (String(d.name_zh || '').toLowerCase().indexOf(q) >= 0) return true;
     if (String(d.name || '').toLowerCase().indexOf(q) >= 0) return true;
     if (String(d.sku || '').trim().toLowerCase().indexOf(q) >= 0) return true;
-    if (String(d.brand || '').toLowerCase().indexOf(q) >= 0) return true;
+    if (cleanBrand(d.brand).toLowerCase().indexOf(q) >= 0) return true;
     return barcodeMatches(d.barcode, q);
   }).slice(0, 10);
 
@@ -5678,7 +5706,7 @@ function populateBrandFilter() {
   var noneCount = 0;
   allData.forEach(function(d) {
     if (!inScope(d)) return;
-    var b = String(d.brand || '').trim();
+    var b = cleanBrand(d.brand);
     if (b) counts[b] = (counts[b] || 0) + 1;
     else noneCount++;
   });
@@ -6407,10 +6435,10 @@ function render() {
 
   // #23：品牌篩選（含「未有品牌」）
   if (brandFilter === FILTER_NONE) {
-    filtered = filtered.filter(function(d) { return !String(d.brand || '').trim(); });
+    filtered = filtered.filter(function(d) { return !cleanBrand(d.brand); });
   } else if (brandFilter) {
     filtered = filtered.filter(function(d) {
-      return String(d.brand || '').trim() === brandFilter;
+      return cleanBrand(d.brand) === brandFilter;
     });
   }
 
@@ -7767,7 +7795,7 @@ function bcRender() {
   var sub = [];
   if (p.id) sub.push('ID ' + p.id);
   if (p.sku) sub.push('SKU ' + p.sku);
-  if (p.brand) sub.push(p.brand);
+  if (cleanBrand(p.brand)) sub.push(cleanBrand(p.brand));
   $('bcSub').textContent = sub.join(' · ');
 
   if (!bcState.codes.length) {
@@ -8473,6 +8501,29 @@ async function runFixWine() {
     if (!res || res.error) { toast('❌ ' + ((res && res.error) || '失敗'), 4000); return; }
     toast('✅ 已修正 ' + (res.updated || 0) + ' 件酒類細分', 4000);
     if (typeof invalidateCatSuspect === 'function') invalidateCatSuspect(null);
+    await loadData(true);
+  } catch (e) { toast('❌ ' + e.message, 4000); }
+}
+
+/** #106：清理試算表入面嘅「[object Object]」品牌（清完下週自動補回正確品牌） */
+async function runFixBrand() {
+  try {
+    var pre = await apiPost({ action: 'fixObjectBrands', dryRun: true });
+    if (!pre || pre.error) { toast('❌ ' + ((pre && pre.error) || '失敗'), 4000); return; }
+    if (!pre.total) { toast('✅ 冇壞品牌，唔使清理', 3000); return; }
+
+    var lines = (pre.sample || []).slice(0, 12).map(function (s) {
+      return '　' + s.name.slice(0, 18) + '　' + s.was + ' → ' + s.now;
+    }).join('\n');
+
+    if (!confirm('搵到 ' + pre.total + ' 件貨嘅品牌有問題：\n' + lines +
+                 (pre.total > 12 ? '\n　…' : '') +
+                 '\n\n救得返 ' + pre.recovered + ' 件、要清空 ' + pre.cleared + ' 件。' +
+                 '\n清空嘅下次惠康更新會自動補返。\n\n套用？')) return;
+
+    var res = await apiPost({ action: 'fixObjectBrands', dryRun: false });
+    if (!res || res.error) { toast('❌ ' + ((res && res.error) || '失敗'), 4000); return; }
+    toast('✅ 已處理 ' + res.total + ' 件（救返 ' + res.recovered + '、清空 ' + res.cleared + '）', 4000);
     await loadData(true);
   } catch (e) { toast('❌ ' + e.message, 4000); }
 }
